@@ -13,3 +13,4 @@
 "logs/" 
 "*.rar" 
 "*.zip" 
+tools/__pycache__/
