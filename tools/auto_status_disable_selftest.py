@@ -190,6 +190,14 @@ def run_group_b() -> None:
             import datetime as _dt
             return _dt.datetime(2026, 1, 1)
 
+        # UTCNOW MIGRATION 20260815: product code now calls
+        # .now(timezone.utc).replace(tzinfo=None) instead of .utcnow();
+        # the stub must expose the same frozen instant via .now(tz).
+        @staticmethod
+        def now(tz=None):
+            import datetime as _dt
+            return _dt.datetime(2026, 1, 1, tzinfo=tz)
+
     ns = extract_and_exec(
         MAIN_PY,
         {

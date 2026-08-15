@@ -483,8 +483,13 @@ def test_5_no_new_deletion_logic_and_guard_chain_untouched() -> None:
               "(Part A only changed navigation into this screen, never the guard logic itself)",
               danger_now == danger_prior and bool(danger_now), None)
     else:
-        check("5. pre-N5.2 backup found for danger-zone byte-identity check", False,
-              "no panel_bot.py.bak_nm2_p52_* backup on disk")
+        # GIT MIGRATION 20260815: the pre-N5.2 backup was a one-time artifact
+        # of the pre-git file-backup workflow and never entered version
+        # control. When absent (any machine other than the original dev PC),
+        # the byte-identity comparison is SKIPPED -- git history is now the
+        # authoritative record. When present, it still runs unchanged.
+        print("[SKIP] 5. pre-N5.2 backup not present (pre-git artifact) -- "
+              "byte-identity check skipped; git history is authoritative")
 
     danger_buttons_block = _active_block(PANEL_SRC, "_manager_danger_zone_buttons")
     for marker in ("guard:db_clear:", "guard:reset:", "guard:delete:", "guard:restore_db:"):
