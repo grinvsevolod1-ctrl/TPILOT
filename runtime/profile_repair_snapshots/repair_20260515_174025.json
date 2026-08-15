@@ -1,0 +1,85 @@
+{
+  "snapshot_id": "repair_20260515_174025",
+  "version": "profile_admin_control_v1_1_20260512",
+  "profile_version": "profile_extraction_v2_base_20260512",
+  "scope": "today",
+  "period_start": "2026-05-15",
+  "period_end": "2026-05-15",
+  "label": "сегодня",
+  "created_by": 8254783932,
+  "created_at": "2026-05-15T17:40:25",
+  "expires_at": "2026-05-16T17:40:25",
+  "checked_count": 296,
+  "changes_count": 1,
+  "technical_updates": 295,
+  "summary": {
+    "transitions": {
+      "ЛИКВИД → -18": 1
+    },
+    "managers": {
+      "misha": 1
+    },
+    "reasons": {
+      "18+ не подтверждён": 1
+    }
+  },
+  "changes": [
+    {
+      "manager_key": "misha",
+      "db_path": "C:\\ALM_TPilot\\runtime\\managers\\misha\\misha.db",
+      "lead_date": "2026-05-15",
+      "chat_id": 7304352616,
+      "old_hash": "359f18454a2aa321fe602938e403eec07ea24a9dac902b0ba6068b4c0c4c47ba",
+      "old_fields": {
+        "age": 50,
+        "city": "Ужа",
+        "region": "Брянская область",
+        "country": "Россия",
+        "status": "liquid",
+        "nonliquid_reason": "",
+        "quality_status": "liquid",
+        "quality_bucket": "liquid",
+        "quality_reason": "Россия + 18+ подтверждён",
+        "profile_raw_text": "ловят быстро очень\n..\nхотя бы 50000₽ заработать и все\n..\nда\nты мне в месяц до 600к говоришь рубить можно\nа щас говоришь то что 1 день 50 к много\nну окей\nхотя бы 30к\nнормальнр\nты хочешь чтоб меня поймали?\nврт имено\nловят быстро мусора\nпонимаешь\nа мне выгодно?\nнет\nне где\nдруг работал\nза день по 20-30к делал\nуже не работает\nза 2 дня 50 к\n??\nа если я просто 1-2 дня поработаю\nи все\nчто мне за это сделают\nчего\nбля\nладно\nдавай\nмне такое не надо",
+        "age_confirmed_18_plus": 1
+      },
+      "new_fields": {
+        "age": 50,
+        "city": "Ужа",
+        "region": "Брянская область",
+        "country": "Россия",
+        "geo_source": "ru_locations",
+        "geo_confidence": "high",
+        "geo_note": "",
+        "age_confirmed_18_plus": 1,
+        "negative_age_marker": "14 лет",
+        "age_evidence_text": "за 2 дня 50 к",
+        "geo_evidence_text": "уже не работает",
+        "age_confidence": "high",
+        "country_confidence": "high",
+        "city_confidence": "high",
+        "status": "nonliquid",
+        "nonliquid_reason": "-18",
+        "profile_done": 1,
+        "quality_status": "nonliquid",
+        "quality_bucket": "under18",
+        "quality_reason": "18+ не подтверждён",
+        "quality_confidence": "high",
+        "profile_decision_reason": "Возраст не подходит: 14 лет",
+        "needs_review": 0,
+        "profile_extraction_version": "profile_extraction_v2_base_20260512",
+        "quality_source": "profile_extractor_v2",
+        "quality_version": "profile_extraction_v2_base_20260512",
+        "extraction_method": "rules_v2",
+        "extraction_confidence": "high",
+        "profile_evidence_text": "ловят быстро очень\n..\nхотя бы 50000₽ заработать и все\n..\nда\nты мне в месяц до 600к говоришь рубить можно\nа щас говоришь то что 1 день 50 к много\nну окей\nхотя бы 30к\nнормальнр\nты хочешь чтоб меня поймали?\nврт имено\nловят быстро мусора\nпонимаешь\nа мне выгодно?\nнет\nне где\nдруг работал\nза день по 20-30к делал\nуже не работает\nза 2 дня 50 к\n??\nа если я просто 1-2 дня поработаю\nи все\nчто мне за это сделают\nчего\nбля\nладно\nдавай\nмне такое не надо",
+        "profile_raw_text": "ловят быстро очень\n..\nхотя бы 50000₽ заработать и все\n..\nда\nты мне в месяц до 600к говоришь рубить можно\nа щас говоришь то что 1 день 50 к много\nну окей\nхотя бы 30к\nнормальнр\nты хочешь чтоб меня поймали?\nврт имено\nловят быстро мусора\nпонимаешь\nа мне выгодно?\nнет\nне где\nдруг работал\nза день по 20-30к делал\nуже не работает\nза 2 дня 50 к\n??\nа если я просто 1-2 дня поработаю\nи все\nчто мне за это сделают\nчего\nбля\nладно\nдавай\nмне такое не надо",
+        "city_raw": "Ужа",
+        "country_raw": "Россия",
+        "updated_at": "2026-05-15T17:40:24"
+      },
+      "reason": "Возраст не подходит: 14 лет",
+      "confidence": "high"
+    }
+  ]
+}

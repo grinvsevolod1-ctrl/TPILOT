@@ -1,0 +1,17 @@
+2026-06-22 01:24:34,242 INFO schema ready
+2026-06-22 01:24:34,262 INFO schema ready
+2026-06-22 01:24:34,336 INFO screenshot replace requested uid=555 old_req=1 manager=m1
+2026-06-22 01:24:34,434 INFO screenshot replace requested uid=555 old_req=2 manager=m1
+2026-06-22 01:24:34,482 WARNING manager list read failed error=OperationalError('no such table: managers')
+2026-06-22 01:24:34,512 WARNING screenshot reply handler failed: TypeError("tzinfo argument must be None or of a tzinfo subclass, not type '_FixedTZ'")
+2026-06-22 01:25:42,049 INFO schema ready
+2026-06-22 01:25:42,066 INFO schema ready
+2026-06-22 01:25:42,138 INFO screenshot replace requested uid=555 old_req=1 manager=m1
+2026-06-22 01:25:42,233 INFO screenshot replace requested uid=555 old_req=2 manager=m1
+2026-06-22 01:25:42,283 INFO screenshot uploaded exact manager=m1 chat_id=9001 req_id=4 path=C:\Users\annam\Desktop\ALM_TPilot\runtime\screenshots\m1\20260622_012542_req4_m1
+2026-06-22 01:26:58,602 INFO schema ready
+2026-06-22 01:26:58,618 INFO schema ready
+2026-06-22 01:26:58,691 INFO screenshot replace requested uid=555 old_req=1 manager=m1
+2026-06-22 01:26:58,784 INFO screenshot replace requested uid=555 old_req=2 manager=m1
+2026-06-22 01:26:58,831 WARNING manager list read failed error=OperationalError('no such table: managers')
+2026-06-22 01:26:58,877 INFO screenshot uploaded exact manager=m1 chat_id=9001 req_id=4 path=C:\Users\annam\Desktop\ALM_TPilot\runtime\screenshots\m1\20260622_012658_req4_m1

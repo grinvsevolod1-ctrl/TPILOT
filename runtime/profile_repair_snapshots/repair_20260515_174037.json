@@ -1,0 +1,85 @@
+{
+  "snapshot_id": "repair_20260515_174037",
+  "version": "profile_admin_control_v1_1_20260512",
+  "profile_version": "profile_extraction_v2_base_20260512",
+  "scope": "yesterday",
+  "period_start": "2026-05-14",
+  "period_end": "2026-05-14",
+  "label": "вчера",
+  "created_by": 8254783932,
+  "created_at": "2026-05-15T17:40:37",
+  "expires_at": "2026-05-16T17:40:37",
+  "checked_count": 290,
+  "changes_count": 1,
+  "technical_updates": 289,
+  "summary": {
+    "transitions": {
+      "NA → ЛИКВИД": 1
+    },
+    "managers": {
+      "miller": 1
+    },
+    "reasons": {
+      "Россия + 18+ подтверждён": 1
+    }
+  },
+  "changes": [
+    {
+      "manager_key": "miller",
+      "db_path": "C:\\ALM_TPilot\\runtime\\managers\\miller\\miller.db",
+      "lead_date": "2026-05-14",
+      "chat_id": 8451484162,
+      "old_hash": "c32a4bc0fb087f22006a1bfe5399c06b6b7af5060d9e00b01f31fbdce9cf2ca4",
+      "old_fields": {
+        "age": 19,
+        "city": "Короча",
+        "region": "Белгородская область",
+        "country": "Россия",
+        "status": "unknown",
+        "nonliquid_reason": "",
+        "quality_status": "pending",
+        "quality_bucket": "na_pending",
+        "quality_reason": "Не хватает возраста после вопроса анкеты",
+        "profile_raw_text": "Да не\nЯ уже понял\nЧто закладки\nНу и вот\nМного уже кому писал\nВезде закладки\nДа я не буду закладки кидать\nБратья старшие спалят меня прям там с автомата растрелябт\nУ меня братья чеченцы\nНу потому что они отслеживают где я и как я чтоб меня не кто не обидел\nИ маме видео отчет\nКороче треш\nУгу\nЛадно\nПойду я\nА то. Деньги нужны\nНе кто же мне просто так не что не скинет\nХахахах\nМне кажется\nДа не кажется\nА я знаю\nЧто за Настей какой-нибудь амбал сидит\nИ переписывается со мной\nХахахаххаха\nНу ладно\nВсе\nЯ погнал\nЧто?\nАаааа\nПонял",
+        "age_confirmed_18_plus": 1
+      },
+      "new_fields": {
+        "age": 19,
+        "city": "Короча",
+        "region": "Белгородская область",
+        "country": "Россия",
+        "geo_source": "ru_locations",
+        "geo_confidence": "high",
+        "geo_note": "",
+        "age_confirmed_18_plus": 1,
+        "negative_age_marker": "",
+        "age_evidence_text": "Я из Благовещенска мне 19 лет",
+        "geo_evidence_text": "Короче треш",
+        "age_confidence": "high",
+        "country_confidence": "high",
+        "city_confidence": "high",
+        "status": "liquid",
+        "nonliquid_reason": "",
+        "profile_done": 1,
+        "quality_status": "liquid",
+        "quality_bucket": "liquid",
+        "quality_reason": "Россия + 18+ подтверждён",
+        "quality_confidence": "high",
+        "profile_decision_reason": "Россия/GEO_OK и 18+ подтверждён",
+        "needs_review": 0,
+        "profile_extraction_version": "profile_extraction_v2_base_20260512",
+        "quality_source": "profile_extractor_v2",
+        "quality_version": "profile_extraction_v2_base_20260512",
+        "extraction_method": "rules_v2",
+        "extraction_confidence": "high",
+        "profile_evidence_text": "Да не\nЯ уже понял\nЧто закладки\nНу и вот\nМного уже кому писал\nВезде закладки\nДа я не буду закладки кидать\nБратья старшие спалят меня прям там с автомата растрелябт\nУ меня братья чеченцы\nНу потому что они отслеживают где я и как я чтоб меня не кто не обидел\nИ маме видео отчет\nКороче треш\nУгу\nЛадно\nПойду я\nА то. Деньги нужны\nНе кто же мне просто так не что не скинет\nХахахах\nМне кажется\nДа не кажется\nА я знаю\nЧто за Настей какой-нибудь амбал сидит\nИ переписывается со мной\nХахахаххаха\nНу ладно\nВсе\nЯ погнал\nЧто?\nАаааа\nПонял",
+        "profile_raw_text": "Да не\nЯ уже понял\nЧто закладки\nНу и вот\nМного уже кому писал\nВезде закладки\nДа я не буду закладки кидать\nБратья старшие спалят меня прям там с автомата растрелябт\nУ меня братья чеченцы\nНу потому что они отслеживают где я и как я чтоб меня не кто не обидел\nИ маме видео отчет\nКороче треш\nУгу\nЛадно\nПойду я\nА то. Деньги нужны\nНе кто же мне просто так не что не скинет\nХахахах\nМне кажется\nДа не кажется\nА я знаю\nЧто за Настей какой-нибудь амбал сидит\nИ переписывается со мной\nХахахаххаха\nНу ладно\nВсе\nЯ погнал\nЧто?\nАаааа\nПонял",
+        "city_raw": "Короча",
+        "country_raw": "Россия",
+        "updated_at": "2026-05-15T17:40:35"
+      },
+      "reason": "Россия/GEO_OK и 18+ подтверждён",
+      "confidence": "high"
+    }
+  ]
+}

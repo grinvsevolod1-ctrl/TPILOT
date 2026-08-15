@@ -1,0 +1,6178 @@
+{
+  "built_at": "2026-08-07T19:05:49.671276+00:00",
+  "button_callbacks": [
+    {
+      "data": "panel:back",
+      "line": 4735,
+      "match_type": "literal",
+      "source_function": "_back_to_panel_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "wiz:add_manager:proxy:",
+      "line": 333,
+      "match_type": "fstring_prefix",
+      "source_function": "_add_manager_proxy_choice_buttons",
+      "text": "🌐 Подключить SOCKS5 proxy"
+    },
+    {
+      "data": "wiz:add_manager:buyproxy:",
+      "line": 334,
+      "match_type": "fstring_prefix",
+      "source_function": "_add_manager_proxy_choice_buttons",
+      "text": "🛒 Купить SOCKS5 автоматически"
+    },
+    {
+      "data": "wiz:add_manager:frompool:",
+      "line": 335,
+      "match_type": "fstring_prefix",
+      "source_function": "_add_manager_proxy_choice_buttons",
+      "text": "🌐 Выбрать proxy из пула"
+    },
+    {
+      "data": "wiz:add_manager:bypass:",
+      "line": 336,
+      "match_type": "fstring_prefix",
+      "source_function": "_add_manager_proxy_choice_buttons",
+      "text": "🔓 Подключить без proxy"
+    },
+    {
+      "data": "menu:main",
+      "line": 337,
+      "match_type": "literal",
+      "source_function": "_add_manager_proxy_choice_buttons",
+      "text": "⬅️ Назад к панели"
+    },
+    {
+      "data": "wiz:resend_code:",
+      "line": 344,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_phone_recovery_buttons",
+      "text": "🔁 Повторить код"
+    },
+    {
+      "data": "wiz:qr_start:",
+      "line": 345,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_phone_recovery_buttons",
+      "text": "🔳 Войти по QR"
+    },
+    {
+      "data": "guard:reset:",
+      "line": 346,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_phone_recovery_buttons",
+      "text": "🔄 Сбросить авторизацию"
+    },
+    {
+      "data": "guard:delete:",
+      "line": 347,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_phone_recovery_buttons",
+      "text": "🗑 Удалить черновик менеджера"
+    },
+    {
+      "data": "wiz:qr_start:",
+      "line": 358,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_qr_entry_button",
+      "text": "🔳 Войти по QR"
+    },
+    {
+      "data": "wiz:tdimport_start:",
+      "line": 359,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_qr_entry_button",
+      "text": "📦 Через tdata / session"
+    },
+    {
+      "data": "wiz:qr_refresh:",
+      "line": 366,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_qr_screen_buttons",
+      "text": "🔄 Обновить QR"
+    },
+    {
+      "data": "wiz:qr_cancel:",
+      "line": 367,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_qr_screen_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "pxm:reveal:",
+      "line": 634,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_result_card_buttons",
+      "text": "🔐 Показать полный proxy"
+    },
+    {
+      "data": "cmd:/manager_proxy_check ",
+      "line": 635,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_result_card_buttons",
+      "text": "🔄 Проверить proxy"
+    },
+    {
+      "data": "menu:proxy:",
+      "line": 636,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_result_card_buttons",
+      "text": "🌐 Карточка proxy"
+    },
+    {
+      "data": "pxm:menu:",
+      "line": 637,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_result_card_buttons",
+      "text": "⬅️ Способ замены"
+    },
+    {
+      "data": "menu:main",
+      "line": 638,
+      "match_type": "literal",
+      "source_function": "_pxm_result_card_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "pxm:cardresult:",
+      "line": 677,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_full_reveal_buttons",
+      "text": "📋 Proxy-карточка"
+    },
+    {
+      "data": "pxm:menu:",
+      "line": 678,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_full_reveal_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 679,
+      "match_type": "literal",
+      "source_function": "_pxm_full_reveal_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "pxm:pool:",
+      "line": 713,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_menu_buttons",
+      "text": "📦 Выбрать из пула"
+    },
+    {
+      "data": "pxm:buy:",
+      "line": 714,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_menu_buttons",
+      "text": "🛒 Купить новый proxy"
+    },
+    {
+      "data": "pxm:manual:",
+      "line": 715,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_menu_buttons",
+      "text": "⌨️ Ввести proxy вручную"
+    },
+    {
+      "data": "pxm:back:",
+      "line": 716,
+      "match_type": "fstring_prefix",
+      "source_function": "_pxm_menu_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 717,
+      "match_type": "literal",
+      "source_function": "_pxm_menu_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 722,
+      "match_type": "literal",
+      "source_function": "_pxm_manager_not_found_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 722,
+      "match_type": "literal",
+      "source_function": "_pxm_manager_not_found_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 787,
+      "match_type": "literal",
+      "source_function": "_source_pick_buttons",
+      "text": "⏭ Пропустить (привязать позже)"
+    },
+    {
+      "data": "srcpick:",
+      "line": 784,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_pick_buttons",
+      "text": "📦 {…}"
+    },
+    {
+      "data": "noop",
+      "line": 1411,
+      "match_type": "literal",
+      "source_function": "_section_button",
+      "text": "━━━━ {…} ━━━━"
+    },
+    {
+      "data": "menu:nm_root",
+      "line": 18869,
+      "match_type": "literal",
+      "source_function": "_main_menu",
+      "text": "🧭 Новое меню"
+    },
+    {
+      "data": "cmd:/stat all",
+      "line": 6479,
+      "match_type": "literal",
+      "source_function": "_stats_menu",
+      "text": "📊 Сегодня по всем"
+    },
+    {
+      "data": "cmd:",
+      "line": 6481,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "📅 Вчера по всем"
+    },
+    {
+      "data": "cmd:",
+      "line": 6482,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "📅 Позавчера по всем"
+    },
+    {
+      "data": "wiz:period:stats",
+      "line": 6484,
+      "match_type": "literal",
+      "source_function": "_stats_menu",
+      "text": "📆 Период с/до"
+    },
+    {
+      "data": "cmd:/stat det all",
+      "line": 6486,
+      "match_type": "literal",
+      "source_function": "_stats_menu",
+      "text": "📋 Детальная сегодня по всем"
+    },
+    {
+      "data": "cmd:/stat det all ",
+      "line": 6488,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "📋 Детальная вчера"
+    },
+    {
+      "data": "cmd:/stat det all ",
+      "line": 6489,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "📋 Детальная позавчера"
+    },
+    {
+      "data": "menu:reports_control",
+      "line": 6507,
+      "match_type": "literal",
+      "source_function": "_stats_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:",
+      "line": 6501,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "👤 Сегодня {…}"
+    },
+    {
+      "data": "cmd:",
+      "line": 6503,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "📅 Вчера {…}"
+    },
+    {
+      "data": "cmd:",
+      "line": 6504,
+      "match_type": "fstring_prefix",
+      "source_function": "_stats_menu",
+      "text": "📅 Позавчера {…}"
+    },
+    {
+      "data": "cmd:/flight all",
+      "line": 6517,
+      "match_type": "literal",
+      "source_function": "_flights_menu",
+      "text": "🌙 Текущее окно по всем"
+    },
+    {
+      "data": "cmd:",
+      "line": 6519,
+      "match_type": "fstring_prefix",
+      "source_function": "_flights_menu",
+      "text": "🌙 Долёты за вчера"
+    },
+    {
+      "data": "cmd:",
+      "line": 6520,
+      "match_type": "fstring_prefix",
+      "source_function": "_flights_menu",
+      "text": "🌙 Долёты за позавчера"
+    },
+    {
+      "data": "menu:reports_control",
+      "line": 6539,
+      "match_type": "literal",
+      "source_function": "_flights_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:",
+      "line": 6533,
+      "match_type": "fstring_prefix",
+      "source_function": "_flights_menu",
+      "text": "👤 Текущее окно {…}"
+    },
+    {
+      "data": "cmd:",
+      "line": 6535,
+      "match_type": "fstring_prefix",
+      "source_function": "_flights_menu",
+      "text": "📅 Вчера {…}"
+    },
+    {
+      "data": "cmd:",
+      "line": 6536,
+      "match_type": "fstring_prefix",
+      "source_function": "_flights_menu",
+      "text": "📅 Позавчера {…}"
+    },
+    {
+      "data": "cmd:",
+      "line": 6612,
+      "match_type": "fstring_prefix",
+      "source_function": "_calendar_menu",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:main",
+      "line": 6620,
+      "match_type": "literal",
+      "source_function": "_calendar_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "cmd:",
+      "line": 6619,
+      "match_type": "fstring_prefix",
+      "source_function": "_calendar_menu",
+      "text": "👤 {…}"
+    },
+    {
+      "data": "cmd:/export all",
+      "line": 6548,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "📦 Excel день сегодня"
+    },
+    {
+      "data": "cmd:/export all ",
+      "line": 6548,
+      "match_type": "fstring_prefix",
+      "source_function": "_export_menu",
+      "text": "📅 Excel день вчера"
+    },
+    {
+      "data": "cmd:/export all 7d",
+      "line": 6549,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "📈 Excel день 7 дней"
+    },
+    {
+      "data": "cmd:/export all 31d",
+      "line": 6549,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "🗓 Excel день 31 день"
+    },
+    {
+      "data": "wiz:period:export",
+      "line": 6550,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "📆 Excel день период"
+    },
+    {
+      "data": "cmd:/export flight all",
+      "line": 6552,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "🌙 Excel долёты сегодня"
+    },
+    {
+      "data": "cmd:/export flight all ",
+      "line": 6552,
+      "match_type": "fstring_prefix",
+      "source_function": "_export_menu",
+      "text": "🌙 Excel долёты вчера"
+    },
+    {
+      "data": "cmd:/export flight all 7d",
+      "line": 6553,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "🌙 Долёты 7 дней"
+    },
+    {
+      "data": "cmd:/export flight all 31d",
+      "line": 6553,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "🌙 Долёты 31 день"
+    },
+    {
+      "data": "noop",
+      "line": 6569,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "ℹ️ День и долёты разделены. LIGHT партнёров не меняется."
+    },
+    {
+      "data": "menu:reports_control",
+      "line": 6570,
+      "match_type": "literal",
+      "source_function": "_export_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/export ",
+      "line": 6565,
+      "match_type": "fstring_prefix",
+      "source_function": "_export_menu",
+      "text": "📦 День {…}"
+    },
+    {
+      "data": "cmd:/export flight ",
+      "line": 6565,
+      "match_type": "fstring_prefix",
+      "source_function": "_export_menu",
+      "text": "🌙 Долёты {…}"
+    },
+    {
+      "data": "cmd:/export ",
+      "line": 6566,
+      "match_type": "fstring_prefix",
+      "source_function": "_export_menu",
+      "text": "📅 День вчера {…}"
+    },
+    {
+      "data": "cmd:/export flight ",
+      "line": 6566,
+      "match_type": "fstring_prefix",
+      "source_function": "_export_menu",
+      "text": "🌙 Долёты вчера {…}"
+    },
+    {
+      "data": "cmd:/unanswered_notify off",
+      "line": 1740,
+      "match_type": "literal",
+      "source_function": "_unanswered_menu",
+      "text": "🔕 Выключить уведомления"
+    },
+    {
+      "data": "cmd:/unanswered_notify on",
+      "line": 1741,
+      "match_type": "literal",
+      "source_function": "_unanswered_menu",
+      "text": "🔔 Включить уведомления"
+    },
+    {
+      "data": "cmd:/unanswered all",
+      "line": 1731,
+      "match_type": "literal",
+      "source_function": "_unanswered_menu",
+      "text": "🔔 Все неотвеченные"
+    },
+    {
+      "data": "cmd:/unanswered_notify status",
+      "line": 1744,
+      "match_type": "literal",
+      "source_function": "_unanswered_menu",
+      "text": "📋 Статус"
+    },
+    {
+      "data": "menu:main",
+      "line": 1746,
+      "match_type": "literal",
+      "source_function": "_unanswered_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/unanswered ",
+      "line": 1737,
+      "match_type": "fstring_prefix",
+      "source_function": "_unanswered_menu",
+      "text": "👤 {…}"
+    },
+    {
+      "data": "cmd:/greeting status all",
+      "line": 6693,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "📋 Проверить все"
+    },
+    {
+      "data": "cmd:/greeting on all",
+      "line": 6694,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "👋 Приветствие всем вкл"
+    },
+    {
+      "data": "cmd:/greeting off all",
+      "line": 6694,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "🚫 Приветствие всем выкл"
+    },
+    {
+      "data": "cmd:/questionnaire on all",
+      "line": 6695,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "📋 Автоанкета всем вкл"
+    },
+    {
+      "data": "cmd:/questionnaire off all",
+      "line": 6695,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "📋 Автоанкета всем выкл"
+    },
+    {
+      "data": "cmd:/autoschedule status all",
+      "line": 6696,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "🕘 Все графики"
+    },
+    {
+      "data": "cmd:/autoschedule reset all",
+      "line": 6696,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "♻️ Всем стандарт"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 6704,
+      "match_type": "fstring_prefix",
+      "source_function": "_managers_menu",
+      "text": "👤 {…}"
+    },
+    {
+      "data": "menu:nm_automation",
+      "line": 6712,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 6712,
+      "match_type": "literal",
+      "source_function": "_managers_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "cmd:/autoreply status ",
+      "line": 7188,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_detail_buttons",
+      "text": "📋 Проверить режим"
+    },
+    {
+      "data": "wiz:autoschedule:",
+      "line": 7192,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_detail_buttons",
+      "text": "🕘 График (личный)"
+    },
+    {
+      "data": "cmd:/autoschedule reset ",
+      "line": 7192,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_detail_buttons",
+      "text": "↩️ Наследовать"
+    },
+    {
+      "data": "menu:proxy:",
+      "line": 7193,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_detail_buttons",
+      "text": "🌐 Прокси менеджера"
+    },
+    {
+      "data": "menu:reserve_admin:",
+      "line": 7194,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_detail_buttons",
+      "text": "🧩 Резерв"
+    },
+    {
+      "data": "menu:transfer_mgr:",
+      "line": 7195,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_detail_buttons",
+      "text": "🤝 Передачи"
+    },
+    {
+      "data": "menu:managers",
+      "line": 7196,
+      "match_type": "literal",
+      "source_function": "_manager_detail_buttons",
+      "text": "⬅️ Назад к менеджерам"
+    },
+    {
+      "data": "menu:main",
+      "line": 7197,
+      "match_type": "literal",
+      "source_function": "_manager_detail_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "wiz:add_manager:start",
+      "line": 1930,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "➕ Добавить"
+    },
+    {
+      "data": "cmd:/manager_list",
+      "line": 1930,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "📋 Все менеджеры"
+    },
+    {
+      "data": "cmd:/manager_list active",
+      "line": 1931,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "🟢 Активные: {…}"
+    },
+    {
+      "data": "cmd:/manager_list stopped",
+      "line": 1931,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "⏸ Остановленные: {…}"
+    },
+    {
+      "data": "cmd:/manager_list disabled",
+      "line": 1932,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "⚪ Выключенные: {…}"
+    },
+    {
+      "data": "cmd:/autoreply status all",
+      "line": 1932,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "💬 Автоответы"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 1944,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_admin_menu",
+      "text": "{…} {…} | {…}"
+    },
+    {
+      "data": "noop",
+      "line": 1947,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "Менеджеров пока нет"
+    },
+    {
+      "data": "cmd:/manager_danger_log",
+      "line": 1951,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "🧾 Журнал опасных действий"
+    },
+    {
+      "data": "menu:main",
+      "line": 1952,
+      "match_type": "literal",
+      "source_function": "_manager_admin_menu",
+      "text": "⬅️ Назад к панели"
+    },
+    {
+      "data": "rw:recover:",
+      "line": 10804,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_admin_detail_buttons",
+      "text": "🔄 Продолжить замену"
+    },
+    {
+      "data": "rw:start:",
+      "line": 10806,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_admin_detail_buttons",
+      "text": "🔄 Заменить аккаунт"
+    },
+    {
+      "data": "guard:delete:",
+      "line": 2009,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_admin_delete_confirm_buttons",
+      "text": "🔐 Ввести пароль"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 2010,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_admin_delete_confirm_buttons",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:main",
+      "line": 2011,
+      "match_type": "literal",
+      "source_function": "_manager_admin_delete_confirm_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "wiz:proxy:set:",
+      "line": 5694,
+      "match_type": "fstring_prefix",
+      "source_function": "_proxy_detail_buttons",
+      "text": "🌐 Подключить proxy"
+    },
+    {
+      "data": "menu:proxy",
+      "line": 5695,
+      "match_type": "literal",
+      "source_function": "_proxy_detail_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 5696,
+      "match_type": "literal",
+      "source_function": "_proxy_detail_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "cmd:/manager_proxy_check ",
+      "line": 5687,
+      "match_type": "fstring_prefix",
+      "source_function": "_proxy_detail_buttons",
+      "text": "🔄 Проверить proxy"
+    },
+    {
+      "data": "pxm:menu:",
+      "line": 5688,
+      "match_type": "fstring_prefix",
+      "source_function": "_proxy_detail_buttons",
+      "text": "✏️ Заменить proxy"
+    },
+    {
+      "data": "wiz:proxy:direct_warn:",
+      "line": 5689,
+      "match_type": "fstring_prefix",
+      "source_function": "_proxy_detail_buttons",
+      "text": "🔓 Перевести без proxy"
+    },
+    {
+      "data": "menu:proxy",
+      "line": 5690,
+      "match_type": "literal",
+      "source_function": "_proxy_detail_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 5691,
+      "match_type": "literal",
+      "source_function": "_proxy_detail_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:proxy_add",
+      "line": 2075,
+      "match_type": "literal",
+      "source_function": "_proxy_menu",
+      "text": "➕ Добавить прокси"
+    },
+    {
+      "data": "menu:proxy:",
+      "line": 2083,
+      "match_type": "fstring_prefix",
+      "source_function": "_proxy_menu",
+      "text": "{…} | {…}"
+    },
+    {
+      "data": "menu:nm_proxy",
+      "line": 2087,
+      "match_type": "literal",
+      "source_function": "_proxy_menu",
+      "text": "⬅️ Назад к панели"
+    },
+    {
+      "data": "menu:main",
+      "line": 2086,
+      "match_type": "literal",
+      "source_function": "_proxy_menu",
+      "text": "Менеджеров пока нет"
+    },
+    {
+      "data": "wiz:proxy:set:",
+      "line": 2099,
+      "match_type": "fstring_prefix",
+      "source_function": "_proxy_add_menu",
+      "text": "➕ {…}"
+    },
+    {
+      "data": "menu:proxy",
+      "line": 2103,
+      "match_type": "literal",
+      "source_function": "_proxy_add_menu",
+      "text": "⬅️ Назад к прокси"
+    },
+    {
+      "data": "menu:main",
+      "line": 2104,
+      "match_type": "literal",
+      "source_function": "_proxy_add_menu",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:main",
+      "line": 2102,
+      "match_type": "literal",
+      "source_function": "_proxy_add_menu",
+      "text": "Менеджеров пока нет"
+    },
+    {
+      "data": "noop",
+      "line": 6021,
+      "match_type": "literal",
+      "source_function": "_followups_menu",
+      "text": "⚙️ Всем менеджерам"
+    },
+    {
+      "data": "bulk:ask:followup:on",
+      "line": 6022,
+      "match_type": "literal",
+      "source_function": "_followups_menu",
+      "text": "✅ Включить автодожимы всем"
+    },
+    {
+      "data": "bulk:ask:followup:off",
+      "line": 6023,
+      "match_type": "literal",
+      "source_function": "_followups_menu",
+      "text": "⛔ Выключить автодожимы всем"
+    },
+    {
+      "data": "menu:content_post_manual",
+      "line": 6026,
+      "match_type": "literal",
+      "source_function": "_followups_menu",
+      "text": "📝 Тексты автодожимов"
+    },
+    {
+      "data": "wiz:add_source:start",
+      "line": 2119,
+      "match_type": "literal",
+      "source_function": "_sources_menu",
+      "text": "➕ Добавить источник"
+    },
+    {
+      "data": "cmd:/source stats all",
+      "line": 2120,
+      "match_type": "literal",
+      "source_function": "_sources_menu",
+      "text": "📊 Статистика источников"
+    },
+    {
+      "data": "cmd:/source list",
+      "line": 2120,
+      "match_type": "literal",
+      "source_function": "_sources_menu",
+      "text": "📋 Список источников"
+    },
+    {
+      "data": "cmd:/source help",
+      "line": 2131,
+      "match_type": "literal",
+      "source_function": "_sources_menu",
+      "text": "ℹ️ Как работают источники"
+    },
+    {
+      "data": "menu:nm_traffic",
+      "line": 2132,
+      "match_type": "literal",
+      "source_function": "_sources_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/source help",
+      "line": 2125,
+      "match_type": "literal",
+      "source_function": "_sources_menu",
+      "text": "Источники ещё не созданы"
+    },
+    {
+      "data": "menu:source:",
+      "line": 2130,
+      "match_type": "fstring_prefix",
+      "source_function": "_sources_menu",
+      "text": "{…} {…} | менеджеров: {…}"
+    },
+    {
+      "data": "cmd:/source off ",
+      "line": 2159,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "⚪ Выключить источник"
+    },
+    {
+      "data": "cmd:/source on ",
+      "line": 2160,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "🟢 Включить источник"
+    },
+    {
+      "data": "cmd:/source stats ",
+      "line": 2162,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "📊 Статистика источника"
+    },
+    {
+      "data": "menu:source_stat:",
+      "line": 2162,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "⏰ Окна статистики"
+    },
+    {
+      "data": "menu:source_days:",
+      "line": 2163,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "📅 График дней"
+    },
+    {
+      "data": "menu:source_time:",
+      "line": 2163,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "🕘 Время работы"
+    },
+    {
+      "data": "cmd:/source info ",
+      "line": 2164,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "📄 Карточка"
+    },
+    {
+      "data": "wiz:rename_source:",
+      "line": 2164,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "✏️ Переименовать"
+    },
+    {
+      "data": "noop",
+      "line": 2167,
+      "match_type": "literal",
+      "source_function": "_source_detail_buttons",
+      "text": "➕ Привязать менеджера"
+    },
+    {
+      "data": "menu:source_delete_confirm:",
+      "line": 2178,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "🗑 Удалить источник"
+    },
+    {
+      "data": "menu:sources",
+      "line": 2179,
+      "match_type": "literal",
+      "source_function": "_source_detail_buttons",
+      "text": "⬅️ Назад к источникам"
+    },
+    {
+      "data": "menu:main",
+      "line": 2180,
+      "match_type": "literal",
+      "source_function": "_source_detail_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "noop",
+      "line": 2175,
+      "match_type": "literal",
+      "source_function": "_source_detail_buttons",
+      "text": "❌ Отвязать менеджера"
+    },
+    {
+      "data": "cmd:/source link ",
+      "line": 2171,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "➕ {…}"
+    },
+    {
+      "data": "cmd:/source unlink ",
+      "line": 2177,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_detail_buttons",
+      "text": "❌ {…}"
+    },
+    {
+      "data": "swin:manual:",
+      "line": 2258,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_stat_buttons",
+      "text": "✍️ Задать вручную"
+    },
+    {
+      "data": "swin:pro:",
+      "line": 2259,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_stat_buttons",
+      "text": "✅ PRO с долётами"
+    },
+    {
+      "data": "swin:pro:",
+      "line": 2259,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_stat_buttons",
+      "text": "🚫 PRO без долётов"
+    },
+    {
+      "data": "swin:off:",
+      "line": 2260,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_stat_buttons",
+      "text": "♻️ Сбросить к стандарту"
+    },
+    {
+      "data": "menu:source:",
+      "line": 2261,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_stat_buttons",
+      "text": "⬅️ Назад к источнику"
+    },
+    {
+      "data": "menu:main",
+      "line": 2262,
+      "match_type": "literal",
+      "source_function": "_source_stat_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "sds:day:",
+      "line": 2321,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_days_buttons",
+      "text": "{…}{…}"
+    },
+    {
+      "data": "menu:source:",
+      "line": 2331,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_days_buttons",
+      "text": "⬅️ Назад к источнику"
+    },
+    {
+      "data": "menu:main",
+      "line": 2332,
+      "match_type": "literal",
+      "source_function": "_source_days_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "sds:toggle:",
+      "line": 2328,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_days_buttons",
+      "text": "🔴 Выключить наследование"
+    },
+    {
+      "data": "sds:toggle:",
+      "line": 2330,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_days_buttons",
+      "text": "🟢 Включить наследование"
+    },
+    {
+      "data": "sti:edit:",
+      "line": 2452,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_time_buttons",
+      "text": "✍️ Изменить время"
+    },
+    {
+      "data": "menu:source:",
+      "line": 2457,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_time_buttons",
+      "text": "⬅️ Назад к источнику"
+    },
+    {
+      "data": "menu:main",
+      "line": 2458,
+      "match_type": "literal",
+      "source_function": "_source_time_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "sti:toggle:",
+      "line": 2454,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_time_buttons",
+      "text": "🔴 Выключить наследование времени"
+    },
+    {
+      "data": "sti:toggle:",
+      "line": 2456,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_time_buttons",
+      "text": "🟢 Включить наследование времени"
+    },
+    {
+      "data": "cmd:/source delete ",
+      "line": 2466,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_delete_confirm_buttons",
+      "text": "✅ Да, удалить источник"
+    },
+    {
+      "data": "menu:source:",
+      "line": 2467,
+      "match_type": "fstring_prefix",
+      "source_function": "_source_delete_confirm_buttons",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:main",
+      "line": 2468,
+      "match_type": "literal",
+      "source_function": "_source_delete_confirm_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "wiz:add_group:start",
+      "line": 2474,
+      "match_type": "literal",
+      "source_function": "_groups_menu",
+      "text": "➕ Создать группу"
+    },
+    {
+      "data": "cmd:/mgroup stats all",
+      "line": 2475,
+      "match_type": "literal",
+      "source_function": "_groups_menu",
+      "text": "📊 Статистика групп"
+    },
+    {
+      "data": "cmd:/mgroup list",
+      "line": 2475,
+      "match_type": "literal",
+      "source_function": "_groups_menu",
+      "text": "📋 Список групп"
+    },
+    {
+      "data": "cmd:/mgroup help",
+      "line": 2485,
+      "match_type": "literal",
+      "source_function": "_groups_menu",
+      "text": "ℹ️ Как работают группы"
+    },
+    {
+      "data": "menu:nm_traffic",
+      "line": 2486,
+      "match_type": "literal",
+      "source_function": "_groups_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/mgroup help",
+      "line": 2479,
+      "match_type": "literal",
+      "source_function": "_groups_menu",
+      "text": "Группы ещё не созданы"
+    },
+    {
+      "data": "menu:group:",
+      "line": 2484,
+      "match_type": "fstring_prefix",
+      "source_function": "_groups_menu",
+      "text": "{…} {…} | менеджеров: {…}"
+    },
+    {
+      "data": "cmd:/mgroup off ",
+      "line": 2512,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "⚪ Выключить группу"
+    },
+    {
+      "data": "cmd:/mgroup on ",
+      "line": 2513,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "🟢 Включить группу"
+    },
+    {
+      "data": "cmd:/mgroup stats ",
+      "line": 2515,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "📊 Статистика группы"
+    },
+    {
+      "data": "cmd:/mgroup info ",
+      "line": 2515,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "📄 Карточка"
+    },
+    {
+      "data": "wiz:rename_group:",
+      "line": 2516,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "✏️ Переименовать"
+    },
+    {
+      "data": "noop",
+      "line": 2519,
+      "match_type": "literal",
+      "source_function": "_group_detail_buttons",
+      "text": "➕ Добавить менеджера в группу"
+    },
+    {
+      "data": "menu:group_delete_confirm:",
+      "line": 2528,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "🗑 Удалить группу"
+    },
+    {
+      "data": "menu:groups",
+      "line": 2529,
+      "match_type": "literal",
+      "source_function": "_group_detail_buttons",
+      "text": "⬅️ Назад к группам"
+    },
+    {
+      "data": "menu:main",
+      "line": 2530,
+      "match_type": "literal",
+      "source_function": "_group_detail_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "noop",
+      "line": 2525,
+      "match_type": "literal",
+      "source_function": "_group_detail_buttons",
+      "text": "❌ Убрать менеджера из группы"
+    },
+    {
+      "data": "cmd:/mgroup add_manager ",
+      "line": 2523,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "➕ {…}"
+    },
+    {
+      "data": "cmd:/mgroup remove_manager ",
+      "line": 2527,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_detail_buttons",
+      "text": "❌ {…}"
+    },
+    {
+      "data": "cmd:/mgroup delete ",
+      "line": 2537,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_delete_confirm_buttons",
+      "text": "✅ Да, удалить группу"
+    },
+    {
+      "data": "menu:group:",
+      "line": 2538,
+      "match_type": "fstring_prefix",
+      "source_function": "_group_delete_confirm_buttons",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:main",
+      "line": 2539,
+      "match_type": "literal",
+      "source_function": "_group_delete_confirm_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "cmd:/quality all",
+      "line": 2545,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "📈 Общий отчёт"
+    },
+    {
+      "data": "cmd:/quality response",
+      "line": 2545,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "⏱ Время ответа"
+    },
+    {
+      "data": "cmd:/quality sla",
+      "line": 2546,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "🚨 Просроченные SLA"
+    },
+    {
+      "data": "cmd:/quality ranking",
+      "line": 2546,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "🏆 Рейтинг менеджеров"
+    },
+    {
+      "data": "cmd:/quality losses",
+      "line": 2547,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "📉 Потери лидов"
+    },
+    {
+      "data": "cmd:/quality all yesterday",
+      "line": 2548,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "📅 Вчера общий отчёт"
+    },
+    {
+      "data": "cmd:/quality ranking yesterday",
+      "line": 2548,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "📅 Вчера рейтинг"
+    },
+    {
+      "data": "cmd:/quality help",
+      "line": 2549,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "ℹ️ Как работает качество"
+    },
+    {
+      "data": "menu:main",
+      "line": 2550,
+      "match_type": "literal",
+      "source_function": "_quality_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/funnel sources",
+      "line": 2557,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "📦 Качество источников"
+    },
+    {
+      "data": "cmd:/funnel groups",
+      "line": 2557,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "👥 Качество групп"
+    },
+    {
+      "data": "cmd:/funnel links",
+      "line": 2558,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "🔗 Связки источник + менеджер"
+    },
+    {
+      "data": "cmd:/funnel losses",
+      "line": 2559,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "📉 Где теряем лидов"
+    },
+    {
+      "data": "cmd:/funnel best",
+      "line": 2559,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "🏆 Лучшие источники"
+    },
+    {
+      "data": "cmd:/funnel sources yesterday",
+      "line": 2560,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "📅 Вчера источники"
+    },
+    {
+      "data": "cmd:/funnel links yesterday",
+      "line": 2560,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "📅 Вчера связки"
+    },
+    {
+      "data": "cmd:/funnel help",
+      "line": 2561,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "ℹ️ Как работает воронка"
+    },
+    {
+      "data": "menu:main",
+      "line": 2562,
+      "match_type": "literal",
+      "source_function": "_funnel_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 6335,
+      "match_type": "literal",
+      "source_function": "_service_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/partner requests",
+      "line": 2795,
+      "match_type": "literal",
+      "source_function": "_partners_menu",
+      "text": "📥 Заявки на доступ ({…})"
+    },
+    {
+      "data": "cmd:/partner list",
+      "line": 2796,
+      "match_type": "literal",
+      "source_function": "_partners_menu",
+      "text": "📋 Список байеров"
+    },
+    {
+      "data": "cmd:/partner help",
+      "line": 2796,
+      "match_type": "literal",
+      "source_function": "_partners_menu",
+      "text": "ℹ️ Инструкция"
+    },
+    {
+      "data": "menu:nm_traffic",
+      "line": 2807,
+      "match_type": "literal",
+      "source_function": "_partners_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "noop",
+      "line": 2799,
+      "match_type": "literal",
+      "source_function": "_partners_menu",
+      "text": "📥 Новые заявки"
+    },
+    {
+      "data": "noop",
+      "line": 2803,
+      "match_type": "literal",
+      "source_function": "_partners_menu",
+      "text": "🤝 Байеры"
+    },
+    {
+      "data": "menu:partner_request:",
+      "line": 2801,
+      "match_type": "fstring_prefix",
+      "source_function": "_partners_menu",
+      "text": "✅ {…}"
+    },
+    {
+      "data": "menu:partner_buyer:",
+      "line": 2806,
+      "match_type": "fstring_prefix",
+      "source_function": "_partners_menu",
+      "text": "{…} {…}"
+    },
+    {
+      "data": "cmd:/partner reject ",
+      "line": 2848,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_request_buttons",
+      "text": "🚫 Отклонить заявку"
+    },
+    {
+      "data": "menu:partners",
+      "line": 2849,
+      "match_type": "literal",
+      "source_function": "_partner_request_buttons",
+      "text": "⬅️ Назад к байерам"
+    },
+    {
+      "data": "menu:main",
+      "line": 2850,
+      "match_type": "literal",
+      "source_function": "_partner_request_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "noop",
+      "line": 2841,
+      "match_type": "literal",
+      "source_function": "_partner_request_buttons",
+      "text": "📦 Выдать доступ к источнику"
+    },
+    {
+      "data": "menu:sources",
+      "line": 2847,
+      "match_type": "literal",
+      "source_function": "_partner_request_buttons",
+      "text": "Сначала создайте источник трафика"
+    },
+    {
+      "data": "cmd:/partner approve ",
+      "line": 2845,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_request_buttons",
+      "text": "✅ {…}"
+    },
+    {
+      "data": "cmd:/partner info ",
+      "line": 2880,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "📄 Карточка"
+    },
+    {
+      "data": "cmd:/partner format light ",
+      "line": 2883,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "📊 LIGHT"
+    },
+    {
+      "data": "cmd:/partner format pro ",
+      "line": 2883,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "📊 PRO"
+    },
+    {
+      "data": "cmd:/partner format both ",
+      "line": 2884,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "📊 LIGHT + PRO"
+    },
+    {
+      "data": "cmd:/partner live on ",
+      "line": 2887,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🔔 Уведомления ON"
+    },
+    {
+      "data": "cmd:/partner live off ",
+      "line": 2887,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🔕 Уведомления OFF"
+    },
+    {
+      "data": "cmd:/partner contacts on ",
+      "line": 2888,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "👁 Данные ON"
+    },
+    {
+      "data": "cmd:/partner contacts off ",
+      "line": 2888,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🙈 Данные OFF"
+    },
+    {
+      "data": "cmd:/partner excel on ",
+      "line": 2889,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "📦 Excel ON"
+    },
+    {
+      "data": "cmd:/partner excel off ",
+      "line": 2889,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🚫 Excel OFF"
+    },
+    {
+      "data": "cmd:/partner screenshots on ",
+      "line": 2890,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🖼 Скрины ON"
+    },
+    {
+      "data": "cmd:/partner screenshots off ",
+      "line": 2890,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🚫 Скрины OFF"
+    },
+    {
+      "data": "cmd:/partner duplicates on ",
+      "line": 2891,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🔁 Дубли ON"
+    },
+    {
+      "data": "cmd:/partner duplicates off ",
+      "line": 2891,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🚫 Дубли OFF"
+    },
+    {
+      "data": "cmd:/partner enable ",
+      "line": 2892,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "✅ Доступ ON"
+    },
+    {
+      "data": "cmd:/partner disable ",
+      "line": 2892,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "⛔ Доступ OFF"
+    },
+    {
+      "data": "menu:partner_delete_confirm:",
+      "line": 2902,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🗑 Удалить байера"
+    },
+    {
+      "data": "menu:partners",
+      "line": 2903,
+      "match_type": "literal",
+      "source_function": "_partner_buyer_buttons",
+      "text": "⬅️ Назад к байерам"
+    },
+    {
+      "data": "menu:main",
+      "line": 2904,
+      "match_type": "literal",
+      "source_function": "_partner_buyer_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "cmd:/partner source ",
+      "line": 2899,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_buyer_buttons",
+      "text": "📦 {…}"
+    },
+    {
+      "data": "cmd:/partner delete ",
+      "line": 2911,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_delete_confirm_buttons",
+      "text": "🗑 Да, удалить"
+    },
+    {
+      "data": "menu:partner_buyer:",
+      "line": 2912,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_delete_confirm_buttons",
+      "text": "⬅️ Назад к байеру"
+    },
+    {
+      "data": "menu:main",
+      "line": 2913,
+      "match_type": "literal",
+      "source_function": "_partner_delete_confirm_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 2939,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к админ-меню"
+    },
+    {
+      "data": "menu:managers",
+      "line": 2945,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к менеджерам"
+    },
+    {
+      "data": "menu:managers",
+      "line": 2951,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к менеджерам"
+    },
+    {
+      "data": "menu:managers",
+      "line": 2957,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к менеджерам"
+    },
+    {
+      "data": "menu:proxy",
+      "line": 2967,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к прокси"
+    },
+    {
+      "data": "menu:sources",
+      "line": 2984,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к источникам"
+    },
+    {
+      "data": "menu:sources",
+      "line": 2990,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ К источникам"
+    },
+    {
+      "data": "menu:main",
+      "line": 2990,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:groups",
+      "line": 3003,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к группам"
+    },
+    {
+      "data": "menu:partners",
+      "line": 3011,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к байерам"
+    },
+    {
+      "data": "menu:partners",
+      "line": 3022,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад к байерам"
+    },
+    {
+      "data": "cmd:/content reset all confirm",
+      "line": 4503,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "♻️ Да, сбросить"
+    },
+    {
+      "data": "menu:content",
+      "line": 4503,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:nm_system",
+      "line": 5009,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 5009,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:description",
+      "line": 5010,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 5074,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 5074,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:managers",
+      "line": 5081,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 5081,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:proxy",
+      "line": 5089,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 5089,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 7900,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 8875,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 12283,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 12297,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12298,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 12305,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12306,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:bizlinks_show",
+      "line": 12337,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "📋 Показать ссылки"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12338,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:bizlinks_show",
+      "line": 12366,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "📋 Показать ссылки"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12367,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12373,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 12621,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 12739,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 13074,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 13740,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 13741,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 13747,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 14100,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 14393,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:sources",
+      "line": 14800,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ К источникам"
+    },
+    {
+      "data": "menu:main",
+      "line": 14800,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:sources",
+      "line": 14880,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ К источникам"
+    },
+    {
+      "data": "menu:main",
+      "line": 14880,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:autostatus_toggle_do:",
+      "line": 23252,
+      "match_type": "fstring_prefix",
+      "source_function": "_title_for_menu",
+      "text": "✅ Подтвердить"
+    },
+    {
+      "data": "menu:nm_automation",
+      "line": 23254,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "menu:nm_service_w",
+      "line": 23297,
+      "match_type": "literal",
+      "source_function": "_title_for_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/duplicates today",
+      "line": 3051,
+      "match_type": "literal",
+      "source_function": "_duplicates_menu",
+      "text": "🔁 Дубликаты сегодня"
+    },
+    {
+      "data": "cmd:/duplicates yesterday",
+      "line": 3051,
+      "match_type": "literal",
+      "source_function": "_duplicates_menu",
+      "text": "🔁 Дубликаты вчера"
+    },
+    {
+      "data": "cmd:/duplicates 31d",
+      "line": 3052,
+      "match_type": "literal",
+      "source_function": "_duplicates_menu",
+      "text": "🔁 Дубликаты 31 день"
+    },
+    {
+      "data": "cmd:/duplicates excel 31d",
+      "line": 3052,
+      "match_type": "literal",
+      "source_function": "_duplicates_menu",
+      "text": "📦 Excel дублей"
+    },
+    {
+      "data": "help:duplicates_chat",
+      "line": 3053,
+      "match_type": "literal",
+      "source_function": "_duplicates_menu",
+      "text": "🔎 Найти по chat_id"
+    },
+    {
+      "data": "menu:main",
+      "line": 3054,
+      "match_type": "literal",
+      "source_function": "_duplicates_menu",
+      "text": "⬅️ Назад к панели"
+    },
+    {
+      "data": "blovr:y:",
+      "line": 3336,
+      "match_type": "fstring_prefix",
+      "source_function": "_panel_run_command_background",
+      "text": "✅ Создать без графика"
+    },
+    {
+      "data": "blovr:n",
+      "line": 3340,
+      "match_type": "literal",
+      "source_function": "_panel_run_command_background",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "cmd:/manager_proxy_bypass ",
+      "line": 3966,
+      "match_type": "fstring_prefix",
+      "source_function": "on_callback",
+      "text": "✅ Да, без proxy"
+    },
+    {
+      "data": "menu:proxy:",
+      "line": 3967,
+      "match_type": "fstring_prefix",
+      "source_function": "on_callback",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 4192,
+      "match_type": "fstring_prefix",
+      "source_function": "on_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 4201,
+      "match_type": "fstring_prefix",
+      "source_function": "on_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:proxy:",
+      "line": 4213,
+      "match_type": "fstring_prefix",
+      "source_function": "on_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "cmd:/content status",
+      "line": 4429,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "📋 Проверить настройки"
+    },
+    {
+      "data": "menu:content_texts",
+      "line": 4430,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "💬 Основные тексты"
+    },
+    {
+      "data": "menu:content_delays",
+      "line": 4430,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "⏱ Задержки"
+    },
+    {
+      "data": "menu:content_profile",
+      "line": 4431,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "🧩 Шаблоны анкеты"
+    },
+    {
+      "data": "menu:content_post_manual",
+      "line": 4431,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "🔁 Тексты автодожимов"
+    },
+    {
+      "data": "menu:content_reset_confirm",
+      "line": 4432,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "♻️ Сбросить всё"
+    },
+    {
+      "data": "menu:nm_automation",
+      "line": 4433,
+      "match_type": "literal",
+      "source_function": "_content_editor_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "cmd:/content text list",
+      "line": 4438,
+      "match_type": "literal",
+      "source_function": "_content_texts_menu",
+      "text": "📋 Список текстов"
+    },
+    {
+      "data": "menu:content",
+      "line": 4441,
+      "match_type": "literal",
+      "source_function": "_content_texts_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "wiz:content_text:",
+      "line": 4440,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_texts_menu",
+      "text": "✏️ {…}"
+    },
+    {
+      "data": "cmd:/content text reset ",
+      "line": 4440,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_texts_menu",
+      "text": "♻️"
+    },
+    {
+      "data": "cmd:/content delay list",
+      "line": 4446,
+      "match_type": "literal",
+      "source_function": "_content_delays_menu",
+      "text": "📋 Список задержек"
+    },
+    {
+      "data": "menu:content",
+      "line": 4449,
+      "match_type": "literal",
+      "source_function": "_content_delays_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "wiz:content_delay:",
+      "line": 4448,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_delays_menu",
+      "text": "⏱ {…}"
+    },
+    {
+      "data": "cmd:/content delay reset ",
+      "line": 4448,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_delays_menu",
+      "text": "♻️"
+    },
+    {
+      "data": "menu:content",
+      "line": 4457,
+      "match_type": "literal",
+      "source_function": "_content_profile_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:content_cat:",
+      "line": 4456,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_profile_menu",
+      "text": "🧩 {…}"
+    },
+    {
+      "data": "cmd:/content variant list ",
+      "line": 4463,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_cat_menu",
+      "text": "📋 Показать варианты"
+    },
+    {
+      "data": "wiz:content_variant_add:",
+      "line": 4464,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_cat_menu",
+      "text": "➕ Добавить"
+    },
+    {
+      "data": "wiz:content_variant_set:",
+      "line": 4465,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_cat_menu",
+      "text": "✏️ Изменить номер"
+    },
+    {
+      "data": "wiz:content_variant_toggle:",
+      "line": 4466,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_cat_menu",
+      "text": "🔁 Вкл/выкл номер"
+    },
+    {
+      "data": "wiz:content_variant_delete:",
+      "line": 4467,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_cat_menu",
+      "text": "🗑 Удалить номер"
+    },
+    {
+      "data": "cmd:/content variant reset_category ",
+      "line": 4468,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_cat_menu",
+      "text": "♻️ Сбросить категорию"
+    },
+    {
+      "data": "menu:content_profile",
+      "line": 4469,
+      "match_type": "literal",
+      "source_function": "_content_cat_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:content_texts",
+      "line": 4517,
+      "match_type": "literal",
+      "source_function": "_content_editor_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:content_delays",
+      "line": 4522,
+      "match_type": "literal",
+      "source_function": "_content_editor_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:content_cat:",
+      "line": 4527,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_editor_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:content_cat:",
+      "line": 4532,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_editor_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:content_cat:",
+      "line": 4537,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_editor_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:content_cat:",
+      "line": 4542,
+      "match_type": "fstring_prefix",
+      "source_function": "_content_editor_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:main",
+      "line": 4729,
+      "match_type": "literal",
+      "source_function": "_tp_visual_nav_rows",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:stats",
+      "line": 4752,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "📊 Статистика"
+    },
+    {
+      "data": "menu:flights",
+      "line": 4752,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "🌙 Долёты"
+    },
+    {
+      "data": "menu:unanswered",
+      "line": 4753,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "🔔 Неотвеченные"
+    },
+    {
+      "data": "menu:export",
+      "line": 4753,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "📦 Excel"
+    },
+    {
+      "data": "menu:duplicates",
+      "line": 4754,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "🔁 Дубликаты"
+    },
+    {
+      "data": "menu:funnel",
+      "line": 4754,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "📊 Воронка"
+    },
+    {
+      "data": "menu:llm_status",
+      "line": 4755,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "🤖 LLM автостатусы"
+    },
+    {
+      "data": "menu:llm_toggle",
+      "line": 4755,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:transfer_stats",
+      "line": 4756,
+      "match_type": "literal",
+      "source_function": "_tp_visual_reports_menu",
+      "text": "🤝 Передачи"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 7230,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🛠 Админ менеджеров"
+    },
+    {
+      "data": "menu:manager_settings",
+      "line": 7231,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "👤 Настройки менеджеров"
+    },
+    {
+      "data": "menu:mbaccess_all",
+      "line": 7232,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🤖 Доступ ManagerBot"
+    },
+    {
+      "data": "menu:bizschedule",
+      "line": 7233,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "📅 Графики"
+    },
+    {
+      "data": "menu:proxy",
+      "line": 7234,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🌐 Proxy"
+    },
+    {
+      "data": "menu:tghealth",
+      "line": 7234,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🛡 Telegram Health"
+    },
+    {
+      "data": "menu:ppool",
+      "line": 7235,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🌐 Пул прокси"
+    },
+    {
+      "data": "menu:health",
+      "line": 7236,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🩺 Health Summary"
+    },
+    {
+      "data": "wiz:add_manager:start",
+      "line": 7237,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "➕ Добавить менеджера"
+    },
+    {
+      "data": "menu:transfer_closers",
+      "line": 7238,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "🤝 Клоузеры"
+    },
+    {
+      "data": "menu:main",
+      "line": 7243,
+      "match_type": "literal",
+      "source_function": "_tp_visual_managers_modes_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:sources",
+      "line": 4774,
+      "match_type": "literal",
+      "source_function": "_tp_visual_traffic_buyers_menu",
+      "text": "📦 Источники"
+    },
+    {
+      "data": "menu:groups",
+      "line": 4774,
+      "match_type": "literal",
+      "source_function": "_tp_visual_traffic_buyers_menu",
+      "text": "👥 Группы"
+    },
+    {
+      "data": "menu:partners",
+      "line": 4775,
+      "match_type": "literal",
+      "source_function": "_tp_visual_traffic_buyers_menu",
+      "text": "🤝 Байеры и доступы"
+    },
+    {
+      "data": "menu:funnel",
+      "line": 4775,
+      "match_type": "literal",
+      "source_function": "_tp_visual_traffic_buyers_menu",
+      "text": "📊 Воронка"
+    },
+    {
+      "data": "menu:managers",
+      "line": 7212,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "👋 Приветствие / нет на месте"
+    },
+    {
+      "data": "cmd:/questionnaire status all",
+      "line": 7213,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "📋 Автоанкета"
+    },
+    {
+      "data": "menu:followups",
+      "line": 7213,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "🔁 Автодожимы"
+    },
+    {
+      "data": "menu:profile",
+      "line": 7214,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "🛑 Аварийная тишина"
+    },
+    {
+      "data": "menu:content",
+      "line": 7215,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "📝 Тексты и задержки"
+    },
+    {
+      "data": "cmd:/autoschedule status all",
+      "line": 7215,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "🕘 Графики"
+    },
+    {
+      "data": "cmd:/autoreply status all",
+      "line": 7216,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "📋 Проверить автоответы"
+    },
+    {
+      "data": "autostatus_status_info",
+      "line": 7217,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:autostatus_toggle_confirm:",
+      "line": 7218,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:main",
+      "line": 7223,
+      "match_type": "literal",
+      "source_function": "_tp_visual_automation_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "pf:manual_check_today",
+      "line": 20536,
+      "match_type": "literal",
+      "source_function": "_tp_visual_service_menu",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "pf:manual_check_tomorrow",
+      "line": 20537,
+      "match_type": "literal",
+      "source_function": "_tp_visual_service_menu",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:partner_request:",
+      "line": 5123,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_request_notification_buttons",
+      "text": "✅ Разрешить"
+    },
+    {
+      "data": "cmd:/partner reject ",
+      "line": 5124,
+      "match_type": "fstring_prefix",
+      "source_function": "_partner_request_notification_buttons",
+      "text": "❌ Отклонить"
+    },
+    {
+      "data": "bulk:run:",
+      "line": 5917,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_panel_v5_confirm_buttons",
+      "text": "✅ Да, применить ко всем"
+    },
+    {
+      "data": "menu:main",
+      "line": 5918,
+      "match_type": "literal",
+      "source_function": "_tp_panel_v5_confirm_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "bulk:ask:autoreply:auto",
+      "line": 5987,
+      "match_type": "literal",
+      "source_function": "_tp_panel_v5_bulk_rows",
+      "text": "🤖 Авто всем"
+    },
+    {
+      "data": "bulk:ask:autoreply:silent",
+      "line": 5987,
+      "match_type": "literal",
+      "source_function": "_tp_panel_v5_bulk_rows",
+      "text": "🔇 Авто выкл всем"
+    },
+    {
+      "data": "bulk:ask:followup:on",
+      "line": 5988,
+      "match_type": "literal",
+      "source_function": "_tp_panel_v5_bulk_rows",
+      "text": "✅ Дожимы всем"
+    },
+    {
+      "data": "bulk:ask:followup:off",
+      "line": 5988,
+      "match_type": "literal",
+      "source_function": "_tp_panel_v5_bulk_rows",
+      "text": "⛔ Дожимы выкл всем"
+    },
+    {
+      "data": "cmd:/baseline status ",
+      "line": 6128,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_v8_manager_action_rows",
+      "text": "📊 Проверить: {…}"
+    },
+    {
+      "data": "cmd:/baseline create ",
+      "line": 6129,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_v8_manager_action_rows",
+      "text": "📌 Пометить: {…}"
+    },
+    {
+      "data": "menu:baseline_clear_confirm:",
+      "line": 6132,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_v8_manager_action_rows",
+      "text": "♻️ Сбросить: {…}"
+    },
+    {
+      "data": "cmd:/baseline status all",
+      "line": 6139,
+      "match_type": "literal",
+      "source_function": "_tp_v8_service_menu_rows",
+      "text": "📊 Проверить старые чаты у всех"
+    },
+    {
+      "data": "cmd:/baseline create all",
+      "line": 6140,
+      "match_type": "literal",
+      "source_function": "_tp_v8_service_menu_rows",
+      "text": "📌 Пометить текущие чаты старыми у всех"
+    },
+    {
+      "data": "menu:baseline_clear_confirm:all",
+      "line": 6141,
+      "match_type": "literal",
+      "source_function": "_tp_v8_service_menu_rows",
+      "text": "♻️ Сбросить список старых чатов у всех"
+    },
+    {
+      "data": "cmd:/testlead help",
+      "line": 6142,
+      "match_type": "literal",
+      "source_function": "_tp_v8_service_menu_rows",
+      "text": "♻️ Как сбросить тестового лида"
+    },
+    {
+      "data": "cmd:/baseline help",
+      "line": 6143,
+      "match_type": "literal",
+      "source_function": "_tp_v8_service_menu_rows",
+      "text": "ℹ️ Инструкция по старым чатам"
+    },
+    {
+      "data": "menu:baseline_managers",
+      "line": 6152,
+      "match_type": "literal",
+      "source_function": "_tp_v8_service_menu_rows",
+      "text": "👤 По отдельному менеджеру ({…})"
+    },
+    {
+      "data": "cmd:/baseline clear ",
+      "line": 6199,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_v8_baseline_clear_confirm_buttons",
+      "text": "✅ Да, сбросить"
+    },
+    {
+      "data": "menu:nm_service_w",
+      "line": 6203,
+      "match_type": "literal",
+      "source_function": "_tp_v8_baseline_clear_confirm_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 6203,
+      "match_type": "literal",
+      "source_function": "_tp_v8_baseline_clear_confirm_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:profile_check",
+      "line": 6242,
+      "match_type": "literal",
+      "source_function": "_tpac_back_profile_buttons",
+      "text": "⬅️ Назад к проверке анкет"
+    },
+    {
+      "data": "menu:main",
+      "line": 6242,
+      "match_type": "literal",
+      "source_function": "_tpac_back_profile_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "cmd:/profile status",
+      "line": 6247,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🟢 Состояние проверки"
+    },
+    {
+      "data": "cmd:/profile test",
+      "line": 6248,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🧪 Быстрый тест"
+    },
+    {
+      "data": "cmd:/profile test full",
+      "line": 6248,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🧪 Полный тест"
+    },
+    {
+      "data": "cmd:/profile rules show",
+      "line": 6249,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "📋 Показать правила"
+    },
+    {
+      "data": "cmd:/profile rules reload",
+      "line": 6249,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🔄 Обновить правила"
+    },
+    {
+      "data": "wiz:profile_lead:start",
+      "line": 6250,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🧾 Проверить лида"
+    },
+    {
+      "data": "cmd:/lead repair today dry",
+      "line": 6251,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🔎 Проверить сегодня"
+    },
+    {
+      "data": "cmd:/lead repair yesterday dry",
+      "line": 6251,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🔎 Проверить вчера"
+    },
+    {
+      "data": "wiz:profile_period:start",
+      "line": 6252,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "📅 Проверить период"
+    },
+    {
+      "data": "wiz:profile_apply:start",
+      "line": 6253,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "⚠️ Применить проверку"
+    },
+    {
+      "data": "menu:nm_automation",
+      "line": 6257,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 6257,
+      "match_type": "literal",
+      "source_function": "_tpac_profile_check_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:profile_check",
+      "line": 6318,
+      "match_type": "literal",
+      "source_function": "_tpac_service_menu_rows",
+      "text": "🧠 Проверка анкет"
+    },
+    {
+      "data": "cmd:/testlead help",
+      "line": 6324,
+      "match_type": "literal",
+      "source_function": "_tpac_service_menu_rows",
+      "text": "♻️ Как сбросить тестового лида"
+    },
+    {
+      "data": "cmd:/baseline status all",
+      "line": 6325,
+      "match_type": "literal",
+      "source_function": "_tpac_service_menu_rows",
+      "text": "📊 Проверить старые чаты у всех"
+    },
+    {
+      "data": "cmd:/baseline create all",
+      "line": 6326,
+      "match_type": "literal",
+      "source_function": "_tpac_service_menu_rows",
+      "text": "📌 Пометить текущие чаты старыми у всех"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 6761,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_gq_panel_schedule_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "cmd:/tghealth all",
+      "line": 6848,
+      "match_type": "literal",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "📋 Статус всех"
+    },
+    {
+      "data": "cmd:/tghealth check all",
+      "line": 6849,
+      "match_type": "literal",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "🔄 Check all"
+    },
+    {
+      "data": "noop",
+      "line": 6851,
+      "match_type": "literal",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "🧪 Deepcheck только вручную по одному аккаунту"
+    },
+    {
+      "data": "cmd:/tghealth ",
+      "line": 6862,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "📋 {…}"
+    },
+    {
+      "data": "cmd:/tghealth check ",
+      "line": 6864,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "🔄 Check"
+    },
+    {
+      "data": "cmd:/tghealth deepcheck ",
+      "line": 6865,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "🧪 Deepcheck"
+    },
+    {
+      "data": "cmd:/tghealth reset ",
+      "line": 6867,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "🧹 Reset"
+    },
+    {
+      "data": "menu:managers_modes",
+      "line": 6872,
+      "match_type": "literal",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 6872,
+      "match_type": "literal",
+      "source_function": "_tp_tghealth_v22_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "cmd:/silent status all",
+      "line": 7098,
+      "match_type": "literal",
+      "source_function": "_tp_ae_emergency_silence_menu",
+      "text": "📋 Проверить тишину"
+    },
+    {
+      "data": "cmd:/silent manager off all",
+      "line": 7103,
+      "match_type": "literal",
+      "source_function": "_tp_ae_emergency_silence_menu",
+      "text": "✅ Снять тишину у всех"
+    },
+    {
+      "data": "bulk:ask:silent:on",
+      "line": 7103,
+      "match_type": "literal",
+      "source_function": "_tp_ae_emergency_silence_menu",
+      "text": "🛑 Включить тишину всем"
+    },
+    {
+      "data": "cmd:/silent status ",
+      "line": 7117,
+      "match_type": "fstring_prefix",
+      "source_function": "_tp_ae_emergency_silence_menu",
+      "text": "👤 {…}"
+    },
+    {
+      "data": "menu:nm_automation",
+      "line": 7132,
+      "match_type": "literal",
+      "source_function": "_tp_ae_emergency_silence_menu",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 7132,
+      "match_type": "literal",
+      "source_function": "_tp_ae_emergency_silence_menu",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "noop",
+      "line": 7691,
+      "match_type": "literal",
+      "source_function": "_mbaccess_buttons",
+      "text": "━━━━ ДОСТУП MANAGERBOT ━━━━"
+    },
+    {
+      "data": "menu:mbaccess_all",
+      "line": 7714,
+      "match_type": "literal",
+      "source_function": "_mbaccess_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 7715,
+      "match_type": "literal",
+      "source_function": "_mbaccess_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:mbauser:",
+      "line": 7699,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbaccess_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "noop",
+      "line": 7702,
+      "match_type": "literal",
+      "source_function": "_mbaccess_buttons",
+      "text": "━━━━ ЗАЯВКИ ({…}) ━━━━"
+    },
+    {
+      "data": "noop",
+      "line": 7708,
+      "match_type": "literal",
+      "source_function": "_mbaccess_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "mba:areq:",
+      "line": 7710,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbaccess_buttons",
+      "text": "✅ Одобрить"
+    },
+    {
+      "data": "mba:dreq:",
+      "line": 7711,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbaccess_buttons",
+      "text": "🚫 Отклонить"
+    },
+    {
+      "data": "noop",
+      "line": 7764,
+      "match_type": "literal",
+      "source_function": "_mbauser_buttons",
+      "text": "━━━━ ПРАВА ━━━━"
+    },
+    {
+      "data": "mba:tg:c:",
+      "line": 7765,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "🃏 Карточки: {…}"
+    },
+    {
+      "data": "mba:tg:s:",
+      "line": 7766,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "✍️ Статусы: {…}"
+    },
+    {
+      "data": "mba:tg:v:",
+      "line": 7767,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "📊 Статистика: {…}"
+    },
+    {
+      "data": "mba:tg:p:",
+      "line": 7768,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "📆 Свой период: {…}"
+    },
+    {
+      "data": "mba:fmt:",
+      "line": 7769,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "🔢 Формат: {…}"
+    },
+    {
+      "data": "noop",
+      "line": 7770,
+      "match_type": "literal",
+      "source_function": "_mbauser_buttons",
+      "text": "━━━━ ДОСТУП ━━━━"
+    },
+    {
+      "data": "menu:mbaccess:",
+      "line": 7779,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 7780,
+      "match_type": "literal",
+      "source_function": "_mbauser_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:mbaccess:",
+      "line": 7758,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 7759,
+      "match_type": "literal",
+      "source_function": "_mbauser_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "mba:unrev:",
+      "line": 7774,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "♻️ Вернуть"
+    },
+    {
+      "data": "mba:rev:",
+      "line": 7776,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbauser_buttons",
+      "text": "⛔ Отозвать"
+    },
+    {
+      "data": "noop",
+      "line": 7832,
+      "match_type": "literal",
+      "source_function": "_mbaccess_all_buttons",
+      "text": "━━━━ MANAGERBOT ━━━━"
+    },
+    {
+      "data": "menu:nm_managers",
+      "line": 7875,
+      "match_type": "literal",
+      "source_function": "_mbaccess_all_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 7876,
+      "match_type": "literal",
+      "source_function": "_mbaccess_all_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:mbaccess:",
+      "line": 7871,
+      "match_type": "fstring_prefix",
+      "source_function": "_mbaccess_all_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:nm_managers",
+      "line": 8668,
+      "match_type": "literal",
+      "source_function": "_manager_settings_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 8668,
+      "match_type": "literal",
+      "source_function": "_manager_settings_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:manager_settings:",
+      "line": 8663,
+      "match_type": "fstring_prefix",
+      "source_function": "_manager_settings_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:manager_settings",
+      "line": 8778,
+      "match_type": "literal",
+      "source_function": "_manager_settings_card_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 8779,
+      "match_type": "literal",
+      "source_function": "_manager_settings_card_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:manager_settings",
+      "line": 8713,
+      "match_type": "literal",
+      "source_function": "_manager_settings_card_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 8714,
+      "match_type": "literal",
+      "source_function": "_manager_settings_card_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "cmd:/manager_danger_log",
+      "line": 8842,
+      "match_type": "literal",
+      "source_function": "_manager_danger_zone_buttons",
+      "text": "🧾 Журнал"
+    },
+    {
+      "data": "menu:main",
+      "line": 8844,
+      "match_type": "literal",
+      "source_function": "_manager_danger_zone_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:main",
+      "line": 9325,
+      "match_type": "literal",
+      "source_function": "_pb_manager_full_card_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "ssr:one:",
+      "line": 9603,
+      "match_type": "fstring_prefix",
+      "source_function": "_ss_render_view",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "menu:manager_settings:",
+      "line": 9604,
+      "match_type": "fstring_prefix",
+      "source_function": "_ss_render_view",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "ssf:",
+      "line": 9602,
+      "match_type": "fstring_prefix",
+      "source_function": "_ss_render_view",
+      "text": "📂 Открыть #{…}"
+    },
+    {
+      "data": "menu:reserve_pick:",
+      "line": 9831,
+      "match_type": "fstring_prefix",
+      "source_function": "_reserve_admin_buttons",
+      "text": "➕ Привязать резерв"
+    },
+    {
+      "data": "menu:manager_settings:",
+      "line": 9847,
+      "match_type": "fstring_prefix",
+      "source_function": "_reserve_admin_buttons",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:main",
+      "line": 9848,
+      "match_type": "literal",
+      "source_function": "_reserve_admin_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "rsv:retire:",
+      "line": 9843,
+      "match_type": "fstring_prefix",
+      "source_function": "_reserve_admin_buttons",
+      "text": "♻️ Отвязать {…}"
+    },
+    {
+      "data": "menu:reserve_admin:",
+      "line": 9911,
+      "match_type": "fstring_prefix",
+      "source_function": "_reserve_pick_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 9912,
+      "match_type": "literal",
+      "source_function": "_reserve_pick_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "rsv:pair:",
+      "line": 9908,
+      "match_type": "fstring_prefix",
+      "source_function": "_reserve_pick_buttons",
+      "text": "➕ {…}"
+    },
+    {
+      "data": "menu:reserve_admin:",
+      "line": 9910,
+      "match_type": "fstring_prefix",
+      "source_function": "_reserve_pick_buttons",
+      "text": "Нет доступных менеджеров"
+    },
+    {
+      "data": "menu:manager_settings:",
+      "line": 10181,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_list_text_and_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:nm_reports",
+      "line": 10185,
+      "match_type": "literal",
+      "source_function": "_ssv_date_list_text_and_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "ssv:show:",
+      "line": 10210,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "🖼 Показать все за дату"
+    },
+    {
+      "data": "ssv:zip:",
+      "line": 10211,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "📦 Скачать ZIP за дату"
+    },
+    {
+      "data": "ssv:dates",
+      "line": 10214,
+      "match_type": "literal",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "ssv:show:",
+      "line": 10216,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "🖼 Показать скрины {…}"
+    },
+    {
+      "data": "ssv:zip:",
+      "line": 10217,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "📦 Скачать ZIP {…}"
+    },
+    {
+      "data": "ssv:dates:",
+      "line": 10218,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "ssv:mgr:",
+      "line": 10213,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_date_detail_text_and_buttons",
+      "text": "👤 {…}"
+    },
+    {
+      "data": "ssv:show:",
+      "line": 10230,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_manager_detail_text_and_buttons",
+      "text": "🖼 Показать скрины {…}"
+    },
+    {
+      "data": "ssv:zip:",
+      "line": 10231,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_manager_detail_text_and_buttons",
+      "text": "📦 Скачать ZIP {…}"
+    },
+    {
+      "data": "ssv:date:",
+      "line": 10232,
+      "match_type": "fstring_prefix",
+      "source_function": "_ssv_manager_detail_text_and_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "relogin:phone:",
+      "line": 10544,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_intro_buttons",
+      "text": "📱 Войти по номеру и коду"
+    },
+    {
+      "data": "relogin:cancel:",
+      "line": 10545,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_intro_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "relogin:cancel:",
+      "line": 10556,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_cancel_only_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "relogin:confirm_identity:",
+      "line": 10578,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_mismatch_buttons",
+      "text": "✅ Заменить аккаунт"
+    },
+    {
+      "data": "relogin:cancel:",
+      "line": 10579,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_mismatch_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 10606,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_done_buttons",
+      "text": "👤 Карточка менеджера"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 10607,
+      "match_type": "literal",
+      "source_function": "_relogin_done_buttons",
+      "text": "⬅️ Админ менеджеров"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 10614,
+      "match_type": "fstring_prefix",
+      "source_function": "_relogin_error_buttons",
+      "text": "👤 Карточка менеджера"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 10615,
+      "match_type": "literal",
+      "source_function": "_relogin_error_buttons",
+      "text": "⬅️ Админ менеджеров"
+    },
+    {
+      "data": "rw:start:",
+      "line": 10978,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_delete_choice_buttons",
+      "text": "🔄 Заменить аккаунт"
+    },
+    {
+      "data": "guard:delete_confirm:",
+      "line": 10979,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_delete_choice_buttons",
+      "text": "🗑 Просто удалить"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 10980,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_delete_choice_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:begin:",
+      "line": 10997,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_intro_buttons",
+      "text": "▶️ Начать замену"
+    },
+    {
+      "data": "rw:cancelpre:",
+      "line": 10998,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_intro_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11003,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_cancel_only_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:name_ok:",
+      "line": 11016,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_name_confirm_buttons",
+      "text": "✅ Продолжить"
+    },
+    {
+      "data": "rw:name_edit:",
+      "line": 11017,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_name_confirm_buttons",
+      "text": "✏️ Изменить"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11018,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_name_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:key_ok:",
+      "line": 11032,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_key_confirm_buttons",
+      "text": "✅ Продолжить"
+    },
+    {
+      "data": "rw:key_edit:",
+      "line": 11033,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_key_confirm_buttons",
+      "text": "✏️ Изменить"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11034,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_key_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:px_pool:",
+      "line": 11044,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_choice_buttons",
+      "text": "🌐 Выбрать из пула"
+    },
+    {
+      "data": "rw:px_buy:",
+      "line": 11045,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_choice_buttons",
+      "text": "🛒 Купить новый"
+    },
+    {
+      "data": "rw:px_manual:",
+      "line": 11046,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_choice_buttons",
+      "text": "✍️ Ввести вручную"
+    },
+    {
+      "data": "rw:px_direct:",
+      "line": 11047,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_choice_buttons",
+      "text": "🔓 Без proxy"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11048,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_choice_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:px_back:",
+      "line": 11078,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_pool_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11079,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_pool_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:px_pick:",
+      "line": 11077,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_pool_buttons",
+      "text": "#{…} | {…}:{…}"
+    },
+    {
+      "data": "rw:px_pick_yes:",
+      "line": 11089,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_multi_buttons",
+      "text": "✅ Да, использовать"
+    },
+    {
+      "data": "rw:px_pool:",
+      "line": 11090,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_proxy_multi_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "rw:code_resend:",
+      "line": 11113,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_code_expired_buttons",
+      "text": "🔁 Запросить новый код"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11114,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_code_expired_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:ident_ok:",
+      "line": 11143,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_identity_buttons",
+      "text": "✅ Продолжить"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11144,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_identity_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "rw:preview_confirm:",
+      "line": 11168,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_preview_buttons",
+      "text": "✅ Подтвердить и переключить"
+    },
+    {
+      "data": "rw:cancel:",
+      "line": 11169,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_preview_buttons",
+      "text": "❌ Отменить замену"
+    },
+    {
+      "data": "rw:preview_back:",
+      "line": 11170,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_preview_buttons",
+      "text": "◀️ Назад"
+    },
+    {
+      "data": "rw:commit_status:",
+      "line": 11207,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_committing_buttons",
+      "text": "🔄 Проверить статус"
+    },
+    {
+      "data": "rw:commit_status:",
+      "line": 11219,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_links_pending_buttons",
+      "text": "🔄 Продолжить"
+    },
+    {
+      "data": "rw:commit_close:",
+      "line": 11220,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_links_pending_buttons",
+      "text": "❌ Закрыть"
+    },
+    {
+      "data": "rw:commit_status:",
+      "line": 11226,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_retry_buttons",
+      "text": "🔄 Повторить"
+    },
+    {
+      "data": "rw:commit_close:",
+      "line": 11227,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_retry_buttons",
+      "text": "◀️ Вернуться"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 11276,
+      "match_type": "literal",
+      "source_function": "_replace_success_buttons",
+      "text": "⬅️ Админ менеджеров"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 11275,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_success_buttons",
+      "text": "↩️ К карточке менеджера"
+    },
+    {
+      "data": "rw:cancel_yes:",
+      "line": 11360,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_cancel_confirm_buttons",
+      "text": "✅ Да, отменить"
+    },
+    {
+      "data": "rw:cancel_no:",
+      "line": 11361,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_cancel_confirm_buttons",
+      "text": "⬅️ Нет, вернуться"
+    },
+    {
+      "data": "menu:manager_admin:",
+      "line": 11368,
+      "match_type": "fstring_prefix",
+      "source_function": "_replace_error_buttons",
+      "text": "👤 Карточка менеджера"
+    },
+    {
+      "data": "menu:manager_admin",
+      "line": 11369,
+      "match_type": "literal",
+      "source_function": "_replace_error_buttons",
+      "text": "⬅️ Админ менеджеров"
+    },
+    {
+      "data": "menu:bizlinks_create_scope",
+      "line": 14049,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "📦 Создать ссылки"
+    },
+    {
+      "data": "menu:bizlinks_test_pick_mgr",
+      "line": 14050,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "🧪 Создать тест-ссылку"
+    },
+    {
+      "data": "menu:bld_date",
+      "line": 14051,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "🔗 Ссылки на дату"
+    },
+    {
+      "data": "menu:bizlinks_show",
+      "line": 14053,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "📋 Показать ссылки"
+    },
+    {
+      "data": "menu:bizlinks_set_default_count",
+      "line": 14054,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "⚙️ Кол-во ссылок"
+    },
+    {
+      "data": "menu:bizlinks_templates",
+      "line": 14057,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "✏️ Изменить 15 текстов"
+    },
+    {
+      "data": "menu:bizschedule",
+      "line": 14058,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "📅 Графики"
+    },
+    {
+      "data": "menu:bizdel_scope",
+      "line": 14060,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "🗑 Удалить ссылки"
+    },
+    {
+      "data": "menu:bdd_date",
+      "line": 14061,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "🗑 Удалить ссылки по дате"
+    },
+    {
+      "data": "menu:main",
+      "line": 14063,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:bizlinks",
+      "line": 14064,
+      "match_type": "literal",
+      "source_function": "_bizlinks_menu_buttons",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 12130,
+      "match_type": "literal",
+      "source_function": "_bizlinks_templates_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12131,
+      "match_type": "literal",
+      "source_function": "_bizlinks_templates_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "wiz:bizlink_edit:",
+      "line": 12127,
+      "match_type": "fstring_prefix",
+      "source_function": "_bizlinks_templates_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12163,
+      "match_type": "literal",
+      "source_function": "_bizlinks_pick_manager_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12164,
+      "match_type": "literal",
+      "source_function": "_bizlinks_pick_manager_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "noop",
+      "line": 12158,
+      "match_type": "literal",
+      "source_function": "_bizlinks_pick_manager_buttons",
+      "text": "Нет активных менеджеров"
+    },
+    {
+      "data": "menu:bizlinks_templates",
+      "line": 12413,
+      "match_type": "literal",
+      "source_function": "_m213a_bizlink_cb",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "menu:bizlinks_templates",
+      "line": 12449,
+      "match_type": "literal",
+      "source_function": "_m213a_bizlink_wizard_input",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12513,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_pick_mgr_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12514,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_pick_mgr_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "noop",
+      "line": 12511,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_pick_mgr_buttons",
+      "text": "Нет активных менеджеров"
+    },
+    {
+      "data": "menu:bizlinks_test_pick_mgr",
+      "line": 12538,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_slot_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12539,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_slot_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:bizlinks_test_slot:",
+      "line": 12584,
+      "match_type": "fstring_prefix",
+      "source_function": "_bizlinks_test_confirm_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12585,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_confirm_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12580,
+      "match_type": "literal",
+      "source_function": "_bizlinks_test_confirm_buttons",
+      "text": "❌ Ключ слишком длинный"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12673,
+      "match_type": "literal",
+      "source_function": "_bizlinks_batch_pick_mgr_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12674,
+      "match_type": "literal",
+      "source_function": "_bizlinks_batch_pick_mgr_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "noop",
+      "line": 12671,
+      "match_type": "literal",
+      "source_function": "_bizlinks_batch_pick_mgr_buttons",
+      "text": "Нет активных менеджеров"
+    },
+    {
+      "data": "menu:bizlinks_batch_pick_mgr",
+      "line": 12717,
+      "match_type": "literal",
+      "source_function": "_bizlinks_batch_confirm_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 12718,
+      "match_type": "literal",
+      "source_function": "_bizlinks_batch_confirm_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 12713,
+      "match_type": "literal",
+      "source_function": "_bizlinks_batch_confirm_buttons",
+      "text": "❌ Ключ слишком длинный"
+    },
+    {
+      "data": "sch:noop",
+      "line": 12878,
+      "match_type": "literal",
+      "source_function": "_sched_pb_month_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:bizschedule",
+      "line": 12921,
+      "match_type": "literal",
+      "source_function": "_sched_pb_month_buttons",
+      "text": "⬅️ Список"
+    },
+    {
+      "data": "menu:main",
+      "line": 12922,
+      "match_type": "literal",
+      "source_function": "_sched_pb_month_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "sch:noop",
+      "line": 12885,
+      "match_type": "literal",
+      "source_function": "_sched_pb_month_buttons",
+      "text": " "
+    },
+    {
+      "data": "menu:bizschedule",
+      "line": 12969,
+      "match_type": "literal",
+      "source_function": "_sched_pb_clearlist_buttons",
+      "text": "⬅️ Список"
+    },
+    {
+      "data": "menu:main",
+      "line": 12970,
+      "match_type": "literal",
+      "source_function": "_sched_pb_clearlist_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:bizschedule_missing",
+      "line": 13006,
+      "match_type": "literal",
+      "source_function": "_sched_pb_managers_list_buttons",
+      "text": "🔎 Кто работает завтра"
+    },
+    {
+      "data": "menu:schedule_requests",
+      "line": 13007,
+      "match_type": "literal",
+      "source_function": "_sched_pb_managers_list_buttons",
+      "text": "🗂 Заявки на график"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 13009,
+      "match_type": "literal",
+      "source_function": "_sched_pb_managers_list_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 13010,
+      "match_type": "literal",
+      "source_function": "_sched_pb_managers_list_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:bizschedule",
+      "line": 13054,
+      "match_type": "literal",
+      "source_function": "_sched_pb_missing_buttons",
+      "text": "⬅️ К списку"
+    },
+    {
+      "data": "menu:main",
+      "line": 13055,
+      "match_type": "literal",
+      "source_function": "_sched_pb_missing_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:bizlinks_create_pick_mgr",
+      "line": 13438,
+      "match_type": "literal",
+      "source_function": "_d2_scope_buttons",
+      "text": "👤 Один менеджер"
+    },
+    {
+      "data": "menu:bizlinks_create_count_all",
+      "line": 13439,
+      "match_type": "literal",
+      "source_function": "_d2_scope_buttons",
+      "text": "👥 Все менеджеры"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 13442,
+      "match_type": "literal",
+      "source_function": "_d2_scope_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:bizlinks_create_scope",
+      "line": 13470,
+      "match_type": "literal",
+      "source_function": "_d2_pick_mgr_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "noop",
+      "line": 13469,
+      "match_type": "literal",
+      "source_function": "_d2_pick_mgr_buttons",
+      "text": "Нет активных менеджеров"
+    },
+    {
+      "data": "menu:main",
+      "line": 13584,
+      "match_type": "literal",
+      "source_function": "_d2_confirm1_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 13576,
+      "match_type": "literal",
+      "source_function": "_d2_confirm1_buttons",
+      "text": "Ключ слишком длинный"
+    },
+    {
+      "data": "menu:bizlinks_create_count_all",
+      "line": 13633,
+      "match_type": "literal",
+      "source_function": "_d2_confirm_all_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 13634,
+      "match_type": "literal",
+      "source_function": "_d2_confirm_all_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:nm_bizlinks_manage",
+      "line": 13660,
+      "match_type": "literal",
+      "source_function": "_d2_set_default_count_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:bizdelg_scope",
+      "line": 14377,
+      "match_type": "literal",
+      "source_function": "_d3a_scope_buttons",
+      "text": "🌐 Глобально Telegram"
+    },
+    {
+      "data": "menu:nm_bizlinks_delete",
+      "line": 14378,
+      "match_type": "literal",
+      "source_function": "_d3a_scope_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "noop",
+      "line": 14376,
+      "match_type": "literal",
+      "source_function": "_d3a_scope_buttons",
+      "text": "Нет активных менеджеров"
+    },
+    {
+      "data": "noop",
+      "line": 13949,
+      "match_type": "literal",
+      "source_function": "_d3a_pick_date_buttons",
+      "text": "Нет дат с созданными ссылками"
+    },
+    {
+      "data": "menu:nm_bizlinks_delete",
+      "line": 14036,
+      "match_type": "literal",
+      "source_function": "_d3a_format_preview_buttons",
+      "text": "Ошибка ID"
+    },
+    {
+      "data": "menu:bizdel_scope",
+      "line": 14285,
+      "match_type": "literal",
+      "source_function": "_g3b_scope_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "noop",
+      "line": 14284,
+      "match_type": "literal",
+      "source_function": "_g3b_scope_buttons",
+      "text": "Нет активных менеджеров"
+    },
+    {
+      "data": "menu:nm_bizlinks_delete",
+      "line": 14349,
+      "match_type": "literal",
+      "source_function": "_g3b_format_preview_buttons",
+      "text": "Ошибка ID"
+    },
+    {
+      "data": "menu:bizdelg_scope",
+      "line": 14431,
+      "match_type": "literal",
+      "source_function": "_m213d3b_bizdelg_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "menu:bizdelg_scope",
+      "line": 14446,
+      "match_type": "literal",
+      "source_function": "_m213d3b_bizdelg_callback",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:bizdelg_scope",
+      "line": 14466,
+      "match_type": "literal",
+      "source_function": "_m213d3b_bizdelg_callback",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:bizdelg_scope",
+      "line": 14530,
+      "match_type": "literal",
+      "source_function": "_m213d3b_bizdelg_callback",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:health",
+      "line": 14768,
+      "match_type": "literal",
+      "source_function": "_r1b_health_buttons",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "menu:managers_modes",
+      "line": 14769,
+      "match_type": "literal",
+      "source_function": "_r1b_health_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 14769,
+      "match_type": "literal",
+      "source_function": "_r1b_health_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "menu:source_time:",
+      "line": 14922,
+      "match_type": "fstring_prefix",
+      "source_function": "_tpc2b_source_time_callback",
+      "text": "⬅️ Отмена"
+    },
+    {
+      "data": "schreq:ok:",
+      "line": 15053,
+      "match_type": "fstring_prefix",
+      "source_function": "_tpc3c_request_decision_buttons",
+      "text": "✅ Одобрить"
+    },
+    {
+      "data": "schreq:no:",
+      "line": 15054,
+      "match_type": "fstring_prefix",
+      "source_function": "_tpc3c_request_decision_buttons",
+      "text": "❌ Отклонить"
+    },
+    {
+      "data": "menu:schedule_requests",
+      "line": 15055,
+      "match_type": "literal",
+      "source_function": "_tpc3c_request_decision_buttons",
+      "text": "🗂 Все заявки"
+    },
+    {
+      "data": "menu:schedule_requests",
+      "line": 15100,
+      "match_type": "literal",
+      "source_function": "_tpc3c_inbox_buttons",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "menu:nm_managers",
+      "line": 15105,
+      "match_type": "literal",
+      "source_function": "_tpc3c_inbox_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 15105,
+      "match_type": "literal",
+      "source_function": "_tpc3c_inbox_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "schreq:ok:",
+      "line": 15097,
+      "match_type": "fstring_prefix",
+      "source_function": "_tpc3c_inbox_buttons",
+      "text": "✅ #{…}"
+    },
+    {
+      "data": "schreq:no:",
+      "line": 15098,
+      "match_type": "fstring_prefix",
+      "source_function": "_tpc3c_inbox_buttons",
+      "text": "❌ #{…}"
+    },
+    {
+      "data": "menu:schedule_requests",
+      "line": 15207,
+      "match_type": "literal",
+      "source_function": "_tpc3c_schreq_callback",
+      "text": "🗂 Все заявки"
+    },
+    {
+      "data": "menu:schedule_requests",
+      "line": 15165,
+      "match_type": "literal",
+      "source_function": "_tpc3c_schreq_callback",
+      "text": "🗂 Все заявки"
+    },
+    {
+      "data": "menu:schedule_requests",
+      "line": 15180,
+      "match_type": "literal",
+      "source_function": "_tpc3c_schreq_callback",
+      "text": "🗂 Все заявки"
+    },
+    {
+      "data": "menu:llm_status:today",
+      "line": 15534,
+      "match_type": "literal",
+      "source_function": "_tp_llm_status_buttons",
+      "text": "Сегодня"
+    },
+    {
+      "data": "menu:llm_status:yesterday",
+      "line": 15535,
+      "match_type": "literal",
+      "source_function": "_tp_llm_status_buttons",
+      "text": "Вчера"
+    },
+    {
+      "data": "menu:llm_status:week",
+      "line": 15538,
+      "match_type": "literal",
+      "source_function": "_tp_llm_status_buttons",
+      "text": "Неделя"
+    },
+    {
+      "data": "menu:llm_status:month",
+      "line": 15539,
+      "match_type": "literal",
+      "source_function": "_tp_llm_status_buttons",
+      "text": "Месяц"
+    },
+    {
+      "data": "menu:reports_control",
+      "line": 15542,
+      "match_type": "literal",
+      "source_function": "_tp_llm_status_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 15542,
+      "match_type": "literal",
+      "source_function": "_tp_llm_status_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "tr:toggle:",
+      "line": 15624,
+      "match_type": "fstring_prefix",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "noop",
+      "line": 15628,
+      "match_type": "literal",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "— Клоузеры (до 2) —"
+    },
+    {
+      "data": "noop",
+      "line": 15646,
+      "match_type": "literal",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "— Группа уведомлений —"
+    },
+    {
+      "data": "tr:setgroup:",
+      "line": 15647,
+      "match_type": "fstring_prefix",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "💬 Использовать этот чат для уведомлений"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 15651,
+      "match_type": "fstring_prefix",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:main",
+      "line": 15652,
+      "match_type": "literal",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:transfer_closers",
+      "line": 15635,
+      "match_type": "literal",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "Клоузеры ещё не назначены"
+    },
+    {
+      "data": "tr:cleargroup:",
+      "line": 15649,
+      "match_type": "fstring_prefix",
+      "source_function": "_transfer_mgr_buttons",
+      "text": "🧹 Очистить группу уведомлений"
+    },
+    {
+      "data": "noop",
+      "line": 15682,
+      "match_type": "literal",
+      "source_function": "_transfer_closers_buttons",
+      "text": "— Сделать клоузером —"
+    },
+    {
+      "data": "noop",
+      "line": 15694,
+      "match_type": "literal",
+      "source_function": "_transfer_closers_buttons",
+      "text": "— Текущие клоузеры —"
+    },
+    {
+      "data": "menu:nm_transfers",
+      "line": 15705,
+      "match_type": "literal",
+      "source_function": "_transfer_closers_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 15706,
+      "match_type": "literal",
+      "source_function": "_transfer_closers_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "noop",
+      "line": 15684,
+      "match_type": "literal",
+      "source_function": "_transfer_closers_buttons",
+      "text": "Нет доступных подключённых аккаунтов"
+    },
+    {
+      "data": "noop",
+      "line": 15696,
+      "match_type": "literal",
+      "source_function": "_transfer_closers_buttons",
+      "text": "Клоузеров пока нет"
+    },
+    {
+      "data": "menu:closer_detail:",
+      "line": 15701,
+      "match_type": "fstring_prefix",
+      "source_function": "_transfer_closers_buttons",
+      "text": "👤 {…}"
+    },
+    {
+      "data": "menu:transfer_closers",
+      "line": 15733,
+      "match_type": "literal",
+      "source_function": "_closer_detail_buttons",
+      "text": "⬅️ Назад к клоузерам"
+    },
+    {
+      "data": "menu:main",
+      "line": 15734,
+      "match_type": "literal",
+      "source_function": "_closer_detail_buttons",
+      "text": "🏠 Главная панель"
+    },
+    {
+      "data": "menu:transfer_stats:today",
+      "line": 16042,
+      "match_type": "literal",
+      "source_function": "_tr_stats_buttons",
+      "text": "Сегодня"
+    },
+    {
+      "data": "menu:transfer_stats:yesterday",
+      "line": 16043,
+      "match_type": "literal",
+      "source_function": "_tr_stats_buttons",
+      "text": "Вчера"
+    },
+    {
+      "data": "menu:transfer_stats:week",
+      "line": 16046,
+      "match_type": "literal",
+      "source_function": "_tr_stats_buttons",
+      "text": "Неделя"
+    },
+    {
+      "data": "menu:transfer_stats:month",
+      "line": 16047,
+      "match_type": "literal",
+      "source_function": "_tr_stats_buttons",
+      "text": "Месяц"
+    },
+    {
+      "data": "trx:xlsx:",
+      "line": 16049,
+      "match_type": "fstring_prefix",
+      "source_function": "_tr_stats_buttons",
+      "text": "📦 Excel"
+    },
+    {
+      "data": "menu:nm_transfers",
+      "line": 16052,
+      "match_type": "literal",
+      "source_function": "_tr_stats_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "menu:main",
+      "line": 16052,
+      "match_type": "literal",
+      "source_function": "_tr_stats_buttons",
+      "text": "🏠 Главная"
+    },
+    {
+      "data": "bld:noop",
+      "line": 16232,
+      "match_type": "literal",
+      "source_function": "_bld_month_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:nm_bizlinks_create",
+      "line": 16259,
+      "match_type": "literal",
+      "source_function": "_bld_month_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bld:noop",
+      "line": 16238,
+      "match_type": "literal",
+      "source_function": "_bld_month_buttons",
+      "text": " "
+    },
+    {
+      "data": "bld:noop",
+      "line": 16246,
+      "match_type": "literal",
+      "source_function": "_bld_month_buttons",
+      "text": "."
+    },
+    {
+      "data": "bld:noop",
+      "line": 16243,
+      "match_type": "literal",
+      "source_function": "_bld_month_buttons",
+      "text": " "
+    },
+    {
+      "data": "bld:all",
+      "line": 16294,
+      "match_type": "literal",
+      "source_function": "_bld_pick_buttons",
+      "text": "Выбрать всех"
+    },
+    {
+      "data": "bld:none",
+      "line": 16295,
+      "match_type": "literal",
+      "source_function": "_bld_pick_buttons",
+      "text": "Снять всех"
+    },
+    {
+      "data": "bld:tocnt",
+      "line": 16297,
+      "match_type": "literal",
+      "source_function": "_bld_pick_buttons",
+      "text": "➡️ Далее ({…})"
+    },
+    {
+      "data": "menu:bld_date",
+      "line": 16299,
+      "match_type": "literal",
+      "source_function": "_bld_pick_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bld:x",
+      "line": 16300,
+      "match_type": "literal",
+      "source_function": "_bld_pick_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "bld:backpick",
+      "line": 16329,
+      "match_type": "literal",
+      "source_function": "_bld_count_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bld:x",
+      "line": 16330,
+      "match_type": "literal",
+      "source_function": "_bld_count_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "bld:go",
+      "line": 16385,
+      "match_type": "literal",
+      "source_function": "_bld_confirm_buttons",
+      "text": "🚀 Создать"
+    },
+    {
+      "data": "bld:backcount",
+      "line": 16387,
+      "match_type": "literal",
+      "source_function": "_bld_confirm_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bld:x",
+      "line": 16388,
+      "match_type": "literal",
+      "source_function": "_bld_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "bld:yes",
+      "line": 16428,
+      "match_type": "literal",
+      "source_function": "_bld_offschedule_warn_buttons",
+      "text": "✅ Да, создать"
+    },
+    {
+      "data": "bld:no",
+      "line": 16429,
+      "match_type": "literal",
+      "source_function": "_bld_offschedule_warn_buttons",
+      "text": "❌ Нет"
+    },
+    {
+      "data": "bld:retryforce:",
+      "line": 16435,
+      "match_type": "fstring_prefix",
+      "source_function": "_bld_retry_warn_buttons",
+      "text": "✅ Да, создать вне графика"
+    },
+    {
+      "data": "bld:retrycancel:",
+      "line": 16436,
+      "match_type": "fstring_prefix",
+      "source_function": "_bld_retry_warn_buttons",
+      "text": "❌ Нет"
+    },
+    {
+      "data": "bld:refresh:",
+      "line": 16502,
+      "match_type": "fstring_prefix",
+      "source_function": "_bld_progress_buttons",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "bdd:noop",
+      "line": 17224,
+      "match_type": "literal",
+      "source_function": "_bdd_month_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "menu:nm_bizlinks_delete",
+      "line": 17243,
+      "match_type": "literal",
+      "source_function": "_bdd_month_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bdd:noop",
+      "line": 17230,
+      "match_type": "literal",
+      "source_function": "_bdd_month_buttons",
+      "text": " "
+    },
+    {
+      "data": "bdd:all",
+      "line": 17278,
+      "match_type": "literal",
+      "source_function": "_bdd_pick_buttons",
+      "text": "Выбрать всех"
+    },
+    {
+      "data": "bdd:none",
+      "line": 17279,
+      "match_type": "literal",
+      "source_function": "_bdd_pick_buttons",
+      "text": "Снять всех"
+    },
+    {
+      "data": "bdd:toconfirm",
+      "line": 17281,
+      "match_type": "literal",
+      "source_function": "_bdd_pick_buttons",
+      "text": "➡️ Далее ({…})"
+    },
+    {
+      "data": "menu:bdd_date",
+      "line": 17283,
+      "match_type": "literal",
+      "source_function": "_bdd_pick_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bdd:x",
+      "line": 17284,
+      "match_type": "literal",
+      "source_function": "_bdd_pick_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "bdd:go",
+      "line": 17344,
+      "match_type": "literal",
+      "source_function": "_bdd_confirm_buttons",
+      "text": "✅ Да, удалить"
+    },
+    {
+      "data": "bdd:backpick",
+      "line": 17346,
+      "match_type": "literal",
+      "source_function": "_bdd_confirm_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "bdd:x",
+      "line": 17347,
+      "match_type": "literal",
+      "source_function": "_bdd_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "bdd:backpick",
+      "line": 17351,
+      "match_type": "literal",
+      "source_function": "_bdd_confirm_buttons",
+      "text": "↩️ Назад"
+    },
+    {
+      "data": "bdd:x",
+      "line": 17352,
+      "match_type": "literal",
+      "source_function": "_bdd_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "bdd:refresh:",
+      "line": 17419,
+      "match_type": "fstring_prefix",
+      "source_function": "_bdd_progress_buttons",
+      "text": "🔄 Обновить"
+    },
+    {
+      "data": "menu:nm_llm_status:today",
+      "line": 18724,
+      "match_type": "literal",
+      "source_function": "_nm_llm_status_buttons",
+      "text": "Сегодня"
+    },
+    {
+      "data": "menu:nm_llm_status:yesterday",
+      "line": 18724,
+      "match_type": "literal",
+      "source_function": "_nm_llm_status_buttons",
+      "text": "Вчера"
+    },
+    {
+      "data": "menu:nm_llm_status:week",
+      "line": 18725,
+      "match_type": "literal",
+      "source_function": "_nm_llm_status_buttons",
+      "text": "Неделя"
+    },
+    {
+      "data": "menu:nm_llm_status:month",
+      "line": 18725,
+      "match_type": "literal",
+      "source_function": "_nm_llm_status_buttons",
+      "text": "Месяц"
+    },
+    {
+      "data": "menu:nm_llm_toggle_do:",
+      "line": 18755,
+      "match_type": "fstring_prefix",
+      "source_function": "_nm_llm_toggle_confirm_buttons",
+      "text": "✅ Подтвердить"
+    },
+    {
+      "data": "menu:nm_automation",
+      "line": 18756,
+      "match_type": "literal",
+      "source_function": "_nm_llm_toggle_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "nms:noop",
+      "line": 19154,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "nms:noop",
+      "line": 19184,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "."
+    },
+    {
+      "data": "nms:noop",
+      "line": 19188,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "."
+    },
+    {
+      "data": "nms:tomgr",
+      "line": 19190,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "➡️ Далее"
+    },
+    {
+      "data": "nms:back:styp",
+      "line": 19191,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "nms:x",
+      "line": 19191,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "nms:noop",
+      "line": 19160,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": " "
+    },
+    {
+      "data": "nms:noop",
+      "line": 19169,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": "."
+    },
+    {
+      "data": "nms:noop",
+      "line": 19165,
+      "match_type": "literal",
+      "source_function": "_nms_month_buttons",
+      "text": " "
+    },
+    {
+      "data": "nms:back:src",
+      "line": 19296,
+      "match_type": "literal",
+      "source_function": "_nms_managers_list_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "nms:x",
+      "line": 19296,
+      "match_type": "literal",
+      "source_function": "_nms_managers_list_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "nms:mpage:",
+      "line": 19292,
+      "match_type": "fstring_prefix",
+      "source_function": "_nms_managers_list_buttons",
+      "text": "⬅️"
+    },
+    {
+      "data": "nms:noop",
+      "line": 19292,
+      "match_type": "literal",
+      "source_function": "_nms_managers_list_buttons",
+      "text": "."
+    },
+    {
+      "data": "nms:mpage:",
+      "line": 19293,
+      "match_type": "fstring_prefix",
+      "source_function": "_nms_managers_list_buttons",
+      "text": "➡️"
+    },
+    {
+      "data": "nms:noop",
+      "line": 19293,
+      "match_type": "literal",
+      "source_function": "_nms_managers_list_buttons",
+      "text": "."
+    },
+    {
+      "data": "nms:all",
+      "line": 19352,
+      "match_type": "literal",
+      "source_function": "_nms_mgr_buttons",
+      "text": "Выбрать всех"
+    },
+    {
+      "data": "nms:none",
+      "line": 19353,
+      "match_type": "literal",
+      "source_function": "_nms_mgr_buttons",
+      "text": "Снять всех"
+    },
+    {
+      "data": "nms:confirm",
+      "line": 19355,
+      "match_type": "literal",
+      "source_function": "_nms_mgr_buttons",
+      "text": "➡️ Далее"
+    },
+    {
+      "data": "nms:back:cal",
+      "line": 19357,
+      "match_type": "literal",
+      "source_function": "_nms_mgr_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "nms:x",
+      "line": 19358,
+      "match_type": "literal",
+      "source_function": "_nms_mgr_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "nms:go",
+      "line": 19399,
+      "match_type": "literal",
+      "source_function": "_nms_confirm_buttons",
+      "text": "📊 Показать отчёт"
+    },
+    {
+      "data": "nms:back:",
+      "line": 19400,
+      "match_type": "fstring_prefix",
+      "source_function": "_nms_confirm_buttons",
+      "text": "⬅️ Назад"
+    },
+    {
+      "data": "nms:x",
+      "line": 19400,
+      "match_type": "literal",
+      "source_function": "_nms_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "pfok:a",
+      "line": 19937,
+      "match_type": "literal",
+      "source_function": "_pf_send_admin_report",
+      "text": "✅ Ознакомился"
+    },
+    {
+      "data": "pfok:ae",
+      "line": 20141,
+      "match_type": "literal",
+      "source_function": "_pf_admin_apply_correction",
+      "text": "✅ Ознакомился"
+    },
+    {
+      "data": "pfok:ae",
+      "line": 20232,
+      "match_type": "literal",
+      "source_function": "_pf_send_admin_evening_report",
+      "text": "✅ Ознакомился"
+    },
+    {
+      "data": "wiz:buyproxy:confirm:",
+      "line": 20758,
+      "match_type": "fstring_prefix",
+      "source_function": "_pbuy_confirm_buttons",
+      "text": "✅ Подтвердить покупку"
+    },
+    {
+      "data": "wiz:buyproxy:recover:",
+      "line": 20766,
+      "match_type": "fstring_prefix",
+      "source_function": "_pbuy_recover_buttons",
+      "text": "🔄 Дозабрать proxy"
+    },
+    {
+      "data": "ppool:check:",
+      "line": 20810,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_guard_failed_buttons",
+      "text": "🧪 Проверить ещё раз"
+    },
+    {
+      "data": "ppool:sync",
+      "line": 20811,
+      "match_type": "literal",
+      "source_function": "_ppool_guard_failed_buttons",
+      "text": "🔄 Обновить данные proxy"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 20812,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_guard_failed_buttons",
+      "text": "🌐 Открыть карточку proxy"
+    },
+    {
+      "data": "wiz:add_manager:frompool:",
+      "line": 20815,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_guard_failed_buttons",
+      "text": "🟢 Выбрать другой proxy из пула"
+    },
+    {
+      "data": "wiz:frompool:back:",
+      "line": 21101,
+      "match_type": "fstring_prefix",
+      "source_function": "_frompool_picker_buttons",
+      "text": "⬅️ Назад к выбору proxy"
+    },
+    {
+      "data": "wiz:frompool:pick:",
+      "line": 21100,
+      "match_type": "fstring_prefix",
+      "source_function": "_frompool_picker_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "wiz:add_manager:buyproxy:",
+      "line": 21108,
+      "match_type": "fstring_prefix",
+      "source_function": "_frompool_empty_buttons",
+      "text": "🛒 Купить SOCKS5 автоматически"
+    },
+    {
+      "data": "wiz:add_manager:proxy:",
+      "line": 21109,
+      "match_type": "fstring_prefix",
+      "source_function": "_frompool_empty_buttons",
+      "text": "🌐 Подключить SOCKS5 proxy"
+    },
+    {
+      "data": "wiz:add_manager:bypass:",
+      "line": 21110,
+      "match_type": "fstring_prefix",
+      "source_function": "_frompool_empty_buttons",
+      "text": "🔓 Подключить без proxy"
+    },
+    {
+      "data": "menu:main",
+      "line": 21111,
+      "match_type": "literal",
+      "source_function": "_frompool_empty_buttons",
+      "text": "⬅️ Назад к панели"
+    },
+    {
+      "data": "wiz:frompool:confirm:",
+      "line": 21163,
+      "match_type": "fstring_prefix",
+      "source_function": "_frompool_run_confirm_screen",
+      "text": "✅ Подтвердить"
+    },
+    {
+      "data": "renew:calc:",
+      "line": 21487,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_notification_buttons",
+      "text": "🔁 Рассчитать продление"
+    },
+    {
+      "data": "renew:defer:",
+      "line": 21488,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_notification_buttons",
+      "text": "⏰ Отложить"
+    },
+    {
+      "data": "renew:calc:",
+      "line": 21507,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_autorenew_failed_buttons",
+      "text": "🔄 Продлить вручную"
+    },
+    {
+      "data": "ppool:check:",
+      "line": 21508,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_autorenew_failed_buttons",
+      "text": "🧪 Проверить proxy"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 21509,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_autorenew_failed_buttons",
+      "text": "🌐 Открыть карточку"
+    },
+    {
+      "data": "renew:confirm:",
+      "line": 21579,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_confirm_buttons",
+      "text": "✅ Подтвердить продление"
+    },
+    {
+      "data": "renew:cancel:",
+      "line": 21580,
+      "match_type": "fstring_prefix",
+      "source_function": "_prenew_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "ppool:list:all",
+      "line": 21793,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "📋 Все прокси"
+    },
+    {
+      "data": "ppool:list:free",
+      "line": 21794,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "🟢 Свободные"
+    },
+    {
+      "data": "ppool:list:assigned",
+      "line": 21794,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "👤 Назначенные"
+    },
+    {
+      "data": "ppool:list:occupied",
+      "line": 21795,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "🟡 Занятые"
+    },
+    {
+      "data": "ppool:list:orphaned",
+      "line": 21795,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "⚠️ Осиротевшие"
+    },
+    {
+      "data": "ppool:list:external",
+      "line": 21796,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "🌐 Сторонние"
+    },
+    {
+      "data": "ppool:sync",
+      "line": 21797,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "🔄 Синхронизировать"
+    },
+    {
+      "data": "prn:root",
+      "line": 21798,
+      "match_type": "literal",
+      "source_function": "_ppool_root_buttons",
+      "text": "💳 Продление прокси"
+    },
+    {
+      "data": "menu:ppool",
+      "line": 21853,
+      "match_type": "literal",
+      "source_function": "_ppool_list_buttons",
+      "text": "🔙 Назад"
+    },
+    {
+      "data": "menu:ppool",
+      "line": 21844,
+      "match_type": "literal",
+      "source_function": "_ppool_list_buttons",
+      "text": "🔙 Назад"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 21852,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_list_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "ppool:list:all",
+      "line": 21888,
+      "match_type": "literal",
+      "source_function": "_plc_action_notification_buttons",
+      "text": "🌐 Открыть пул прокси"
+    },
+    {
+      "data": "plcterm:",
+      "line": 21910,
+      "match_type": "fstring_prefix",
+      "source_function": "_plc_terminal_review_buttons",
+      "text": "⛔ Подтвердить: аккаунт мёртв, снять прокси"
+    },
+    {
+      "data": "ppool:list:",
+      "line": 22010,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "🔙 К списку"
+    },
+    {
+      "data": "menu:ppool",
+      "line": 22011,
+      "match_type": "literal",
+      "source_function": "_ppool_card_buttons",
+      "text": "🏠 Пул прокси"
+    },
+    {
+      "data": "ppool:check:",
+      "line": 22001,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "🧪 Проверить"
+    },
+    {
+      "data": "ppool:autorenew:",
+      "line": 22007,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "ppool:details:",
+      "line": 22009,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "ppool:assign:",
+      "line": 21998,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "ppool:unassign:",
+      "line": 22000,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "🔌 Отвязать"
+    },
+    {
+      "data": "ppool:reveal:",
+      "line": 22003,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_card_buttons",
+      "text": "🔐 Показать пароль"
+    },
+    {
+      "data": "ppool:assign_to:",
+      "line": 22075,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_assign_picker_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 22079,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_assign_picker_buttons",
+      "text": "🔙 Назад к карточке"
+    },
+    {
+      "data": "noop",
+      "line": 22078,
+      "match_type": "literal",
+      "source_function": "_ppool_assign_picker_buttons",
+      "text": "Активных менеджеров нет"
+    },
+    {
+      "data": "ppool:assign_confirm:",
+      "line": 22092,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_assign_confirm_buttons",
+      "text": "✅ Подтвердить"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 22093,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_assign_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "ppool:unassign_confirm:",
+      "line": 22120,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_unassign_confirm_buttons",
+      "text": "✅ Отвязать"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 22121,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_unassign_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "ppool:assign_multi:",
+      "line": 22219,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_multi_assign_buttons",
+      "text": "✅ Да, установить"
+    },
+    {
+      "data": "ppool:card:",
+      "line": 22220,
+      "match_type": "fstring_prefix",
+      "source_function": "_ppool_multi_assign_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "ppool:sync_confirm",
+      "line": 22464,
+      "match_type": "literal",
+      "source_function": "_ppool_sync_confirm_buttons",
+      "text": "✅ Синхронизировать"
+    },
+    {
+      "data": "menu:ppool",
+      "line": 22465,
+      "match_type": "literal",
+      "source_function": "_ppool_sync_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "prn:due",
+      "line": 22523,
+      "match_type": "literal",
+      "source_function": "_prn_root_buttons",
+      "text": "📋 К продлению"
+    },
+    {
+      "data": "prn:errors",
+      "line": 22524,
+      "match_type": "literal",
+      "source_function": "_prn_root_buttons",
+      "text": "❌ Ошибки продления"
+    },
+    {
+      "data": "prn:config",
+      "line": 22525,
+      "match_type": "literal",
+      "source_function": "_prn_root_buttons",
+      "text": "⚙️ Автопродление / настройки"
+    },
+    {
+      "data": "prn:root",
+      "line": 22561,
+      "match_type": "literal",
+      "source_function": "_prn_due_buttons",
+      "text": "🔙 Назад"
+    },
+    {
+      "data": "prn:calc:",
+      "line": 22560,
+      "match_type": "fstring_prefix",
+      "source_function": "_prn_due_buttons",
+      "text": "<dynamic>"
+    },
+    {
+      "data": "prn:confirm:",
+      "line": 22590,
+      "match_type": "fstring_prefix",
+      "source_function": "_prn_calc_buttons",
+      "text": "✅ Продлить (списать)"
+    },
+    {
+      "data": "prn:due",
+      "line": 22591,
+      "match_type": "literal",
+      "source_function": "_prn_calc_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "prn:root",
+      "line": 22611,
+      "match_type": "literal",
+      "source_function": "_prn_config_buttons",
+      "text": "🔙 Назад"
+    },
+    {
+      "data": "prn:cfg:disable_auto",
+      "line": 22602,
+      "match_type": "literal",
+      "source_function": "_prn_config_buttons",
+      "text": "⚪ Выключить автопродление"
+    },
+    {
+      "data": "prn:cfg:enable_auto",
+      "line": 22604,
+      "match_type": "literal",
+      "source_function": "_prn_config_buttons",
+      "text": "🟢 Включить автопродление (согласие)"
+    },
+    {
+      "data": "wiz:tdimport_cancel_wait:",
+      "line": 23337,
+      "match_type": "fstring_prefix",
+      "source_function": "_tdimport_upload_wait_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "wiz:tdimport_confirm:",
+      "line": 23344,
+      "match_type": "fstring_prefix",
+      "source_function": "_tdimport_confirm_buttons",
+      "text": "✅ Подтвердить и установить"
+    },
+    {
+      "data": "wiz:tdimport_cancel:",
+      "line": 23345,
+      "match_type": "fstring_prefix",
+      "source_function": "_tdimport_confirm_buttons",
+      "text": "❌ Отмена"
+    },
+    {
+      "data": "devlogin:poll:",
+      "line": 23860,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_waiting_buttons",
+      "text": "🔄 Проверить сейчас"
+    },
+    {
+      "data": "devlogin:cancel:",
+      "line": 23861,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_waiting_buttons",
+      "text": "❌ Отменить ожидание"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 23862,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_waiting_buttons",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24023,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_callback",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24058,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_callback",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24084,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_callback",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24131,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24138,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24156,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24179,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24214,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24224,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    },
+    {
+      "data": "menu:manager:",
+      "line": 24205,
+      "match_type": "fstring_prefix",
+      "source_function": "_devlogin_pin_input",
+      "text": "⬅️ Назад к менеджеру"
+    }
+  ],
+  "callback_prefixes": {
+    "exact": [
+      "autostatus_status_info",
+      "noop",
+      "panel:back",
+      "ppool:sync",
+      "ppool:sync_confirm",
+      "prn:config",
+      "prn:due",
+      "prn:errors",
+      "prn:root",
+      "wiz:add_group:start",
+      "wiz:add_manager:start",
+      "wiz:add_source:start",
+      "wiz:profile_apply:start",
+      "wiz:profile_lead:start",
+      "wiz:profile_period:start"
+    ],
+    "prefix": [
+      "bdd:",
+      "bizdel:",
+      "bizdelg:",
+      "bizfix:",
+      "bld:",
+      "blovr:",
+      "bslcnt:",
+      "bulk:",
+      "cal:",
+      "cmd:",
+      "devlogin:",
+      "guard:",
+      "hv2:",
+      "mba:",
+      "menu:",
+      "mmt:",
+      "nms:",
+      "pfok:",
+      "plcterm:",
+      "ppool:",
+      "ppool:assign:",
+      "ppool:assign_confirm:",
+      "ppool:assign_multi:",
+      "ppool:assign_to:",
+      "ppool:autorenew:",
+      "ppool:card:",
+      "ppool:check:",
+      "ppool:details:",
+      "ppool:list:",
+      "ppool:reveal:",
+      "ppool:unassign:",
+      "ppool:unassign_confirm:",
+      "prn:",
+      "prn:calc:",
+      "prn:cfg:",
+      "prn:confirm:",
+      "pxm:back:",
+      "pxm:buy:",
+      "pxm:cardresult:",
+      "pxm:manual:",
+      "pxm:menu:",
+      "pxm:pool:",
+      "pxm:reveal:",
+      "relogin:",
+      "renew:calc:",
+      "renew:cancel:",
+      "renew:confirm:",
+      "renew:defer:",
+      "rsv:",
+      "rw:",
+      "sch:",
+      "schreq:",
+      "sds:",
+      "srcpick:",
+      "ssc:",
+      "ssf:",
+      "ssr:",
+      "ssv:",
+      "sti:",
+      "swin:",
+      "tr:",
+      "trx:",
+      "wiz:add_manager:buyproxy:",
+      "wiz:add_manager:bypass:",
+      "wiz:add_manager:frompool:",
+      "wiz:add_manager:proxy:",
+      "wiz:autoschedule:",
+      "wiz:bizlink_edit:",
+      "wiz:buyproxy:cancel:",
+      "wiz:buyproxy:confirm:",
+      "wiz:buyproxy:recover:",
+      "wiz:content_delay:",
+      "wiz:content_text:",
+      "wiz:content_variant_add:",
+      "wiz:content_variant_delete:",
+      "wiz:content_variant_set:",
+      "wiz:content_variant_toggle:",
+      "wiz:frompool:back:",
+      "wiz:frompool:confirm:",
+      "wiz:frompool:pick:",
+      "wiz:period:",
+      "wiz:proxy:bypass:",
+      "wiz:proxy:direct_warn:",
+      "wiz:proxy:set:",
+      "wiz:qr_cancel:",
+      "wiz:qr_refresh:",
+      "wiz:qr_start:",
+      "wiz:rename_group:",
+      "wiz:rename_manager:",
+      "wiz:rename_source:",
+      "wiz:resend_code:",
+      "wiz:reset_manager:",
+      "wiz:tdimport_cancel:",
+      "wiz:tdimport_cancel_wait:",
+      "wiz:tdimport_confirm:",
+      "wiz:tdimport_start:"
+    ]
+  },
+  "commands": {
+    "dispatch_dict": [
+      {
+        "command": "/manager_replace_start",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_recover_for_old_key",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_key_check",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_send_phone",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_submit_code",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_submit_password",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_ready_preview",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_cancel",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_recover",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_proxy_pool_pick",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_proxy_manual",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_replace_commit",
+        "dict": "_REPL3_DISPATCH",
+        "line": 35331
+      },
+      {
+        "command": "/manager_tdimport_start",
+        "dict": "_TDIMPORT_DISPATCH",
+        "line": 37027
+      },
+      {
+        "command": "/manager_tdimport_status",
+        "dict": "_TDIMPORT_DISPATCH",
+        "line": 37027
+      },
+      {
+        "command": "/manager_tdimport_confirm",
+        "dict": "_TDIMPORT_DISPATCH",
+        "line": 37027
+      },
+      {
+        "command": "/manager_tdimport_cancel",
+        "dict": "_TDIMPORT_DISPATCH",
+        "line": 37027
+      },
+      {
+        "command": "/manager_devlogin_start",
+        "dict": "_DEVLOGIN_DISPATCH",
+        "line": 37614
+      },
+      {
+        "command": "/manager_devlogin_cancel",
+        "dict": "_DEVLOGIN_DISPATCH",
+        "line": 37614
+      },
+      {
+        "command": "/manager_devlogin_consume",
+        "dict": "_DEVLOGIN_DISPATCH",
+        "line": 37614
+      },
+      {
+        "command": "/proxy_lifecycle_terminal_confirm",
+        "dict": "_PLC_DISPATCH",
+        "line": 37948
+      },
+      {
+        "command": "/proxy_lifecycle_status",
+        "dict": "_PLC_DISPATCH",
+        "line": 37948
+      },
+      {
+        "command": "/proxy_lifecycle_cleanup_plan",
+        "dict": "_PLC_DISPATCH",
+        "line": 37948
+      },
+      {
+        "command": "/proxy_renewal_backfill",
+        "dict": "_RENEWAL_DISPATCH",
+        "line": 38494
+      },
+      {
+        "command": "/proxy_renewal_status",
+        "dict": "_RENEWAL_DISPATCH",
+        "line": 38494
+      },
+      {
+        "command": "/proxy_renewal_calc",
+        "dict": "_RENEWAL_DISPATCH",
+        "line": 38494
+      },
+      {
+        "command": "/proxy_renewal_confirm",
+        "dict": "_RENEWAL_DISPATCH",
+        "line": 38494
+      },
+      {
+        "command": "/proxy_renewal_config",
+        "dict": "_RENEWAL_DISPATCH",
+        "line": 38494
+      }
+    ],
+    "exact": [
+      "/autoreply",
+      "/autoschedule",
+      "/baseline",
+      "/bizlink_create_15",
+      "/bizlink_create_all",
+      "/bizlink_create_n",
+      "/bizlink_create_one",
+      "/bizlink_del_tg",
+      "/bizlink_delete_telegram",
+      "/bizlink_delete_tpilot",
+      "/bizlink_list_telegram",
+      "/content",
+      "/dayoff",
+      "/duplicates",
+      "/export",
+      "/flight",
+      "/flights",
+      "/followup",
+      "/funnel",
+      "/greeting",
+      "/help",
+      "/help_adm",
+      "/hnv2_diag",
+      "/instructions",
+      "/lead",
+      "/manager_add",
+      "/manager_code",
+      "/manager_danger_log",
+      "/manager_db_clear",
+      "/manager_db_restore",
+      "/manager_delete_full",
+      "/manager_devlogin_cancel",
+      "/manager_devlogin_consume",
+      "/manager_devlogin_start",
+      "/manager_info",
+      "/manager_list",
+      "/manager_pass",
+      "/manager_phone",
+      "/manager_proxy_buy_calc",
+      "/manager_proxy_buy_confirm",
+      "/manager_proxy_buy_recover",
+      "/manager_proxy_bypass",
+      "/manager_proxy_check",
+      "/manager_proxy_info",
+      "/manager_proxy_off",
+      "/manager_proxy_on",
+      "/manager_proxy_require",
+      "/manager_proxy_set",
+      "/manager_qr_cancel",
+      "/manager_qr_refresh",
+      "/manager_qr_start",
+      "/manager_relogin_cancel",
+      "/manager_relogin_code",
+      "/manager_relogin_confirm",
+      "/manager_relogin_pass",
+      "/manager_relogin_phone",
+      "/manager_rename",
+      "/manager_replace_cancel",
+      "/manager_replace_commit",
+      "/manager_replace_key_check",
+      "/manager_replace_proxy_manual",
+      "/manager_replace_proxy_pool_pick",
+      "/manager_replace_ready_preview",
+      "/manager_replace_recover",
+      "/manager_replace_recover_for_old_key",
+      "/manager_replace_send_phone",
+      "/manager_replace_start",
+      "/manager_replace_submit_code",
+      "/manager_replace_submit_password",
+      "/manager_reset",
+      "/manager_restart",
+      "/manager_start",
+      "/manager_stats_backfill",
+      "/manager_tdimport_cancel",
+      "/manager_tdimport_confirm",
+      "/manager_tdimport_start",
+      "/manager_tdimport_status",
+      "/mgroup",
+      "/nmstat",
+      "/offline",
+      "/online",
+      "/paneldiag",
+      "/partner",
+      "/profile",
+      "/proxy_lifecycle_cleanup_plan",
+      "/proxy_lifecycle_status",
+      "/proxy_lifecycle_terminal_confirm",
+      "/proxy_pool_assign",
+      "/proxy_pool_autorenew",
+      "/proxy_pool_card",
+      "/proxy_pool_check",
+      "/proxy_pool_list",
+      "/proxy_pool_sync",
+      "/proxy_pool_unassign",
+      "/proxy_renew_calc",
+      "/proxy_renew_confirm",
+      "/proxy_renew_defer",
+      "/proxy_renewal_backfill",
+      "/proxy_renewal_calc",
+      "/proxy_renewal_config",
+      "/proxy_renewal_confirm",
+      "/proxy_renewal_status",
+      "/quality",
+      "/questionnaire",
+      "/silent",
+      "/source",
+      "/stat",
+      "/status",
+      "/testlead",
+      "/tghealth",
+      "/unanswered",
+      "/unanswered_notify",
+      "/workday",
+      "/worknow"
+    ],
+    "prefix": []
+  },
+  "diagnostics": {
+    "main.py": {
+      "cooperative": {
+        "_panel_execute_command_text": {
+          "defs": 33,
+          "lines": [
+            10110,
+            11257,
+            11971,
+            12130,
+            12257,
+            12437,
+            12521,
+            13129,
+            15701,
+            18049,
+            19673,
+            20540,
+            21575,
+            22475,
+            23269,
+            25648,
+            26247,
+            27311,
+            27798,
+            28728,
+            29203,
+            31215,
+            31687,
+            32245,
+            33002,
+            33223,
+            33789,
+            35347,
+            37035,
+            37621,
+            37955,
+            38503,
+            40146
+          ]
+        }
+      },
+      "duplicate_names": 82,
+      "functions_active": 1092,
+      "functions_shadowed": 163,
+      "functions_total": 1255,
+      "functions_unique_names": 1060
+    },
+    "panel_bot.py": {
+      "cooperative": {
+        "_title_for_menu": {
+          "defs": 32,
+          "lines": [
+            2917,
+            3108,
+            4486,
+            4965,
+            6209,
+            6351,
+            6729,
+            6891,
+            7247,
+            7884,
+            8851,
+            12257,
+            12594,
+            12727,
+            13063,
+            13669,
+            14073,
+            14386,
+            14777,
+            14793,
+            14873,
+            15112,
+            15549,
+            15741,
+            16786,
+            17610,
+            18763,
+            19407,
+            23179,
+            23217,
+            23288,
+            24268
+          ]
+        }
+      },
+      "duplicate_names": 32,
+      "functions_active": 825,
+      "functions_shadowed": 56,
+      "functions_total": 881,
+      "functions_unique_names": 794
+    },
+    "skipped_dynamic_buttons": 86
+  },
+  "menu_keys": {
+    "exact": [
+      "automation",
+      "autostatus_toggle",
+      "baseline_managers",
+      "bdd_date",
+      "bizdel_scope",
+      "bizdelg_scope",
+      "bizlinks",
+      "bizlinks_batch_pick_mgr",
+      "bizlinks_create_all",
+      "bizlinks_create_count_all",
+      "bizlinks_create_pick_mgr",
+      "bizlinks_create_scope",
+      "bizlinks_pick_manager",
+      "bizlinks_retry",
+      "bizlinks_schedule",
+      "bizlinks_set_default_count",
+      "bizlinks_show",
+      "bizlinks_templates",
+      "bizlinks_test_pick_mgr",
+      "bizschedule",
+      "bizschedule_missing",
+      "bld_date",
+      "content",
+      "content_delays",
+      "content_post_manual",
+      "content_profile",
+      "content_reset_confirm",
+      "content_texts",
+      "description",
+      "duplicates",
+      "export",
+      "flights",
+      "followups",
+      "funnel",
+      "groups",
+      "health",
+      "llm_status",
+      "llm_toggle",
+      "main",
+      "manager_admin",
+      "manager_settings",
+      "managers",
+      "managers_modes",
+      "mbaccess_all",
+      "nm_ai_assistant",
+      "nm_automation",
+      "nm_bizlinks",
+      "nm_bizlinks_create",
+      "nm_bizlinks_delete",
+      "nm_bizlinks_manage",
+      "nm_control",
+      "nm_duplicates",
+      "nm_excel",
+      "nm_export",
+      "nm_flights",
+      "nm_funnel_w",
+      "nm_health_w",
+      "nm_llm_status",
+      "nm_llm_toggle_confirm",
+      "nm_llm_toggle_do",
+      "nm_manager_delete",
+      "nm_managers",
+      "nm_mgr_schedules",
+      "nm_mgr_schedules_all",
+      "nm_proxy",
+      "nm_quality_w",
+      "nm_reports",
+      "nm_root",
+      "nm_search",
+      "nm_service_w",
+      "nm_sources",
+      "nm_stats",
+      "nm_stats2",
+      "nm_system",
+      "nm_tghealth_w",
+      "nm_traffic",
+      "nm_transfers",
+      "nm_unanswered",
+      "old_menu_warning",
+      "old_root",
+      "partners",
+      "ppool",
+      "profile",
+      "profile_check",
+      "proxy",
+      "proxy_add",
+      "quality",
+      "reports_control",
+      "schedule_requests",
+      "service",
+      "sources",
+      "stats",
+      "tghealth",
+      "traffic_buyers",
+      "transfer_closers",
+      "transfer_stats",
+      "unanswered"
+    ],
+    "prefix": [
+      "autostatus_toggle_confirm:",
+      "autostatus_toggle_do:",
+      "baseline_clear_confirm:",
+      "bizdel_count_n:",
+      "bizdel_pick_date:",
+      "bizdel_pick_mode:",
+      "bizlinks_batch_confirm:",
+      "bizlinks_create_all_confirm:",
+      "bizlinks_create_confirm:",
+      "bizlinks_create_count_1:",
+      "bizlinks_create_mgr:",
+      "bizlinks_show:",
+      "bizlinks_test_confirm:",
+      "bizlinks_test_slot:",
+      "closer_detail:",
+      "content_cat:",
+      "group:",
+      "group_delete_confirm:",
+      "llm_status:",
+      "manager:",
+      "manager_admin:",
+      "manager_admin_delete_confirm:",
+      "manager_danger:",
+      "manager_disable_confirm:",
+      "manager_full:",
+      "manager_settings:",
+      "mbaccess:",
+      "mbauser:",
+      "nm_llm_status:",
+      "nm_llm_toggle_do:",
+      "nm_mgr_decision:",
+      "partner_buyer:",
+      "partner_delete_confirm:",
+      "partner_request:",
+      "proxy:",
+      "reserve_admin:",
+      "reserve_pick:",
+      "source:",
+      "source_days:",
+      "source_delete_confirm:",
+      "source_stat:",
+      "source_time:",
+      "transfer_mgr:",
+      "transfer_stats:"
+    ]
+  },
+  "semantic_hash": "23851df766b0040c46791b477dbc1e9626c47633c3ffef17490017fa06ab5d0a",
+  "source_hashes": {
+    "main.py": "9d26335617764301fec2cef3e63b1af8cc18e06112c5e9394454bb0838651d22",
+    "panel_bot.py": "697b8bbd6c3c4a7efbad7545bdff87fff5fe46bd19475f0c86734afc7bb2f05d"
+  },
+  "tool_version": "1"
+}

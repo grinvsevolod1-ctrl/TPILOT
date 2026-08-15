@@ -1,0 +1,30 @@
+{
+  "name": "ALM_TPilot",
+  "time_utc": "2026-05-15T23:44:48+00:00",
+  "ok": true,
+  "reasons": [],
+  "active_managers": [
+    "te",
+    "miller",
+    "jora",
+    "nik",
+    "misha",
+    "zhenya_ashley",
+    "darias",
+    "zhenya_azimov",
+    "mikhail_bely"
+  ],
+  "main_processes": 20,
+  "manager_processes": {
+    "te": 2,
+    "miller": 2,
+    "jora": 2,
+    "nik": 2,
+    "misha": 2,
+    "zhenya_ashley": 2,
+    "darias": 2,
+    "zhenya_azimov": 2,
+    "mikhail_bely": 2
+  },
+  "panel_processes": 2
+}

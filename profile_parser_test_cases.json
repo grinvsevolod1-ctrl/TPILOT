@@ -1,0 +1,281 @@
+[
+  {
+    "name": "Новосибирск почти 18",
+    "messages": [
+      "Интересно сотрудничество 18+. Расскажите, пожалуйста, про условия.",
+      "Новосибирск",
+      "Почти 18",
+      "Мне постоянные работы надо но если есть"
+    ],
+    "expected": {
+      "city": "Новосибирск",
+      "country": "Россия",
+      "age": null,
+      "age_confirmed_18_plus": 0,
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "Москва мне 18",
+    "messages": [
+      "Москва",
+      "мне 18"
+    ],
+    "expected": {
+      "city": "Москва",
+      "country": "Россия",
+      "age": 18,
+      "age_confirmed_18_plus": 1,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "Казань 17 почти 18",
+    "messages": [
+      "Казань",
+      "17 почти 18"
+    ],
+    "expected": {
+      "city": "Казань",
+      "country": "Россия",
+      "age": 17,
+      "age_confirmed_18_plus": 0,
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "Россия 18 без города",
+    "messages": [
+      "Россия, 18"
+    ],
+    "expected": {
+      "city": null,
+      "country": "Россия",
+      "age": 18,
+      "age_confirmed_18_plus": 1,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "Казахстан 25",
+    "messages": [
+      "Казахстан",
+      "25"
+    ],
+    "expected": {
+      "country": "Казахстан",
+      "age": 25,
+      "age_confirmed_18_plus": 1,
+      "quality_bucket": "geo",
+      "liquid": false
+    }
+  },
+  {
+    "name": "18 plus offer ignored",
+    "messages": [
+      "Интересно сотрудничество 18+"
+    ],
+    "expected": {
+      "age": null,
+      "age_confirmed_18_plus": 0,
+      "liquid": false
+    }
+  },
+  {
+    "name": "Почти не Почта",
+    "messages": [
+      "Новосибирск",
+      "Почти 18"
+    ],
+    "expected": {
+      "city": "Новосибирск",
+      "country": "Россия",
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "Донецк 18",
+    "messages": [
+      "Донецк",
+      "18"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": 18,
+      "age_confirmed_18_plus": 1,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "Донецк почти 18",
+    "messages": [
+      "Донецк",
+      "почти 18"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age_confirmed_18_plus": 0,
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "Крым совершеннолетний",
+    "messages": [
+      "Крым",
+      "совершеннолетний"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": 18,
+      "age_confirmed_18_plus": 1,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "Украина 25",
+    "messages": [
+      "Украина",
+      "25"
+    ],
+    "expected": {
+      "country": "Украина",
+      "age": 25,
+      "quality_bucket": "geo",
+      "liquid": false
+    }
+  },
+  {
+    "name": "Мариуполь 25",
+    "messages": [
+      "Мариуполь",
+      "25"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": 25,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "Мелитополь 17",
+    "messages": [
+      "Мелитополь",
+      "17"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": 17,
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "скоро 18",
+    "messages": [
+      "Москва",
+      "скоро 18"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": null,
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "скоро 19",
+    "messages": [
+      "Москва",
+      "скоро 19"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": 18,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "скоро 20",
+    "messages": [
+      "Москва",
+      "скоро 20"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": 19,
+      "quality_bucket": "liquid",
+      "liquid": true
+    }
+  },
+  {
+    "name": "мне 18 будет завтра",
+    "messages": [
+      "Москва",
+      "мне 18 будет завтра"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": null,
+      "quality_bucket": "under18",
+      "liquid": false
+    }
+  },
+  {
+    "name": "паспорт есть не возраст",
+    "messages": [
+      "Москва",
+      "паспорт есть"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": null,
+      "liquid": false
+    }
+  },
+  {
+    "name": "официально не возраст",
+    "messages": [
+      "Москва",
+      "работаю официально"
+    ],
+    "expected": {
+      "country": "Россия",
+      "age": null,
+      "liquid": false
+    }
+  },
+  {
+    "name": "STRICT: country without age stays pending",
+    "messages": [
+      "Казахстан"
+    ],
+    "expected": {
+      "country": "Казахстан",
+      "age": null,
+      "quality_bucket": "na_pending",
+      "liquid": false
+    }
+  },
+  {
+    "name": "STRICT: age without geo stays pending",
+    "messages": [
+      "18"
+    ],
+    "expected": {
+      "age": 18,
+      "country": null,
+      "quality_bucket": "na_pending",
+      "liquid": false
+    }
+  }
+]

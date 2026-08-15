@@ -1,0 +1,447 @@
+# -*- coding: utf-8 -*-
+"""tools/w2_claim_lease_selftest.py -- offline selftest for the W2
+REVISION Blocker 1 fix: bounded claim leases (_mb_claim_event,
+_mb_recover_stale_claims) in manager_bot.py.
+
+manager_bot.py cannot be imported directly (Telethon/env side effects at
+import time). Every function under test is AST-extracted from the REAL
+source and exec'd with the real `storage` module bound (storage.py has
+zero import-time side effects), matching this project's own established
+convention (tools/manager_bot_delivery_selftest.py,
+tools/w2_delivery_state_machine_selftest.py).
+
+Pure/offline: no network, no Telegram, no production DB, no spend.
+
+    python tools\\w2_claim_lease_selftest.py
+"""
+from __future__ import annotations
+
+import ast
+import os
+import sqlite3
+import sys
+import tempfile
+from datetime import datetime, timedelta
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+import storage  # noqa: E402
+
+FAILURES: list[str] = []
+
+
+def check(label: str, condition: bool, detail="") -> None:
+    if condition:
+        print(f"[OK]   {label}")
+    else:
+        print(f"[FAIL] {label}  {detail}")
+        FAILURES.append(label)
+
+
+MB_PATH = str(BASE_DIR / "manager_bot.py")
+MB_SRC = open(MB_PATH, encoding="utf-8-sig").read()
+MB_TREE = ast.parse(MB_SRC)
+
+
+def _last_def(name: str):
+    node = None
+    for n in MB_TREE.body:
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name:
+            node = n
+    if node is None:
+        raise AssertionError(f"no def {name} found")
+    return node
+
+
+NAMES = {
+    "_mb_claim_event", "_mb_recover_stale_claims", "_mark_send_attempt",
+    "_fetch_unsent_events_for_user", "_mb_classify_delivery_error",
+    "_mb_backoff_seconds", "_mb_backoff_seconds_with_jitter", "_mb_is_formatting_error",
+    "_now_iso", "_connect", "_norm_key",
+    "_w2_actor_ref",  # W2 REVISION Blocker 4
+}
+
+
+class _NullLogger:
+    def info(self, *a, **k): pass
+    def warning(self, *a, **k): pass
+    def error(self, *a, **k): pass
+
+
+def build_ns(db_path: str):
+    nodes = [_last_def(n) for n in NAMES]
+    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
+    import json as real_json
+    import random as real_random
+    import uuid as real_uuid
+    ns = {
+        "sqlite3": sqlite3, "json": real_json, "random": real_random, "uuid": real_uuid,
+        "Path": Path, "datetime": datetime, "timedelta": timedelta,
+        "Any": object, "Dict": dict, "List": list,
+        "TPILOT_DB_PATH": db_path,
+        "MANAGER_BOT_SEND_MAX_ATTEMPTS": 3,
+        "MANAGER_BOT_CLAIM_LEASE_SECONDS": 120,
+        "_MB_WORKER_REF": "pidTEST-aaaaaaaa",
+        "_MB_FORMATTING_ERROR_CLASS_NAMES": frozenset({
+            "EntityBoundsInvalidError", "EntitiesTooLongError",
+            "MessageEntitiesTooLongError", "MessageEmptyError",
+        }),
+        "_MB_FORMATTING_ERROR_TEXT_MARKERS": ("ENTITY_BOUNDS_INVALID", "ENTITIES_TOO_LONG", "MESSAGE_EMPTY"),
+        "_MB_TERMINAL_DEACTIVATED_CLASS_NAMES": frozenset({
+            "InputUserDeactivatedError", "UserDeactivatedError", "UserDeactivatedBanError",
+            "UserIsBlockedError", "UserBlockedError", "UserBannedInChannelError",
+        }),
+        "_MB_TERMINAL_MISSING_PEER_CLASS_NAMES": frozenset({
+            "PeerIdInvalidError", "UserIdInvalidError", "ChannelPrivateError", "ChatWriteForbiddenError",
+        }),
+        "_MB_TRANSIENT_FLOODWAIT_CLASS_NAMES": frozenset({"FloodWaitError", "FloodError", "SlowModeWaitError"}),
+        "_MB_TRANSIENT_NETWORK_CLASS_NAMES": frozenset({
+            "ConnectionError", "TimeoutError", "asyncio.TimeoutError", "ConnectionResetError",
+            "ServerError", "TimeoutException",
+        }),
+        "_MB_TRANSIENT_DB_MARKERS": ("DATABASE IS LOCKED", "DATABASE IS BUSY"),
+        "log": _NullLogger(),
+        "storage": storage,
+    }
+    exec(compile(module_src, f"<{MB_PATH}:w2lease>", "exec"), ns)
+    return ns
+
+
+def _make_temp_db() -> str:
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="w2_claim_lease_selftest_")
+    os.close(fd)
+    con = sqlite3.connect(path)
+    try:
+        con.executescript(
+            """
+            CREATE TABLE manager_bot_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_key TEXT UNIQUE NOT NULL DEFAULT '',
+                event_type TEXT NOT NULL DEFAULT '',
+                manager_key TEXT NOT NULL DEFAULT '',
+                chat_id INTEGER NOT NULL DEFAULT 0,
+                lead_date TEXT NOT NULL DEFAULT '',
+                daily_lead_id INTEGER NOT NULL DEFAULT 0,
+                old_status TEXT NOT NULL DEFAULT '',
+                new_status TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT ''
+            );
+            CREATE TABLE manager_bot_sent(
+                tg_user_id INTEGER NOT NULL,
+                event_id INTEGER NOT NULL,
+                sent_at TEXT NOT NULL DEFAULT '',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at TEXT NOT NULL DEFAULT '',
+                send_status TEXT NOT NULL DEFAULT 'sent',
+                last_error_class TEXT NOT NULL DEFAULT '',
+                fallback_used INTEGER NOT NULL DEFAULT 0,
+                claimed_at TEXT NOT NULL DEFAULT '',
+                lease_token TEXT NOT NULL DEFAULT '',
+                lease_expires_at TEXT NOT NULL DEFAULT '',
+                claim_worker_ref TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY(tg_user_id, event_id)
+            );
+            CREATE TABLE manager_bot_access(
+                tg_user_id INTEGER NOT NULL,
+                manager_key TEXT NOT NULL DEFAULT '',
+                can_receive_cards INTEGER NOT NULL DEFAULT 0,
+                revoked INTEGER NOT NULL DEFAULT 0,
+                event_cutoff_id INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (tg_user_id, manager_key)
+            );
+            """
+        )
+        con.commit()
+    finally:
+        con.close()
+    return path
+
+
+def _insert_event(db, id_, mk="mgr1", chat_id=100):
+    con = sqlite3.connect(db)
+    con.execute(
+        "INSERT INTO manager_bot_events(id, event_key, event_type, manager_key, chat_id, lead_date, "
+        "daily_lead_id, old_status, new_status, payload_json, source, created_at) "
+        "VALUES (?, ?, 'reserve_activated', ?, ?, '2026-07-29', 0, '', '', '{}', 'test', '')",
+        (id_, f"k{id_}", mk, chat_id),
+    )
+    con.commit()
+    con.close()
+
+
+def _insert_access(db, uid, mk="mgr1"):
+    con = sqlite3.connect(db)
+    con.execute("INSERT INTO manager_bot_access(tg_user_id, manager_key, can_receive_cards, revoked) VALUES (?,?,1,0)", (uid, mk))
+    con.commit()
+    con.close()
+
+
+def _row(db, uid, eid):
+    con = sqlite3.connect(db)
+    con.row_factory = sqlite3.Row
+    r = con.execute("SELECT * FROM manager_bot_sent WHERE tg_user_id=? AND event_id=?", (uid, eid)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def _force_expire(db, uid, eid, seconds_ago=1):
+    past = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    con = sqlite3.connect(db)
+    con.execute("UPDATE manager_bot_sent SET lease_expires_at=? WHERE tg_user_id=? AND event_id=?", (past, uid, eid))
+    con.commit()
+    con.close()
+
+
+# ======================================================================
+# 1 & 2. Process dies after claim before send / after a send failure
+# before retry persistence -- both leave the row in send_status='sending'
+# with NO further write; both are recoverable by the SAME mechanism.
+# ======================================================================
+
+def test_1_2_crash_after_claim_leaves_recoverable_row() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 1)
+        won = ns["_mb_claim_event"](1, 100)
+        check("1/2. claim succeeds", won is True, won)
+        # Simulate a crash: no _mark_send_attempt, no _save_card_and_sent call.
+        row = _row(db, 100, 1)
+        check("1/2. after the simulated crash, the row is 'sending' with a non-empty lease",
+              row["send_status"] == "sending" and bool(row["lease_expires_at"]) and bool(row["lease_token"]),
+              row)
+
+        _force_expire(db, 100, 1)
+        recovered = ns["_mb_recover_stale_claims"]()
+        check("1/2. recovery picks up exactly the one stale row", len(recovered) == 1 and recovered[0]["event_id"] == 1, recovered)
+        after = _row(db, 100, 1)
+        check("1/2. recovered row moves to RETRY_WAIT ('failed'), never silently lost",
+              after["send_status"] == "failed", after)
+        check("1/2. recovered row's lease is cleared", after["lease_token"] == "" and after["lease_expires_at"] == "", after)
+        check("1/2. recovered row's last_error_class is the sentinel, not a fabricated real exception",
+              after["last_error_class"] == "StaleClaimRecovered", after)
+        check("1/2. no raw uid in the recovery return value (actor_ref only)",
+              "actor_ref" in recovered[0] and "100" not in str(recovered[0].get("actor_ref")), recovered)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 3. Restart before lease expiration does not reclaim.
+# ======================================================================
+
+def test_3_restart_before_expiry_does_not_reclaim() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 2)
+        ns["_mb_claim_event"](2, 200)
+        before = _row(db, 200, 2)
+
+        # "restart" -- brand new namespace, lease NOT force-expired.
+        ns2 = build_ns(db)
+        recovered = ns2["_mb_recover_stale_claims"]()
+        check("3. recovery finds NOTHING for a live (non-expired) lease", recovered == [], recovered)
+        after = _row(db, 200, 2)
+        check("3. the row is byte-for-byte unchanged (still 'sending', same lease_token)",
+              after == before, (before, after))
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 4. Restart after lease expiration safely reclaims.
+# ======================================================================
+
+def test_4_restart_after_expiry_reclaims() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 3)
+        ns["_mb_claim_event"](3, 300)
+        _force_expire(db, 300, 3)
+
+        ns2 = build_ns(db)  # "restart"
+        recovered = ns2["_mb_recover_stale_claims"]()
+        check("4. a fresh ('restarted') namespace safely reclaims the expired lease",
+              len(recovered) == 1 and recovered[0]["event_id"] == 3, recovered)
+        after = _row(db, 300, 3)
+        check("4. reclaimed row is now eligible for the normal retry path (RETRY_WAIT)",
+              after["send_status"] == "failed" and bool(after["next_attempt_at"]), after)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 5. Two recovery workers cannot both reclaim the same row.
+# ======================================================================
+
+def test_5_two_recovery_workers_cannot_both_reclaim() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 4)
+        ns["_mb_claim_event"](4, 400)
+        _force_expire(db, 400, 4)
+
+        worker_a = build_ns(db)
+        worker_b = build_ns(db)
+        rec_a = worker_a["_mb_recover_stale_claims"]()
+        rec_b = worker_b["_mb_recover_stale_claims"]()
+        check("5. exactly ONE of the two recovery workers actually recovered the row",
+              (len(rec_a), len(rec_b)) in ((1, 0), (0, 1)), (rec_a, rec_b))
+        after = _row(db, 400, 4)
+        check("5. attempts was incremented exactly ONCE (not twice)", after["attempts"] == 1, after)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 6 & 7. Delivered and dead-letter events are never reclaimed.
+# ======================================================================
+
+def test_6_7_delivered_and_dead_never_reclaimed() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        con = sqlite3.connect(db)
+        con.execute(
+            "INSERT INTO manager_bot_sent(tg_user_id, event_id, sent_at, send_status, lease_expires_at) "
+            "VALUES (500, 5, '2026-07-29T00:00:00', 'sent', '2000-01-01T00:00:00')"
+        )
+        con.execute(
+            "INSERT INTO manager_bot_sent(tg_user_id, event_id, send_status, lease_expires_at) "
+            "VALUES (500, 6, 'dead', '2000-01-01T00:00:00')"
+        )
+        con.commit()
+        con.close()
+        recovered = ns["_mb_recover_stale_claims"]()
+        check("6/7. recovery touches NEITHER the 'sent' nor the 'dead' row, "
+              "even though both have a long-expired lease_expires_at value",
+              recovered == [], recovered)
+        sent_row = _row(db, 500, 5)
+        dead_row = _row(db, 500, 6)
+        check("6. delivered row is completely unchanged", sent_row["send_status"] == "sent", sent_row)
+        check("7. dead-letter row is completely unchanged", dead_row["send_status"] == "dead", dead_row)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 8. Poison-event recovery does not block later events.
+# ======================================================================
+
+def test_8_poison_recovery_does_not_block_later_events() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 7)  # will be claimed, crashed, recovered (poison)
+        _insert_event(db, 8)  # healthy, never claimed
+        _insert_access(db, 700, "mgr1")
+        ns["_mb_claim_event"](7, 700)
+        _force_expire(db, 700, 7)
+        ns["_mb_recover_stale_claims"]()
+
+        selected = ns["_fetch_unsent_events_for_user"](700, ["mgr1"])
+        ids = sorted(int(r["id"]) for r in selected)
+        check("8. after recovery, event 7 is back in RETRY_WAIT (backoff not yet elapsed, so not "
+              "immediately re-selected) while event 8 IS selected -- recovery of one event never "
+              "blocks a different, healthy event",
+              8 in ids and (7 not in ids), (ids, selected))
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 9. Mutation proof: removing the lease-expiration check would let
+#    recovery steal a LIVE lease.
+# ======================================================================
+
+def test_9_mutation_removing_expiration_check_must_fail() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 9)
+        ns["_mb_claim_event"](9, 900)  # LIVE lease, not expired
+
+        real_recovered = ns["_mb_recover_stale_claims"]()
+        check("9. REAL recovery (with the lease_expires_at<=? guard) leaves a LIVE lease untouched",
+              real_recovered == [], real_recovered)
+
+        # MUTANT: the same recovery UPDATE without the expiration guard.
+        con = sqlite3.connect(db)
+        cur = con.execute(
+            "UPDATE manager_bot_sent SET send_status='failed', lease_token='', lease_expires_at='' "
+            "WHERE tg_user_id=900 AND event_id=9 AND send_status='sending'"
+        )
+        con.commit()
+        con.close()
+        check("9. [mutation proof] a recovery query WITHOUT the lease_expires_at<=? condition "
+              "WOULD incorrectly steal the still-live lease (rowcount=1) -- proves the real "
+              "guard is what protects it",
+              cur.rowcount == 1, cur.rowcount)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 10. Mutation proof: allowing _mb_claim_event to steal a live 'sending'
+#     lease must fail (i.e. the real code correctly refuses to).
+# ======================================================================
+
+def test_10_mutation_allowing_live_lease_steal_must_fail() -> None:
+    db = _make_temp_db()
+    try:
+        ns = build_ns(db)
+        _insert_event(db, 10)
+        first = ns["_mb_claim_event"](10, 1000)
+        check("10. first claim succeeds", first is True, first)
+
+        second = ns["_mb_claim_event"](10, 1000)
+        check("10. REAL _mb_claim_event refuses to steal the still-live 'sending' lease "
+              "(returns False, does not matter that lease hasn't expired)",
+              second is False, second)
+
+        # MUTANT: a claim UPDATE that omits the 'sending' exclusion from its WHERE.
+        con = sqlite3.connect(db)
+        cur = con.execute(
+            "UPDATE manager_bot_sent SET lease_token='stolen' "
+            "WHERE tg_user_id=1000 AND event_id=10 AND send_status <> 'sent'"
+        )
+        con.commit()
+        con.close()
+        check("10. [mutation proof] a claim query whose WHERE excludes only 'sent' (not 'sending') "
+              "WOULD incorrectly steal the live lease (rowcount=1) -- proves the real "
+              "'NOT IN (sent, sending)' guard is what makes point 3 hold",
+              cur.rowcount == 1, cur.rowcount)
+    finally:
+        os.unlink(db)
+
+
+def main() -> int:
+    test_1_2_crash_after_claim_leaves_recoverable_row()
+    test_3_restart_before_expiry_does_not_reclaim()
+    test_4_restart_after_expiry_reclaims()
+    test_5_two_recovery_workers_cannot_both_reclaim()
+    test_6_7_delivered_and_dead_never_reclaimed()
+    test_8_poison_recovery_does_not_block_later_events()
+    test_9_mutation_removing_expiration_check_must_fail()
+    test_10_mutation_allowing_live_lease_steal_must_fail()
+
+    print()
+    if FAILURES:
+        print(f"SELFTEST FAILED: {len(FAILURES)} check(s) failed:")
+        for f in FAILURES:
+            print(f"  - {f}")
+        return 1
+    print("SELFTEST OK: all checks passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

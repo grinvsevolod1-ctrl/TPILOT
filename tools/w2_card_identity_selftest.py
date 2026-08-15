@@ -1,0 +1,341 @@
+# -*- coding: utf-8 -*-
+"""tools/w2_card_identity_selftest.py -- offline selftest for the W2
+("Access and Delivery", frozen master plan) card-identity work: the
+manager_lead_cards lead_date migration (storage.w2_manager_lead_cards_add_
+date_identity, D-06/B1/I-01/I-02), the widened _upsert_card_placeholder
+ON CONFLICT target, and the deleted-manager orphan-card classification
+(storage.w2_deleted_manager_orphan_snapshot, 10.2/10.9-style, read-only).
+
+storage.py is directly importable (zero import-time side effects).
+_upsert_card_placeholder/_save_card_and_sent are AST-extracted from
+manager_bot.py (Telethon/env import-time side effects), same convention
+as every other tools/*_selftest.py in this project.
+
+Pure/offline: no network, no Telegram, no production DB, no spend.
+
+    python tools\\w2_card_identity_selftest.py
+"""
+from __future__ import annotations
+
+import ast
+import os
+import sqlite3
+import sys
+import tempfile
+from datetime import datetime, timedelta
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+import storage  # noqa: E402
+
+FAILURES: list[str] = []
+
+
+def check(label: str, condition: bool, detail="") -> None:
+    if condition:
+        print(f"[OK]   {label}")
+    else:
+        print(f"[FAIL] {label}  {detail}")
+        FAILURES.append(label)
+
+
+MB_PATH = str(BASE_DIR / "manager_bot.py")
+MB_SRC = open(MB_PATH, encoding="utf-8-sig").read()
+MB_TREE = ast.parse(MB_SRC)
+
+
+def _last_def(name: str):
+    node = None
+    for n in MB_TREE.body:
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name:
+            node = n
+    if node is None:
+        raise AssertionError(f"no def {name} found")
+    return node
+
+
+class _NullLogger:
+    def info(self, *a, **k): pass
+    def warning(self, *a, **k): pass
+    def error(self, *a, **k): pass
+
+
+def build_ns(db_path: str):
+    names = ["_upsert_card_placeholder", "_save_card_and_sent", "_decode_payload", "_norm_key", "_now_iso", "_connect"]
+    nodes = [_last_def(n) for n in names]
+    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
+    import json as real_json
+    ns = {
+        "sqlite3": sqlite3, "json": real_json, "Path": Path,
+        "datetime": datetime, "timedelta": timedelta,
+        "Any": object, "Dict": dict, "List": list,
+        "TPILOT_DB_PATH": db_path, "log": _NullLogger(),
+    }
+    exec(compile(module_src, f"<{MB_PATH}:w2card>", "exec"), ns)
+    return ns
+
+
+def _legacy_schema_db() -> str:
+    """The EXACT pre-W2 (legacy) manager_lead_cards schema -- narrower
+    UNIQUE(tg_user_id, chat_id, manager_key), no lead_date in the key."""
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="w2_card_identity_selftest_")
+    os.close(fd)
+    con = sqlite3.connect(path)
+    try:
+        con.executescript(
+            """
+            CREATE TABLE manager_lead_cards(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tg_user_id INTEGER NOT NULL,
+                bot_chat_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                chat_id INTEGER NOT NULL,
+                manager_key TEXT NOT NULL DEFAULT '',
+                lead_date TEXT NOT NULL DEFAULT '',
+                last_status_shown TEXT NOT NULL DEFAULT '',
+                last_bucket_shown TEXT NOT NULL DEFAULT '',
+                last_manual_flag INTEGER NOT NULL DEFAULT 0,
+                last_action_at TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT '',
+                UNIQUE(tg_user_id, chat_id, manager_key)
+            );
+            CREATE INDEX manager_lead_cards_msg_idx ON manager_lead_cards(bot_chat_id, message_id);
+            CREATE INDEX manager_lead_cards_lead_idx ON manager_lead_cards(chat_id, manager_key);
+
+            CREATE TABLE managers(
+                manager_key TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'active',
+                is_enabled INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE manager_stats_tombstones(
+                manager_key TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL DEFAULT '',
+                deleted_at TEXT NOT NULL DEFAULT ''
+            );
+            """
+        )
+        con.commit()
+    finally:
+        con.close()
+    return path
+
+
+# ======================================================================
+# Migration correctness: legacy row survives with id/lead_date untouched,
+# the constraint is genuinely widened, and a second run is a no-op.
+# ======================================================================
+
+def test_migration_preserves_id_and_admits_new_date() -> None:
+    db = _legacy_schema_db()
+    try:
+        con = sqlite3.connect(db)
+        con.execute(
+            "INSERT INTO manager_lead_cards(id, tg_user_id, bot_chat_id, message_id, chat_id, manager_key, "
+            "lead_date, created_at, updated_at) VALUES (77, 500, 500, 999, 600, 'mgrX', '2026-07-20', 't', 't')"
+        )
+        con.commit()
+        con.close()
+
+        # Pre-migration: a second date for the SAME (uid, chat, mgr) is
+        # REJECTED by the narrower legacy constraint (proves the "before"
+        # state genuinely has the bug this migration fixes).
+        con = sqlite3.connect(db)
+        rejected = False
+        try:
+            con.execute(
+                "INSERT INTO manager_lead_cards(tg_user_id, bot_chat_id, message_id, chat_id, manager_key, "
+                "lead_date, created_at, updated_at) VALUES (500, 500, 1000, 600, 'mgrX', '2026-07-21', 't', 't')"
+            )
+            con.commit()
+        except sqlite3.IntegrityError:
+            rejected = True
+        con.close()
+        check("[pre-migration] a second lead_date for the same (uid,chat,mgr) is REJECTED by the legacy constraint",
+              rejected, None)
+
+        result = storage.w2_manager_lead_cards_add_date_identity(db_path=db)
+        check("migration status='migrated'", result.get("status") == "migrated", result)
+        check("migration reports the correct pre-existing row_count (1)", result.get("row_count") == 1, result)
+
+        con = sqlite3.connect(db)
+        con.row_factory = sqlite3.Row
+        row = con.execute("SELECT * FROM manager_lead_cards WHERE id=77").fetchone()
+        con.close()
+        check("[after migration] the legacy row's id is UNCHANGED (77) -- I-02, delivered buttons keep working",
+              row is not None and int(row["id"]) == 77, dict(row) if row else None)
+        check("[after migration] the legacy row's lead_date is UNCHANGED ('2026-07-20') -- 10.4 STOP condition",
+              row["lead_date"] == "2026-07-20", dict(row))
+
+        # Post-migration: the SAME second-date insert that was rejected
+        # above must now succeed (the widened key admits it).
+        con = sqlite3.connect(db)
+        con.execute(
+            "INSERT INTO manager_lead_cards(tg_user_id, bot_chat_id, message_id, chat_id, manager_key, "
+            "lead_date, created_at, updated_at) VALUES (500, 500, 1000, 600, 'mgrX', '2026-07-21', 't', 't')"
+        )
+        con.commit()
+        count = con.execute("SELECT COUNT(*) FROM manager_lead_cards WHERE tg_user_id=500 AND chat_id=600 AND manager_key='mgrX'").fetchone()[0]
+        con.close()
+        check("[after migration] the SAME peer on a genuinely different lead_date is now ADMITTED as its own row (D-06)",
+              count == 2, count)
+
+        # Idempotent: a second run is a clean no-op.
+        result2 = storage.w2_manager_lead_cards_add_date_identity(db_path=db)
+        check("migration is idempotent: second run reports 'already_migrated'",
+              result2.get("status") == "already_migrated", result2)
+    finally:
+        os.unlink(db)
+
+
+def test_migration_table_missing_is_safe_noop() -> None:
+    fd, db = tempfile.mkstemp(suffix=".db", prefix="w2_card_identity_selftest_")
+    os.close(fd)
+    try:
+        result = storage.w2_manager_lead_cards_add_date_identity(db_path=db)
+        check("migration against a DB with no manager_lead_cards table returns status='table_missing' (no crash)",
+              result.get("status") == "table_missing", result)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 13. Successful card persistence is idempotent -- replaying the SAME
+#     (uid, chat, manager, lead_date) never creates a second physical row.
+# ======================================================================
+
+def test_13_card_persistence_idempotent_replay() -> None:
+    db = _legacy_schema_db()
+    try:
+        storage.w2_manager_lead_cards_add_date_identity(db_path=db)  # widen the key first
+        ns = build_ns(db)
+        row = {"id": 1, "event_key": "k1", "chat_id": 700, "manager_key": "mgry", "lead_date": "2026-07-29", "payload_json": "{}"}
+
+        card_id_1 = ns["_upsert_card_placeholder"](row, 900)
+        card_id_2 = ns["_upsert_card_placeholder"](row, 900)  # replay, same event/peer/date
+        check("13. replaying the placeholder upsert for the SAME peer+date returns the SAME card_id",
+              card_id_1 == card_id_2 and card_id_1 != 0, (card_id_1, card_id_2))
+
+        con = sqlite3.connect(db)
+        count = con.execute(
+            "SELECT COUNT(*) FROM manager_lead_cards WHERE tg_user_id=900 AND chat_id=700 AND manager_key='mgry'"
+        ).fetchone()[0]
+        con.close()
+        check("13. exactly ONE physical row exists after the replay (no duplicate card)", count == 1, count)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 14. Same peer on a genuinely different lead_date remains a DISTINCT
+#     physical card (end-to-end through the real _upsert_card_placeholder,
+#     not just the raw SQL constraint proven above).
+# ======================================================================
+
+def test_14_same_peer_different_date_is_distinct_card() -> None:
+    db = _legacy_schema_db()
+    try:
+        storage.w2_manager_lead_cards_add_date_identity(db_path=db)
+        ns = build_ns(db)
+        row_day1 = {"id": 1, "chat_id": 800, "manager_key": "mgrz", "lead_date": "2026-07-28", "payload_json": "{}"}
+        row_day2 = {"id": 2, "chat_id": 800, "manager_key": "mgrz", "lead_date": "2026-07-29", "payload_json": "{}"}
+
+        card_id_day1 = ns["_upsert_card_placeholder"](row_day1, 950)
+        card_id_day2 = ns["_upsert_card_placeholder"](row_day2, 950)
+        check("14. the SAME peer contacting again on a genuinely different lead_date gets a DIFFERENT card_id",
+              card_id_day1 != card_id_day2 and card_id_day1 and card_id_day2, (card_id_day1, card_id_day2))
+
+        con = sqlite3.connect(db)
+        count = con.execute(
+            "SELECT COUNT(*) FROM manager_lead_cards WHERE tg_user_id=950 AND chat_id=800 AND manager_key='mgrz'"
+        ).fetchone()[0]
+        con.close()
+        check("14. exactly TWO physical rows exist (one per business date)", count == 2, count)
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 6 / deleted-manager history preservation: orphaned cards are classified,
+# never deleted, and cross-referenced against the tombstone table.
+# ======================================================================
+
+def test_6_deleted_manager_cards_preserved_and_classified() -> None:
+    db = _legacy_schema_db()
+    try:
+        storage.w2_manager_lead_cards_add_date_identity(db_path=db)
+        con = sqlite3.connect(db)
+        con.execute("INSERT INTO managers(manager_key, status, is_enabled) VALUES ('active_mgr', 'active', 1)")
+        con.execute(
+            "INSERT INTO manager_lead_cards(tg_user_id, bot_chat_id, message_id, chat_id, manager_key, lead_date, "
+            "created_at, updated_at) VALUES (1, 1, 1, 1, 'active_mgr', '2026-07-29', '', '')"
+        )
+        con.execute(
+            "INSERT INTO manager_lead_cards(tg_user_id, bot_chat_id, message_id, chat_id, manager_key, lead_date, "
+            "created_at, updated_at) VALUES (2, 2, 2, 2, 'deleted_mgr', '2026-07-20', '', '')"
+        )
+        con.execute("INSERT INTO manager_stats_tombstones(manager_key, display_name, deleted_at) VALUES ('deleted_mgr', 'Old Mgr', '2026-07-25')")
+        con.commit()
+        before_count = con.execute("SELECT COUNT(*) FROM manager_lead_cards").fetchone()[0]
+        con.close()
+
+        snap = storage.w2_deleted_manager_orphan_snapshot(db_path=db)
+        check("6. the active manager's card is NOT classified as orphaned",
+              all(r["manager_key"] != "active_mgr" for r in snap), snap)
+        deleted_entry = next((r for r in snap if r["manager_key"] == "deleted_mgr"), None)
+        check("6. the deleted manager's card IS classified as orphaned, with the right count",
+              deleted_entry is not None and deleted_entry["card_count"] == 1, snap)
+        check("6. the orphan classification correctly cross-references the tombstone (has_tombstone=True)",
+              deleted_entry is not None and deleted_entry["has_tombstone"] is True, deleted_entry)
+
+        con = sqlite3.connect(db)
+        after_count = con.execute("SELECT COUNT(*) FROM manager_lead_cards").fetchone()[0]
+        con.close()
+        check("6. classification is READ-ONLY: physical row count is byte-for-byte unchanged",
+              after_count == before_count, (before_count, after_count))
+    finally:
+        os.unlink(db)
+
+
+# ======================================================================
+# 15. duplicate=1 semantics: neither the migration nor the placeholder
+#     upsert reference a `duplicate` column at all (manager_lead_cards
+#     never had one -- that flag lives in main.py's daily_leads table,
+#     explicitly out of W2 scope).
+# ======================================================================
+
+def test_15_no_duplicate_column_in_card_path() -> None:
+    for name in ("_upsert_card_placeholder", "_save_card_and_sent"):
+        node = _last_def(name)
+        src = ast.unparse(node)
+        check(f"15. {name} never references a `duplicate` column", "duplicate" not in src.lower(), None)
+    mig_src_start = open(str(BASE_DIR / "storage.py"), encoding="utf-8-sig").read()
+    idx = mig_src_start.index("def w2_manager_lead_cards_add_date_identity")
+    end = mig_src_start.index("\ndef ", idx + 10)
+    check("15. the lead_date migration function never references a `duplicate` column",
+          "duplicate" not in mig_src_start[idx:end].lower(), None)
+
+
+def main() -> int:
+    test_migration_preserves_id_and_admits_new_date()
+    test_migration_table_missing_is_safe_noop()
+    test_13_card_persistence_idempotent_replay()
+    test_14_same_peer_different_date_is_distinct_card()
+    test_6_deleted_manager_cards_preserved_and_classified()
+    test_15_no_duplicate_column_in_card_path()
+
+    print()
+    if FAILURES:
+        print(f"SELFTEST FAILED: {len(FAILURES)} check(s) failed:")
+        for f in FAILURES:
+            print(f"  - {f}")
+        return 1
+    print("SELFTEST OK: all checks passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,1615 @@
+# -*- coding: utf-8 -*-
+"""tools/manager_bot_access_repair_selftest.py -- offline selftest for the
+final, narrow "ManagerBot access restore" patch (manager_bot.py, single file).
+
+Business problem fixed: a manager fully deleted via AdminBot and reconnected
+did not regain ManagerBot access. Root cause: main.py's
+_manager_delete_full_core deletes access_targets and the managers row but
+NEVER touches access_users -- so access_users.is_enabled=1 survives, and the
+active /start handler's `if _access_allowed(uid): ... return` short-circuit
+(manager_bot.py, unchanged by this patch) made the repair path unreachable for
+exactly that state.
+
+WHY THIS CONTRACT IS THIS NARROW (read before touching anything in this
+file): an earlier version of `_mbaccess_restore_access` ALSO created a
+missing access_users row. Independent review proved that version caused a
+regression of the exact card-burst defect class this whole effort exists to
+avoid: creating access_users+access_targets with no manager_bot_access row let
+the pre-existing init_schema M2.6B backfill create one on the next ManagerBot
+restart with event_cutoff_id=0 and auto_granted=0 -- a state M2.6E
+deliberately never repairs -- making the manager's entire historical
+manager_bot_events backlog deliverable (proven empirically, 50/50 events).
+
+The final helper repairs ONLY a missing access_targets row, and ONLY when
+BOTH access_users AND a manager_bot_access row for this exact (uid,
+manager_key) already exist -- i.e. only the exact state
+_manager_delete_full_core leaves behind. It never creates access_users or
+manager_bot_access, never calls _reconcile_reconnected_manager or
+_auto_grant_manager_bot_access, and never reads/writes
+manager_bot_events / manager_bot_sent / manager_lead_cards / event_cutoff_id.
+Every precondition is re-verified inside one BEGIN IMMEDIATE transaction
+immediately before the INSERT (X4/X5/X6/X9 below prove each guard actually
+matters; R-series "race" checks prove the transactional re-check, not just
+the outer one, is what closes the TOCTOU window).
+
+A uid with no access_users row, or no manager_bot_access row for this key
+(brand-new manager, first /start, or reconnect under a NEW manager_key) gets
+"not_applicable" and falls through, unchanged, to the pre-existing
+_reconcile_reconnected_manager / _auto_grant_manager_bot_access path -- the
+only place that computes event_cutoff_id from manager_bot_events, and which
+remains completely unmodified (verified by X9's backfill-burst reproduction:
+removing the very guard that routes this case away is what brings the burst
+back).
+
+Techniques (matching the project's own tools/*_selftest.py conventions):
+  * manager_bot.py is NOT importable (Telethon/env side effects at import
+    time) -> the relevant functions are AST-extracted (last top-level def
+    wins, matching the project's override-stack convention) and exec'd into a
+    namespace seeded with fakes for Telethon/env/log boundaries and, crucially,
+    fakes for `_reconcile_reconnected_manager` / `_auto_grant_manager_bot_access`
+    that RECORD whether they were ever called -- the whole point of this patch
+    is that the new restore path must never touch them, while the pre-existing
+    fallback path (when the new helper reports "not_applicable") must still
+    reach them exactly as before.
+  * mutation / negative-control proofs: apply a small text mutation to the
+    extracted source and prove the NAMED check now fails, for the RIGHT
+    reason (positive behavioral assertions, never "the mutant crashed").
+  * the M2.6B backfill and M2.6E cutoff-repair SQL used in the BLOCKER
+    regression proof are AST-extracted (as literal string constants) from the
+    real init_schema in manager_bot.py, not retyped -- so this test can never
+    silently drift from the real migration the way a hand copy could.
+  * a self-guard AST-scans THIS file for any `check(...)` call whose condition
+    is a literal that cannot be False -- proven correct against 8 forms by a
+    dedicated probe (ported from the prior round's audited fix).
+
+Pure/offline: no network, no Telegram, no production DB, no spend.
+
+    python tools\\manager_bot_access_repair_selftest.py
+"""
+from __future__ import annotations
+
+import ast
+import asyncio
+import os
+import sqlite3
+import sys
+import tempfile
+import threading
+from datetime import datetime, timedelta
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+MANAGER_BOT_PY = BASE_DIR / "manager_bot.py"
+THIS_FILE = Path(__file__).resolve()
+
+FAILURES: list[str] = []
+
+
+def check(label: str, condition: bool, detail: str = "") -> None:
+    if condition:
+        print(f"[OK]   {label}")
+    else:
+        print(f"[FAIL] {label}  {detail}")
+        FAILURES.append(label)
+
+
+# ==========================================================================
+# Shared AST helpers (project convention: last top-level def wins)
+# ==========================================================================
+
+def find_defs(tree, name):
+    return [n for n in tree.body if getattr(n, "name", None) == name]
+
+
+def last_def(tree, name):
+    defs = find_defs(tree, name)
+    if not defs:
+        raise AssertionError(f"no top-level def named {name!r} found")
+    return defs[-1]
+
+
+def src_of(tree, name):
+    return ast.unparse(last_def(tree, name))
+
+
+def _guard_temp_db(db_path: str) -> None:
+    rp = os.path.realpath(db_path)
+    tmp = os.path.realpath(tempfile.gettempdir())
+    assert rp.startswith(tmp), f"db must live under tempdir, got {rp}"
+    assert "data_tpilot.db" not in rp and (os.sep + "db" + os.sep) not in rp, rp
+
+
+MB_SRC = MANAGER_BOT_PY.read_text(encoding="utf-8-sig")
+MB_TREE = ast.parse(MB_SRC)
+
+# The three forbidden card/event/cutoff tables and the two forbidden functions.
+# Referenced by name throughout -- kept as one source of truth for the guards.
+FORBIDDEN_TABLES = ("manager_bot_events", "manager_bot_sent", "manager_lead_cards")
+FORBIDDEN_NAMES = FORBIDDEN_TABLES + (
+    "event_cutoff_id",
+    "_reconcile_reconnected_manager",
+    "_auto_grant_manager_bot_access",
+    "_manager_bot_event_cutoff_for_manager",
+)
+
+
+def _find_init_schema_sql(match_substr: str) -> str:
+    """AST-extract the literal SQL string of the one con.execute(...) call
+    inside the real init_schema whose text contains match_substr -- used so
+    the BLOCKER regression proof runs the REAL migration SQL, not a hand
+    copy that could silently drift from production (the project's own prior
+    round was burned by exactly that kind of drift, see R17's history)."""
+    init_fn = last_def(MB_TREE, "init_schema")
+    for node in ast.walk(init_fn):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "execute"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+            and match_substr in node.args[0].value
+        ):
+            return node.args[0].value
+    raise AssertionError(f"no init_schema con.execute(...) containing {match_substr!r} found")
+
+
+M2_6B_BACKFILL_SQL = _find_init_schema_sql("INSERT OR IGNORE INTO manager_bot_access")
+M2_6E_CUTOFF_REPAIR_SQL = _find_init_schema_sql("SET event_cutoff_id")
+
+
+def _find_init_schema_executescript(match_substr: str) -> str:
+    """AST-extract the literal body of the one con.executescript(...) call
+    inside the real init_schema whose text contains match_substr -- same
+    rationale as _find_init_schema_sql (round-5 review, R5/R6): the temp-db
+    fixture's schema must never silently drift from the real one."""
+    init_fn = last_def(MB_TREE, "init_schema")
+    for node in ast.walk(init_fn):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "executescript"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+            and match_substr in node.args[0].value
+        ):
+            return node.args[0].value
+    raise AssertionError(f"no init_schema con.executescript(...) containing {match_substr!r} found")
+
+
+def _find_init_schema_alter_columns(table_name: str) -> tuple:
+    """AST-extract the (column, declaration) pairs from init_schema's
+    conditional ADD-COLUMN migration loop for `table_name`, by literal-evaling
+    the real `for _col, _decl in (...)` tuple -- so a temp-db fixture applying
+    these can never silently drift from the real migration either."""
+    init_fn = last_def(MB_TREE, "init_schema")
+    marker = f"ALTER TABLE {table_name} ADD COLUMN"
+    for node in ast.walk(init_fn):
+        if isinstance(node, ast.For) and marker in ast.unparse(node):
+            return ast.literal_eval(node.iter)
+    raise AssertionError(f"no ADD COLUMN migration loop for {table_name!r} found")
+
+
+# Round-5 review (R5): the temp-db stubs for these three tables previously
+# hand-typed a handful of columns each, which diverged from production enough
+# that running the REAL backfill/delivery logic against them crashed
+# ("no such column: send_status") until the real DDL was substituted here.
+EVENTS_SENT_CARDS_SCRIPT = _find_init_schema_executescript("CREATE TABLE IF NOT EXISTS manager_bot_events")
+MANAGER_BOT_SENT_ALTER_COLUMNS = _find_init_schema_alter_columns("manager_bot_sent")
+
+
+class _NullLogger:
+    def info(self, *a, **k): pass
+    def warning(self, *a, **k): pass
+    def error(self, *a, **k): pass
+
+
+_TEMP_DB_PATHS: list = []
+
+
+def _make_temp_db() -> str:
+    fd, path = tempfile.mkstemp(prefix="mba_repair_", suffix=".db")
+    os.close(fd)
+    os.remove(path)
+    _guard_temp_db(path)
+    _TEMP_DB_PATHS.append(path)
+    con = sqlite3.connect(path)
+    try:
+        con.execute(
+            """
+            CREATE TABLE managers (
+                manager_key TEXT PRIMARY KEY,
+                display_name TEXT DEFAULT '',
+                tg_user_id INTEGER,
+                telegram_username TEXT DEFAULT '',
+                status TEXT DEFAULT '',
+                is_enabled INTEGER DEFAULT 1,
+                manual_stopped INTEGER DEFAULT 0
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE access_users(
+                tg_user_id INTEGER PRIMARY KEY,
+                display_name TEXT DEFAULT '',
+                username TEXT DEFAULT '',
+                access_level INTEGER NOT NULL DEFAULT 1,
+                scope_mode TEXT NOT NULL DEFAULT 'selected',
+                is_enabled INTEGER NOT NULL DEFAULT 1,
+                created_by INTEGER,
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE access_targets(
+                tg_user_id INTEGER NOT NULL,
+                manager_key TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY(tg_user_id, manager_key)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE manager_bot_access (
+                tg_user_id INTEGER NOT NULL,
+                manager_key TEXT NOT NULL DEFAULT '',
+                can_receive_cards INTEGER NOT NULL DEFAULT 0,
+                can_set_status INTEGER NOT NULL DEFAULT 0,
+                can_view_stats INTEGER NOT NULL DEFAULT 0,
+                stats_format TEXT NOT NULL DEFAULT 'light',
+                allow_custom_period INTEGER NOT NULL DEFAULT 0,
+                auto_granted INTEGER NOT NULL DEFAULT 0,
+                granted_by INTEGER DEFAULT 0,
+                granted_at TEXT NOT NULL DEFAULT '',
+                revoked INTEGER NOT NULL DEFAULT 0,
+                revoked_by INTEGER DEFAULT 0,
+                revoked_at TEXT NOT NULL DEFAULT '',
+                event_cutoff_id INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (tg_user_id, manager_key)
+            )
+            """
+        )
+        # The three forbidden tables -- present so the byte-identical
+        # before/after snapshots have something real to compare, and so a
+        # regression that DID touch them would actually be caught. Schema is
+        # the REAL production DDL (AST-extracted from init_schema, including
+        # the real manager_bot_sent ADD-COLUMN migrations), not a hand copy
+        # -- round-5 review (R5) found a hand-typed stub here diverged from
+        # production enough to make the B1 regression's use of the real
+        # delivery query crash outright.
+        con.executescript(EVENTS_SENT_CARDS_SCRIPT)
+        for _col, _decl in MANAGER_BOT_SENT_ALTER_COLUMNS:
+            con.execute(f"ALTER TABLE manager_bot_sent ADD COLUMN {_col} {_decl}")
+        con.execute("CREATE TABLE manager_access_requests(user_id INTEGER PRIMARY KEY, username TEXT DEFAULT '', first_name TEXT DEFAULT '', last_name TEXT DEFAULT '', matched_manager_key TEXT DEFAULT '', match_kind TEXT DEFAULT '', status TEXT DEFAULT 'new', requested_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')")
+        con.commit()
+    finally:
+        con.close()
+    return path
+
+
+def _seed_manager(db_path, key, tg_user_id, *, status="active", is_enabled=1,
+                   manual_stopped=0, display_name="", telegram_username=""):
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute(
+            "INSERT OR REPLACE INTO managers"
+            "(manager_key, display_name, tg_user_id, telegram_username, status, is_enabled, manual_stopped)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (key, display_name, tg_user_id, telegram_username, status, is_enabled, manual_stopped),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
+def _seed_access_user(db_path, tg_user_id, *, is_enabled=1, scope_mode="selected",
+                       access_level=1, display_name="", username=""):
+    now = "2026-01-01"
+    _exec(
+        db_path,
+        "INSERT INTO access_users(tg_user_id, display_name, username, access_level,"
+        " scope_mode, is_enabled, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+        (tg_user_id, display_name, username, access_level, scope_mode, is_enabled, now, now),
+    )
+
+
+def _seed_mba(db_path, tg_user_id, manager_key, *, revoked=0, cutoff=0,
+              can_receive_cards=1, can_view_stats=0, stats_format="light", auto_granted=0):
+    now = "2026-01-01"
+    _exec(
+        db_path,
+        "INSERT INTO manager_bot_access(tg_user_id, manager_key, can_receive_cards, can_set_status,"
+        " can_view_stats, stats_format, allow_custom_period, auto_granted, granted_by, granted_at,"
+        " revoked, revoked_by, revoked_at, event_cutoff_id, created_at, updated_at)"
+        " VALUES (?,?,?,1,?,?,0,?,0,?,?,0,'',?,?,?)",
+        (tg_user_id, manager_key, can_receive_cards, can_view_stats, stats_format,
+         auto_granted, now, revoked, cutoff, now, now),
+    )
+
+
+_EVENT_KEY_COUNTER = {"n": 0}
+
+
+def _seed_event(db_path, manager_key):
+    """Insert one manager_bot_events row against the REAL schema (event_key
+    is UNIQUE NOT NULL there -- a real caller always supplies a real key;
+    this counter just gives each test-seeded row a distinct one)."""
+    _EVENT_KEY_COUNTER["n"] += 1
+    _exec(
+        db_path,
+        "INSERT INTO manager_bot_events(event_key, manager_key) VALUES (?, ?)",
+        (f"selftest-evk-{_EVENT_KEY_COUNTER['n']}", manager_key),
+    )
+
+
+def _row(db_path, table, **where):
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    try:
+        cond = " AND ".join(f"{k}=?" for k in where) if where else "1=1"
+        row = con.execute(f"SELECT * FROM {table} WHERE {cond}", tuple(where.values())).fetchone()
+        return dict(row) if row else {}
+    finally:
+        con.close()
+
+
+def _rows(db_path, table, **where):
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    try:
+        cond = " AND ".join(f"{k}=?" for k in where) if where else "1=1"
+        return [dict(r) for r in con.execute(f"SELECT * FROM {table} WHERE {cond}", tuple(where.values())).fetchall()]
+    finally:
+        con.close()
+
+
+def _exec(db_path, sql, params=()):
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute(sql, params)
+        con.commit()
+    finally:
+        con.close()
+
+
+def _full_snapshot(db_path, table):
+    """Every row of `table`, all columns, as a sorted tuple of tuples -- used
+    for byte-identical before/after comparisons on the forbidden tables and
+    on manager_bot_access."""
+    con = sqlite3.connect(db_path)
+    try:
+        rows = con.execute(f"SELECT * FROM {table} ORDER BY rowid").fetchall()
+        return tuple(tuple(r) for r in rows)
+    finally:
+        con.close()
+
+
+# ==========================================================================
+# AST extraction + fakes for manager_bot.py's active /start + the new helper
+# ==========================================================================
+
+MB_TARGET_NAMES = {
+    "_now_iso", "_norm_key", "_connect",
+    "_access_user", "_access_allowed", "_access_targets", "_all_manager_keys",
+    "_linked_manager_keys", "_manager_bot_sender_identity", "_sender_display_name",
+    "_find_active_manager_by_tg_user_id", "_find_active_manager_by_username",
+    "_manager_bot_access_row", "_manager_bot_permission_revoked",
+    "_upsert_manager_access_request", "_mbaccess_restore_access", "_handle_start",
+    "_fetch_unsent_events_for_user",
+}
+
+
+class _CallRecorder:
+    """Fake for a function that must NEVER be called from the restore path.
+    Records every call; also usable as a plain stand-in returning a fixed
+    value when a scenario needs the untouched legacy branch to still work."""
+
+    def __init__(self, return_value=None):
+        self.calls: list[tuple] = []
+        self.return_value = return_value
+
+    def __call__(self, *a, **k):
+        self.calls.append((a, k))
+        return self.return_value
+
+
+class _ButtonsFake:
+    """State-aware: reads the REAL temp DB so tests can distinguish "buttons
+    computed before the repair committed" from "after". Non-None iff
+    access_users.is_enabled=1 for this uid."""
+
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.calls: list[int] = []
+
+    def __call__(self, uid):
+        self.calls.append(int(uid))
+        con = sqlite3.connect(self.db_path)
+        try:
+            row = con.execute(
+                "SELECT is_enabled FROM access_users WHERE tg_user_id=?", (int(uid),)
+            ).fetchone()
+            enabled = bool(row and int(row[0] or 0) == 1)
+        finally:
+            con.close()
+        return [["BTN"]] if enabled else None
+
+
+class _FakeSender:
+    def __init__(self, username="", first_name="", last_name=""):
+        self.username = username
+        self.first_name = first_name
+        self.last_name = last_name
+
+
+class _FakeEvent:
+    def __init__(self, sender_id, sender=None, is_private=True):
+        self.sender_id = sender_id
+        self._sender = sender
+        self.is_private = is_private
+        self.responses: list = []  # list of (text, buttons)
+
+    async def get_sender(self):
+        return self._sender
+
+    async def respond(self, text, buttons=None):
+        self.responses.append((text, buttons))
+
+
+def _base_ns(db_path):
+    return {
+        "sqlite3": sqlite3, "Path": Path, "datetime": datetime, "timedelta": timedelta,
+        "Any": object, "Dict": dict, "List": list,
+        "TPILOT_DB_PATH": db_path,
+        "log": _NullLogger(),
+    }
+
+
+def build_start_ns(db_path, mutate=None, auto_grant_return=False):
+    picked = {}
+    for node in MB_TREE.body:
+        nm = getattr(node, "name", None)
+        if nm in MB_TARGET_NAMES:
+            picked[nm] = node
+    missing = MB_TARGET_NAMES - set(picked)
+    if missing:
+        raise AssertionError(f"missing defs in manager_bot.py: {missing}")
+    module_src = "\n\n".join(ast.unparse(picked[n]) for n in sorted(picked))
+    if mutate is not None:
+        module_src = mutate(module_src)
+
+    reconcile_fake = _CallRecorder()
+    auto_grant_fake = _CallRecorder(return_value=auto_grant_return)
+    legacy_fake = _CallRecorder()
+
+    async def _legacy_handler(event, uid):
+        legacy_fake((event, uid), {})
+        await event.respond("LEGACY", buttons=None)
+
+    buttons_fake = _ButtonsFake(db_path)
+    ns = _base_ns(db_path)
+    ns.update({
+        "_reconcile_reconnected_manager": reconcile_fake,
+        "_auto_grant_manager_bot_access": auto_grant_fake,
+        "_mbstat_start_buttons": buttons_fake,
+        "_M26D_ORIG_HANDLE_START": _legacy_handler,
+    })
+    exec(compile(module_src, "<manager_bot.py:start>", "exec"), ns)
+    ns["_reconcile_fake"] = reconcile_fake
+    ns["_auto_grant_fake"] = auto_grant_fake
+    ns["_legacy_fake"] = legacy_fake
+    ns["_buttons_fake"] = buttons_fake
+    return ns
+
+
+def run_start(ns, event):
+    ns["_reconcile_fake"].calls.clear()
+    ns["_auto_grant_fake"].calls.clear()
+    ns["_legacy_fake"].calls.clear()
+    ns["_buttons_fake"].calls.clear()
+    asyncio.run(ns["_handle_start"](event))
+
+
+def _helper_ns(db_path, helper_src_override=None):
+    """Namespace containing only the bare _mbaccess_restore_access plus its
+    real, unmutated dependencies -- for tests that call the helper directly
+    rather than through the full /start flow (race injection, direct
+    return-value assertions)."""
+    picked = {}
+    for node in MB_TREE.body:
+        nm = getattr(node, "name", None)
+        if nm in (MB_TARGET_NAMES - {"_handle_start", "_mbaccess_restore_access"}):
+            picked[nm] = node
+    helper_src = helper_src_override if helper_src_override is not None else src_of(MB_TREE, "_mbaccess_restore_access")
+    module_src = "\n\n".join(ast.unparse(picked[n]) for n in sorted(picked)) + "\n\n" + helper_src
+    ns = _base_ns(db_path)
+    exec(compile(module_src, "<manager_bot.py:helper>", "exec"), ns)
+    return ns
+
+
+def _exec_mutated_helper(mutated_helper_src: str, db_path: str) -> dict:
+    return _helper_ns(db_path, helper_src_override=mutated_helper_src)
+
+
+def _make_race_connect(db_path, trigger_call_index, race_sql, race_params=()):
+    """A drop-in replacement for the extracted _connect() that performs a
+    one-shot DB mutation (via its own short-lived connection) exactly when
+    the Nth call to _connect() is serviced, then returns a normal connection.
+    Used to simulate an admin action landing in the exact TOCTOU window
+    between _mbaccess_restore_access's optimistic pre-reads and its own
+    transactional re-verification -- the precise race window its own
+    docstring documents. The caller must assert state["triggered"] to prove
+    the assumed call-count actually lined up (never a silent no-op)."""
+    state = {"count": 0, "triggered": False}
+
+    def _race_connect():
+        state["count"] += 1
+        if state["count"] == trigger_call_index and not state["triggered"]:
+            state["triggered"] = True
+            raw = sqlite3.connect(db_path)
+            try:
+                raw.execute(race_sql, race_params)
+                raw.commit()
+            finally:
+                raw.close()
+        con = sqlite3.connect(db_path, timeout=30)
+        con.row_factory = sqlite3.Row
+        try:
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.execute("PRAGMA busy_timeout=30000;")
+        except Exception:
+            pass
+        return con
+
+    return _race_connect, state
+
+
+# ==========================================================================
+# Section A -- core contract: restored / not_applicable / disabled / revoked
+# ==========================================================================
+
+def run_core_contract_checks() -> None:
+    print("\n-- Section A: core contract --")
+
+    # A1 (item 1): the exact supported bug scenario -- access_users enabled,
+    # a surviving manager_bot_access row for this key, access_targets empty.
+    # Must repair ONLY access_targets.
+    db = _make_temp_db()
+    _seed_manager(db, "ivan", 555, display_name="Ivan P")
+    _seed_access_user(db, 555)
+    _seed_mba(db, 555, "ivan", cutoff=42, can_view_stats=1, stats_format="pro")
+    before_mba = _full_snapshot(db, "manager_bot_access")
+    ns = build_start_ns(db)
+    event = _FakeEvent(555, _FakeSender(username="ivan_tg"))
+    run_start(ns, event)
+    check("A1: response is the restored message", event.responses and event.responses[0][0] == "✅ Доступ восстановлен",
+          detail=str(event.responses))
+    check("A1: response carries real (non-None) buttons", event.responses and event.responses[0][1] is not None,
+          detail=str(event.responses))
+    check("A1: access_targets row created for ivan", bool(_row(db, "access_targets", tg_user_id=555, manager_key="ivan")))
+    check("A1: neither _reconcile_reconnected_manager nor _auto_grant_manager_bot_access was called",
+          not ns["_reconcile_fake"].calls and not ns["_auto_grant_fake"].calls,
+          detail=str((ns["_reconcile_fake"].calls, ns["_auto_grant_fake"].calls)))
+    check("A1: legacy diagnostic handler was NOT invoked", not ns["_legacy_fake"].calls, detail=str(ns["_legacy_fake"].calls))
+    # items 6/7: manager_bot_access (incl. event_cutoff_id) byte-identical.
+    after_mba = _full_snapshot(db, "manager_bot_access")
+    check("A1 (items 6/7): manager_bot_access byte-identical before/after (cutoff=42, can_view_stats=1, stats_format=pro all untouched)",
+          before_mba == after_mba, detail=f"before={before_mba} after={after_mba}")
+
+    # A2 (item 20): idempotency -- pressing /start twice only repairs once,
+    # and the confirmation is not repeated on the second call.
+    event2 = _FakeEvent(555, _FakeSender(username="ivan_tg"))
+    run_start(ns, event2)
+    check("A2: second /start finds nothing left to repair -> falls through to legacy, no repeated confirmation",
+          event2.responses == [("LEGACY", None)], detail=str(event2.responses))
+    check("A2: still exactly one access_targets row after two calls", len(_rows(db, "access_targets", tg_user_id=555)) == 1)
+
+    # A3 (item 5 / "disabled" outcome): access_users.is_enabled=0. The bare
+    # helper's own "disabled" contract is tested directly. The full /start
+    # round-trip is NOT asserted here to say "the new fragment produced this
+    # text" -- round-5 review (R2) found that assertion was already
+    # unreachable through the new fragment (a PRE-EXISTING gate, line
+    # ~4716, denies a disabled access_users row before this helper is ever
+    # called) and so proved nothing about this patch. What IS proven below,
+    # separately, is that the new fragment's own "disabled"/"revoked" cases
+    # do NOT intercept and deny a uid that has other real, working access
+    # (see A3b/A10).
+    db = _make_temp_db()
+    _seed_manager(db, "disabled", 601)
+    _seed_access_user(db, 601, is_enabled=0)
+    _seed_mba(db, 601, "disabled")
+    ns_helper = _helper_ns(db)
+    result_a3 = ns_helper["_mbaccess_restore_access"](601)
+    check("A3: helper returns 'disabled' for a disabled access_users row", result_a3 == "disabled", detail=result_a3)
+    check("A3: no access_targets row created", not _rows(db, "access_targets", tg_user_id=601))
+    ns = build_start_ns(db)
+    event = _FakeEvent(601, _FakeSender())
+    run_start(ns, event)
+    check("A3: full /start flow still denies a disabled user (via the pre-existing gate, unchanged by this patch)",
+          event.responses and "Доступ отключён администратором." in event.responses[0][0],
+          detail=str(event.responses))
+    check("A3: neither reconcile nor auto_grant reached for a disabled user",
+          not ns["_reconcile_fake"].calls and not ns["_auto_grant_fake"].calls)
+
+    # A4 (item 4 / "revoked" outcome): manager_bot_access.revoked=1 for the
+    # user's own key, access_targets still missing (the actual repair-needed
+    # shape) -- restore must be refused, zero writes. The bare helper's own
+    # "revoked" contract is tested directly. Round-5 review (HIGH R1): the
+    # full /start flow does NOT get its own denial screen for this case
+    # anymore -- access_users is still enabled, so _access_allowed is True
+    # and control falls to the unmodified legacy delegate, exactly as it did
+    # before this whole patch existed for a scope_mode='selected' user with
+    # zero usable manager keys.
+    db = _make_temp_db()
+    _seed_manager(db, "revk", 602)
+    _seed_access_user(db, 602)
+    _seed_mba(db, 602, "revk", revoked=1)
+    ns_helper = _helper_ns(db)
+    result_a4 = ns_helper["_mbaccess_restore_access"](602)
+    check("A4: helper returns 'revoked' when the matching manager_bot_access row is revoked", result_a4 == "revoked", detail=result_a4)
+    check("A4: no access_targets row created", not _rows(db, "access_targets", tg_user_id=602))
+    ns = build_start_ns(db)
+    event = _FakeEvent(602, _FakeSender(username="revk_tg"))
+    run_start(ns, event)
+    check("A4: full /start flow falls through to the unchanged legacy delegate (no dedicated denial screen)",
+          event.responses == [("LEGACY", None)], detail=str(event.responses))
+    check("A4: neither reconcile nor auto_grant reached (access_users is still enabled, so _access_allowed short-circuits first)",
+          not ns["_reconcile_fake"].calls and not ns["_auto_grant_fake"].calls)
+
+    # A3b / A10 (HIGH R1 regression, release-blocking finding from round-5
+    # review): a uid can legitimately hold healthy, admin-granted access to
+    # manager key "alpha" (access_targets present + a non-revoked
+    # manager_bot_access row) while ALSO being the tg_user_id of an
+    # unrelated, revoked manager identity "beta". The helper resolves
+    # manager identity by tg_user_id -> it will see "beta" (the uid's own
+    # manager row) and return 'revoked'. The regression this patch must NOT
+    # reintroduce: answering that with a hard denial screen, which would
+    # strip the uid's real, working access to "alpha". Empirically proven in
+    # round-5 review before this fix (helper returned 'revoked' and /start
+    # showed a full denial screen instead of the user's real menu).
+    db = _make_temp_db()
+    _seed_manager(db, "beta", 556)  # uid 556 IS manager beta
+    _seed_access_user(db, 556)
+    _exec(db, "INSERT INTO access_targets(tg_user_id, manager_key, created_at) VALUES (556,'alpha','2026-01-01')")
+    _seed_mba(db, 556, "alpha")          # healthy, legitimate access to alpha
+    _seed_mba(db, 556, "beta", revoked=1)  # beta (the uid's own identity) revoked
+    result_a3b = _helper_ns(db)["_mbaccess_restore_access"](556)
+    check("A3b: helper resolves the uid's OWN manager identity (beta) and reports 'revoked'",
+          result_a3b == "revoked", detail=result_a3b)
+
+    # A10 (round-6 review fix): the prior version of this check only asserted
+    # bool(_rows(...)) for the alpha access_targets row -- unfalsifiable,
+    # since nothing in the code under test ever DELETEs/UPDATEs access_targets
+    # or manager_bot_access, so it would pass even with the helper call
+    # removed entirely. Replaced with: (1) full before/after row snapshots of
+    # BOTH alpha's access_targets and its manager_bot_access row (byte-
+    # identical, not merely present), and (2) _linked_manager_keys(uid) --
+    # the actual gate the production menu/button chain reads
+    # (_mbstat_manager_rows_for_user, the M2.13D-1 "Мой график" button) --
+    # proving the uid keeps REAL, working access to alpha, not just an
+    # untouched row nobody reads.
+    alpha_targets_before = _rows(db, "access_targets", tg_user_id=556, manager_key="alpha")
+    alpha_mba_before = _row(db, "manager_bot_access", tg_user_id=556, manager_key="alpha")
+    ns = build_start_ns(db)
+    event = _FakeEvent(556, _FakeSender(username="beta_tg"))
+    run_start(ns, event)
+    alpha_targets_after = _rows(db, "access_targets", tg_user_id=556, manager_key="alpha")
+    alpha_mba_after = _row(db, "manager_bot_access", tg_user_id=556, manager_key="alpha")
+    check("A10 (HIGH R1 regression guard): /start falls through to the legacy delegate -- "
+          "the uid's LEGITIMATE access to 'alpha' is NOT stripped by a denial screen for the "
+          "unrelated revoked 'beta' identity",
+          event.responses == [("LEGACY", None)], detail=str(event.responses))
+    check("A10: alpha's access_targets row is byte-identical before/after (full row snapshot)",
+          alpha_targets_before == alpha_targets_after and bool(alpha_targets_before),
+          detail=(alpha_targets_before, alpha_targets_after))
+    check("A10: alpha's manager_bot_access row is byte-identical before/after (full row snapshot)",
+          alpha_mba_before == alpha_mba_after and bool(alpha_mba_before),
+          detail=(alpha_mba_before, alpha_mba_after))
+    check("A10: the uid still has REAL working access to alpha -- _linked_manager_keys "
+          "(the actual gate the production menu/button chain reads) still returns it",
+          ns["_linked_manager_keys"](556) == ["alpha"], detail=ns["_linked_manager_keys"](556))
+    check("A10: no access_targets row was added for 'beta'",
+          not _rows(db, "access_targets", tg_user_id=556, manager_key="beta"))
+
+    # A10 mutation-proof: reinstate the EXACT "revoked" denial branch that
+    # round-5 review found regressed legitimate multi-target access (the one
+    # this whole guard exists to keep out), and prove the corrected
+    # assertions above now fail for that specific behavioral reason -- a
+    # denial screen appears and _linked_manager_keys is no longer reachable
+    # through the legacy delegate -- not merely because something crashed.
+    def _a10_reinstate_denial_mutate(src):
+        anchor = "if _access_allowed(uid):\n            if callable(_M26D_ORIG_HANDLE_START):"
+        check("A10 mutation precondition: anchor found", anchor in src)
+        replacement = (
+            "if restore_result == 'revoked':\n"
+            "            await event.respond('TPilot ManagerBot\\n\\naccess: revoked\\n\\n"
+            "Доступ отключён администратором.')\n"
+            "            return\n        " + anchor
+        )
+        return src.replace(anchor, replacement, 1)
+
+    db_a10m = _make_temp_db()
+    _seed_manager(db_a10m, "beta", 556)
+    _seed_access_user(db_a10m, 556)
+    _exec(db_a10m, "INSERT INTO access_targets(tg_user_id, manager_key, created_at) VALUES (556,'alpha','2026-01-01')")
+    _seed_mba(db_a10m, 556, "alpha")
+    _seed_mba(db_a10m, 556, "beta", revoked=1)
+    ns_a10m = build_start_ns(db_a10m, mutate=_a10_reinstate_denial_mutate)
+    event_a10m = _FakeEvent(556, _FakeSender(username="beta_tg"))
+    run_start(ns_a10m, event_a10m)
+    check("A10 mutation-proof: reinstating the round-5 'revoked' denial branch makes the "
+          "corrected assertion fail for the intended reason -- a denial screen is shown "
+          "instead of the legacy delegate reaching alpha's real menu",
+          event_a10m.responses != [("LEGACY", None)]
+          and bool(event_a10m.responses)
+          and "revoked" in event_a10m.responses[0][0],
+          detail=str(event_a10m.responses))
+
+    # A5 (items 2/10/11): access_users missing entirely -- helper must write
+    # nothing, and the pre-existing baseline (reconcile + auto_grant) must
+    # remain fully reachable with a real positive outcome.
+    db = _make_temp_db()
+    _seed_manager(db, "brandnew", 607, display_name="Brand New")
+    result_a5 = _helper_ns(db)["_mbaccess_restore_access"](607)
+    check("A5: helper returns 'not_applicable' when access_users is missing", result_a5 == "not_applicable", detail=result_a5)
+    check("A5: helper created no access_users row", not _rows(db, "access_users", tg_user_id=607))
+    ns = build_start_ns(db, auto_grant_return=True)
+    event = _FakeEvent(607, _FakeSender(username="brandnew_tg"))
+    run_start(ns, event)
+    check("A5 (item 10): _auto_grant_manager_bot_access WAS reached with a positive outcome shown to the user",
+          bool(ns["_auto_grant_fake"].calls) and event.responses and "access: granted" in event.responses[0][0],
+          detail=str((ns["_auto_grant_fake"].calls, event.responses)))
+    check("A5 (item 11): _reconcile_reconnected_manager WAS reached on the same call",
+          bool(ns["_reconcile_fake"].calls), detail=str(ns["_reconcile_fake"].calls))
+    check("A5: the new helper still created nothing even though the legacy path ran",
+          not _rows(db, "access_users", tg_user_id=607) and not _rows(db, "access_targets", tg_user_id=607))
+
+    # A6 (item 3/9): matching manager_bot_access row missing (new manager_key,
+    # access_users already present+enabled) -- not_applicable, falls through
+    # to the UNCHANGED legacy delegate (since _access_allowed is already True
+    # here -- this is NOT the same precondition as A5).
+    db = _make_temp_db()
+    _seed_manager(db, "newkey", 610)
+    _seed_access_user(db, 610)
+    _exec(db, "INSERT INTO access_targets(tg_user_id, manager_key, created_at) VALUES (610, 'oldkey', '2026-01-01')")
+    result_a6 = _helper_ns(db)["_mbaccess_restore_access"](610)
+    check("A6: helper returns 'not_applicable' when no manager_bot_access row exists for the new key",
+          result_a6 == "not_applicable", detail=result_a6)
+    ns = build_start_ns(db)
+    event = _FakeEvent(610, _FakeSender(username="newkey_tg"))
+    run_start(ns, event)
+    check("A6: falls through to the legacy delegate (access_users already allowed access)",
+          event.responses == [("LEGACY", None)], detail=str(event.responses))
+    check("A6: no access_targets row added for the new key", not _rows(db, "access_targets", tg_user_id=610, manager_key="newkey"))
+    check("A6: neither reconcile nor auto_grant reached (access already allowed, legacy delegate owns this case)",
+          not ns["_reconcile_fake"].calls and not ns["_auto_grant_fake"].calls)
+
+    # A7: fully healthy manager (nothing to repair at all) -- unchanged.
+    db = _make_temp_db()
+    _seed_manager(db, "healthy", 600)
+    _seed_access_user(db, 600)
+    _seed_mba(db, 600, "healthy")
+    _exec(db, "INSERT INTO access_targets(tg_user_id, manager_key, created_at) VALUES (600, 'healthy', '2026-01-01')")
+    ns = build_start_ns(db)
+    event = _FakeEvent(600, _FakeSender(username="healthy_tg"))
+    run_start(ns, event)
+    check("A7: healthy manager -> no repair, falls through to the unchanged legacy delegation",
+          event.responses == [("LEGACY", None)], detail=str(event.responses))
+    check("A7: access_targets still exactly one row (no duplicate insert)",
+          len(_rows(db, "access_targets", tg_user_id=600)) == 1)
+
+    # A8 (R6/R7 lineage): no active manager at all, and ambiguous identity.
+    db = _make_temp_db()
+    result_a8 = _helper_ns(db)["_mbaccess_restore_access"](603)
+    check("A8: no active manager at all -> not_applicable, zero writes", result_a8 == "not_applicable" and not _rows(db, "access_targets", tg_user_id=603))
+
+    db = _make_temp_db()
+    _seed_manager(db, "dup1", 604)
+    _seed_manager(db, "dup2", 604)
+    _seed_access_user(db, 604)
+    result_a8b = _helper_ns(db)["_mbaccess_restore_access"](604)
+    check("A8b: ambiguous tg_user_id (two active managers) -> not_applicable, zero writes",
+          result_a8b == "not_applicable" and not _rows(db, "access_targets", tg_user_id=604))
+
+    # A9 (R9 lineage; round-6 review fix): scope_mode='all' -- blanket scope
+    # already covers every key, nothing to repair. The prior version of the
+    # "untouched" check only compared two columns and would pass identically
+    # even if the helper were a total no-op (the helper never writes to
+    # access_users under ANY input -- confirmed by source scan in B2/B3 --
+    # so "untouched" alone proves nothing about scope_mode='all' specifically
+    # being the reason). Replaced with a full-row before/after snapshot plus
+    # a targeted mutation removing exactly the scope_mode='all' guard (both
+    # the outer pre-check and its transactional re-check), proving THIS
+    # scenario's not_applicable/no-write outcome is actually produced by that
+    # guard, not a coincidence or a stubbed-out helper.
+    db = _make_temp_db()
+    _seed_manager(db, "adminmgr", 606)
+    _seed_access_user(db, 606, scope_mode="all", access_level=2)
+    _seed_mba(db, 606, "adminmgr")
+    au9_before = _row(db, "access_users", tg_user_id=606)
+    result_a9 = _helper_ns(db)["_mbaccess_restore_access"](606)
+    au9_after = _row(db, "access_users", tg_user_id=606)
+    check("A9: scope_mode='all' -> not_applicable, no explicit access_targets row added",
+          result_a9 == "not_applicable" and not _rows(db, "access_targets", tg_user_id=606))
+    check("A9: access_users row is byte-identical before/after (full row snapshot)",
+          au9_before == au9_after, detail=(au9_before, au9_after))
+
+    # A9 mutation-proof: remove BOTH layers of the scope_mode='all' guard
+    # (same anchors X6 uses) against this SAME seeded scenario, and prove the
+    # outcome flips to 'restored' with a real access_targets row added --
+    # demonstrating this specific guard, not a no-op or an unrelated check,
+    # is what produced A9's not_applicable/untouched result above.
+    real_helper_src_a9 = src_of(MB_TREE, "_mbaccess_restore_access")
+    anchor9a = "    if scope_mode == 'all':\n        return 'not_applicable'\n"
+    check("A9 mutation precondition: outer scope_mode='all' anchor found", anchor9a in real_helper_src_a9)
+    mutated_a9 = real_helper_src_a9.replace(anchor9a, "", 1)
+    anchor9b = "            if str(user_row['scope_mode'] or 'selected').strip().lower() == 'all':\n                con.rollback()\n                return 'not_applicable'\n"
+    check("A9 mutation precondition: transactional scope_mode='all' recheck anchor found", anchor9b in mutated_a9)
+    mutated_a9 = mutated_a9.replace(anchor9b, "", 1)
+    check("A9 mutation precondition: mutation actually changed the text", mutated_a9 != real_helper_src_a9)
+
+    db9m = _make_temp_db()
+    _seed_manager(db9m, "adminmgr", 606)
+    _seed_access_user(db9m, 606, scope_mode="all", access_level=2)
+    _seed_mba(db9m, 606, "adminmgr")
+    ns9m = _exec_mutated_helper(mutated_a9, db_path=db9m)
+    result9m = ns9m["_mbaccess_restore_access"](606)
+    au9m_after = _row(db9m, "access_users", tg_user_id=606)
+    check("A9 mutation-proof: with the scope_mode='all' guard removed (both layers), the SAME "
+          "scenario now returns 'restored' and adds a real access_targets row -- proving that "
+          "guard, not a no-op, is what produces A9's real-code outcome",
+          result9m == "restored" and bool(_rows(db9m, "access_targets", tg_user_id=606, manager_key="adminmgr")),
+          detail=result9m)
+    check("A9 mutation-proof: access_users is still never written even under this mutation "
+          "(the helper's only write is to access_targets)",
+          au9m_after == au9_before, detail=(au9_before, au9m_after))
+
+
+# ==========================================================================
+# Section B -- forbidden-area guards
+# ==========================================================================
+
+def run_forbidden_area_checks() -> None:
+    print("\n-- Section B: forbidden-area guards (card/event/cutoff must be untouched) --")
+
+    # B1 (item 8): full snapshot of the three forbidden tables, before/after
+    # the A1 bug-state scenario, with pre-existing rows so a regression that
+    # touched them would actually be caught.
+    db = _make_temp_db()
+    _seed_manager(db, "snapmgr", 700, display_name="Snap")
+    _seed_access_user(db, 700)
+    _seed_mba(db, 700, "snapmgr")
+    _seed_event(db, "snapmgr")
+    _seed_event(db, "snapmgr")
+    _exec(db, "INSERT INTO manager_lead_cards(tg_user_id, bot_chat_id, message_id, chat_id, manager_key, updated_at)"
+              " VALUES (700, 700, 1, 700, 'snapmgr', '2026-01-01')")
+    before = {t: _full_snapshot(db, t) for t in FORBIDDEN_TABLES}
+    ns = build_start_ns(db)
+    event = _FakeEvent(700, _FakeSender(username="snap_tg"))
+    run_start(ns, event)
+    check("B1 precondition: restore actually ran", event.responses and "✅" in event.responses[0][0])
+    after = {t: _full_snapshot(db, t) for t in FORBIDDEN_TABLES}
+    for t in FORBIDDEN_TABLES:
+        check(f"B1: {t} is byte-identical before/after the restore", before[t] == after[t],
+              detail=f"before={before[t]} after={after[t]}")
+
+    # B2: source-scan -- the new helper and the inserted /start fragment
+    # contain NONE of the forbidden names.
+    helper_src = src_of(MB_TREE, "_mbaccess_restore_access")
+    for name in FORBIDDEN_NAMES:
+        check(f"B2: _mbaccess_restore_access source does not reference {name!r}", name not in helper_src,
+              detail=helper_src[:200])
+
+    marker_start = "TPILOT MANAGER BOT ACCESS-ONLY RESTORE 20260727 START"
+    marker_end = "TPILOT MANAGER BOT ACCESS-ONLY RESTORE 20260727 END"
+    idx_a = MB_SRC.find(marker_start, MB_SRC.find("async def _handle_start(event, tg_user_id: int | None"))
+    idx_b = MB_SRC.find(marker_end, idx_a)
+    check("B2 precondition: new /start fragment markers found", idx_a != -1 and idx_b > idx_a)
+    new_fragment = MB_SRC[idx_a:idx_b]
+    for name in FORBIDDEN_NAMES:
+        check(f"B2: the new /start fragment does not reference {name!r}", name not in new_fragment)
+
+    # B3: the helper's own signature takes only uid (item 18 -- no identity/
+    # username parameter at all, so username cannot possibly affect it).
+    helper_def = last_def(MB_TREE, "_mbaccess_restore_access")
+    arg_names = [a.arg for a in helper_def.args.args]
+    check("B3 (item 18): _mbaccess_restore_access takes exactly one parameter, uid", arg_names == ["uid"], detail=str(arg_names))
+    # Excludes the docstring (which legitimately says "ambiguous identity" in
+    # prose) -- this checks the executable BODY never reads a username/identity.
+    helper_body_stmts = helper_def.body[1:] if (
+        helper_def.body and isinstance(helper_def.body[0], ast.Expr)
+        and isinstance(getattr(helper_def.body[0], "value", None), ast.Constant)
+        and isinstance(helper_def.body[0].value.value, str)
+    ) else helper_def.body
+    helper_body_src = "\n".join(ast.unparse(s) for s in helper_body_stmts)
+    check("B3: helper's executable body never references 'username' or 'identity'",
+          "username" not in helper_body_src and "identity" not in helper_body_src,
+          detail=helper_body_src[:200])
+
+
+# ==========================================================================
+# Section C -- races: prove the transactional re-check (not just the outer
+# pre-check) is what closes each TOCTOU window (items 13, 14, 15)
+# ==========================================================================
+
+def run_race_checks() -> None:
+    print("\n-- Section C: TOCTOU races between the pre-reads and the transaction --")
+
+    # C1 (item 13): manager deleted between lookup and INSERT -> no orphan target.
+    db = _make_temp_db()
+    _seed_manager(db, "racemgr1", 900)
+    _seed_access_user(db, 900)
+    _seed_mba(db, 900, "racemgr1")
+    ns = _helper_ns(db)
+    race_connect, state = _make_race_connect(
+        db, trigger_call_index=5,
+        race_sql="DELETE FROM managers WHERE tg_user_id=? AND manager_key=?", race_params=(900, "racemgr1"),
+    )
+    ns["_connect"] = race_connect
+    result = ns["_mbaccess_restore_access"](900)
+    check("C1 precondition: the race fired at the expected call", state["triggered"])
+    check("C1: manager deleted mid-flight -> not_applicable, no orphan access_targets row",
+          result == "not_applicable" and not _rows(db, "access_targets", tg_user_id=900), detail=result)
+
+    # C2 (item 14): admin disables access_users between lookup and INSERT.
+    db = _make_temp_db()
+    _seed_manager(db, "racemgr2", 901)
+    _seed_access_user(db, 901)
+    _seed_mba(db, 901, "racemgr2")
+    ns = _helper_ns(db)
+    race_connect, state = _make_race_connect(
+        db, trigger_call_index=5,
+        race_sql="UPDATE access_users SET is_enabled=0 WHERE tg_user_id=?", race_params=(901,),
+    )
+    ns["_connect"] = race_connect
+    result = ns["_mbaccess_restore_access"](901)
+    check("C2 precondition: the race fired at the expected call", state["triggered"])
+    check("C2: access_users disabled mid-flight -> disabled, no access_targets row written",
+          result == "disabled" and not _rows(db, "access_targets", tg_user_id=901), detail=result)
+
+    # C3 (item 15): revoked flips to 1 between lookup and INSERT.
+    db = _make_temp_db()
+    _seed_manager(db, "racemgr3", 902)
+    _seed_access_user(db, 902)
+    _seed_mba(db, 902, "racemgr3")
+    ns = _helper_ns(db)
+    race_connect, state = _make_race_connect(
+        db, trigger_call_index=5,
+        race_sql="UPDATE manager_bot_access SET revoked=1 WHERE tg_user_id=? AND manager_key=?", race_params=(902, "racemgr3"),
+    )
+    ns["_connect"] = race_connect
+    result = ns["_mbaccess_restore_access"](902)
+    check("C3 precondition: the race fired at the expected call", state["triggered"])
+    check("C3: revoked flips to 1 mid-flight -> revoked, no access_targets row written",
+          result == "revoked" and not _rows(db, "access_targets", tg_user_id=902), detail=result)
+
+    # C4 (item 16): two concurrent /start-equivalent calls for the SAME
+    # (uid, manager_key) -> exactly one consistent access_targets row, no
+    # exception/'error' from either thread.
+    db = _make_temp_db()
+    _seed_manager(db, "concmgr", 903)
+    _seed_access_user(db, 903)
+    _seed_mba(db, 903, "concmgr")
+    ns_a = _helper_ns(db)
+    ns_b = _helper_ns(db)
+    results16 = [None, None]
+
+    def _call16(idx, ns_local):
+        results16[idx] = ns_local["_mbaccess_restore_access"](903)
+
+    t1 = threading.Thread(target=_call16, args=(0, ns_a))
+    t2 = threading.Thread(target=_call16, args=(1, ns_b))
+    t1.start(); t2.start()
+    t1.join(timeout=30); t2.join(timeout=30)
+    check("C4: neither concurrent call returned 'error'", "error" not in results16, detail=str(results16))
+    check("C4: exactly one of the two concurrent calls reports 'restored', the other 'not_applicable'",
+          sorted(results16) == ["not_applicable", "restored"], detail=str(results16))
+    check("C4: exactly one consistent access_targets row exists afterwards",
+          len(_rows(db, "access_targets", tg_user_id=903, manager_key="concmgr")) == 1, detail=str(results16))
+
+
+# ==========================================================================
+# Section D -- inactive manager states (item 17)
+# ==========================================================================
+
+def run_inactive_manager_state_checks() -> None:
+    print("\n-- Section D: inactive manager states never get repaired --")
+    cases = [
+        ("status=new", dict(status="new"), 9100),
+        ("status=stopped", dict(status="stopped"), 9101),
+        ("status=archived", dict(status="archived"), 9102),
+        ("is_enabled=0", dict(is_enabled=0), 9103),
+        ("manual_stopped=1", dict(manual_stopped=1), 9104),
+    ]
+    for label, kwargs, uid in cases:
+        db = _make_temp_db()
+        _seed_manager(db, f"inact_{uid}", uid, **kwargs)
+        _seed_access_user(db, uid)
+        _seed_mba(db, uid, f"inact_{uid}")
+        result = _helper_ns(db)["_mbaccess_restore_access"](uid)
+        check(f"D: inactive manager ({label}) -> not_applicable, zero writes",
+              result == "not_applicable" and not _rows(db, "access_targets", tg_user_id=uid),
+              detail=f"result={result}")
+
+
+# ==========================================================================
+# Section E -- error path (item 12) and username irrelevance (item 18)
+# ==========================================================================
+
+def run_error_and_username_checks() -> None:
+    print("\n-- Section E: DB failure -> 'error', username plays no role --")
+
+    # E1: force a genuine SQLite failure at the INSERT step (drop the target
+    # table after the pre-checks already passed) -- must return 'error' and,
+    # through the full /start flow, must NOT fall through to either fallback.
+    db = _make_temp_db()
+    _seed_manager(db, "errmgr", 950)
+    _seed_access_user(db, 950)
+    _seed_mba(db, 950, "errmgr")
+    _exec(db, "DROP TABLE access_targets")
+    result_e1 = _helper_ns(db)["_mbaccess_restore_access"](950)
+    check("E1: bare helper returns 'error' when the write fails", result_e1 == "error", detail=result_e1)
+
+    db2 = _make_temp_db()
+    _seed_manager(db2, "errmgr2", 951)
+    _seed_access_user(db2, 951)
+    _seed_mba(db2, 951, "errmgr2")
+    _exec(db2, "DROP TABLE access_targets")
+    ns = build_start_ns(db2)
+    event = _FakeEvent(951, _FakeSender(username="err_tg"))
+    run_start(ns, event)
+    check("E1: full /start flow shows the retry-later message on error",
+          event.responses and "Повторите /start" in event.responses[0][0],
+          detail=str(event.responses))
+    check("E1: error path never falls through to reconcile or auto_grant",
+          not ns["_reconcile_fake"].calls and not ns["_auto_grant_fake"].calls)
+
+    # E1b (round-5 review, MEDIUM R3): _connect() itself raising (not just a
+    # later con.execute()) must ALSO produce 'error', not an uncaught
+    # exception. Before the R3 fix, con = _connect() sat OUTSIDE the try
+    # block, so this exact scenario escaped uncaught -- proven empirically in
+    # round-5 review. All pre-checks pass (so the code reaches the point
+    # where it opens the write connection), then the Nth _connect() call
+    # (the one used for the write transaction) raises.
+    db1b = _make_temp_db()
+    _seed_manager(db1b, "errmgr3", 960)
+    _seed_access_user(db1b, 960)
+    _seed_mba(db1b, 960, "errmgr3")
+    ns1b = _helper_ns(db1b)
+    real_connect_1b = ns1b["_connect"]
+    calls_1b = {"n": 0}
+
+    def _flaky_connect():
+        calls_1b["n"] += 1
+        if calls_1b["n"] >= 5:
+            raise sqlite3.OperationalError("injected: unable to open database file")
+        return real_connect_1b()
+
+    ns1b["_connect"] = _flaky_connect
+    try:
+        result_e1b = ns1b["_mbaccess_restore_access"](960)
+        e1b_exc = None
+    except Exception as exc:
+        result_e1b = None
+        e1b_exc = exc
+    check("E1b: a raising _connect() (not just a later execute failure) still returns 'error', "
+          "no uncaught exception escapes the helper",
+          result_e1b == "error" and e1b_exc is None,
+          detail=f"result={result_e1b!r} exception={e1b_exc!r} calls={calls_1b['n']}")
+
+    # E2 (item 18; round-6 review fix): identical DB state, two different
+    # usernames (one empty, one colliding with an unrelated manager's own
+    # username) -> identical outcome, proving username plays zero role in
+    # the new contract. The prior version only compared outcomes[0] to
+    # outcomes[1] -- vacuous, since it also passes when /start is completely
+    # broken (both iterations then produce the SAME generic error response,
+    # proven empirically: injecting an unconditional exception right after
+    # identity resolution makes both runs return
+    # [('Ошибка ManagerBot /start.', False)], which still satisfies
+    # outcomes[0] == outcomes[1]). Fixed by pinning both outcomes to the
+    # actual healthy restoration, not merely to each other.
+    EXPECTED_E2_OUTCOME = ("✅ Доступ восстановлен", True)
+
+    def _seed_e2_scenario(db_path):
+        _seed_manager(db_path, "unmgr", 952)
+        _seed_manager(db_path, "othermgr", 953, telegram_username="collides_with_another_manager")
+        _seed_access_user(db_path, 952)
+        _seed_mba(db_path, 952, "unmgr")
+
+    def _run_e2(mutate=None):
+        result = []
+        for uname in ("", "collides_with_another_manager"):
+            db3 = _make_temp_db()
+            _seed_e2_scenario(db3)
+            ns3 = build_start_ns(db3, mutate=mutate)
+            event3 = _FakeEvent(952, _FakeSender(username=uname))
+            run_start(ns3, event3)
+            result.append((event3.responses[0][0] if event3.responses else None,
+                           bool(_rows(db3, "access_targets", tg_user_id=952, manager_key="unmgr"))))
+        return result
+
+    outcomes = _run_e2()
+    check("E2: both usernames produce the same outcome",
+          outcomes[0] == outcomes[1], detail=str(outcomes))
+    check("E2: that shared outcome is the actual healthy restoration (✅ + a real access_targets "
+          "row), not two BROKEN runs merely agreeing with each other",
+          outcomes[0] == EXPECTED_E2_OUTCOME and outcomes[1] == EXPECTED_E2_OUTCOME,
+          detail=str(outcomes))
+
+    # E2 mutation-proof: remove the restore call entirely (same anchor/style
+    # as X1) so both usernames now fall through to the legacy delegate
+    # instead of being repaired. Proves the corrected assertion above
+    # actually discriminates: two BROKEN-but-matching outcomes must fail it.
+    def _e2_mutate(src):
+        anchor = "restore_result = _mbaccess_restore_access(uid)"
+        check("E2 mutation precondition: anchor found", anchor in src)
+        return src.replace(anchor, "restore_result = 'not_applicable'  # E2 mutation: restore call removed", 1)
+
+    mutant_outcomes = _run_e2(mutate=_e2_mutate)
+    check("E2 mutation-proof: with the restore call removed, both usernames still agree with "
+          "each other (LEGACY/no-repair) but that shared outcome is no longer the healthy "
+          "restoration -- the corrected assertion fails for the intended reason",
+          mutant_outcomes[0] == mutant_outcomes[1] and mutant_outcomes[0] != EXPECTED_E2_OUTCOME,
+          detail=str(mutant_outcomes))
+
+
+# ==========================================================================
+# Section F -- BLOCKER B1 regression: prove the fix structurally prevents the
+# historical-backlog burst, using the REAL AST-extracted M2.6B/M2.6E SQL.
+# ==========================================================================
+
+def run_blocker_b1_regression() -> None:
+    print("\n-- Section F: BLOCKER B1 regression (real backfill SQL, no mock) --")
+
+    def _deliverable_count(dbp, uid, key):
+        """Round-5 review (R6): this used to be a hand-copied predicate that
+        had already drifted from production (missing the next_attempt_at
+        backoff branch and the LIMIT 30 cap). Now calls the REAL, active
+        _fetch_unsent_events_for_user (AST-extracted, same function the
+        running ManagerBot uses) so this can never silently drift again."""
+        return len(_helper_ns(dbp)["_fetch_unsent_events_for_user"](uid, [key]))
+
+    # F1: baseline (real, unmutated code) -- brand-new uid, no access_users,
+    # 50 historical events already on the books. After /start (helper reports
+    # not_applicable; auto_grant is faked as a no-op so it does not itself
+    # write anything -- its own correctness is protected/unchanged/out of
+    # scope), running the REAL extracted backfill against this DB must
+    # create ZERO manager_bot_access rows, because there is no access_users
+    # row for the JOIN to match at all.
+    db = _make_temp_db()
+    _seed_manager(db, "newmgr", 9001, display_name="New Guy")
+    for _ in range(50):
+        _seed_event(db, "newmgr")
+    ns = build_start_ns(db, auto_grant_return=True)
+    event = _FakeEvent(9001, _FakeSender(username="newmgr_tg"))
+    run_start(ns, event)
+    check("F1: helper created no access_users row for the brand-new uid", not _rows(db, "access_users", tg_user_id=9001))
+    check("F1: helper created no access_targets row for the brand-new uid", not _rows(db, "access_targets", tg_user_id=9001))
+    check("F1: the legacy auto-grant path was reached instead (unchanged baseline)", bool(ns["_auto_grant_fake"].calls))
+    con = sqlite3.connect(db)
+    con.executescript("")  # no-op, keeps con usage symmetrical with below
+    con.execute(M2_6B_BACKFILL_SQL)
+    con.execute(M2_6E_CUTOFF_REPAIR_SQL)
+    con.commit()
+    con.close()
+    check("F1: the REAL backfill+cutoff-repair SQL created ZERO manager_bot_access rows (no access_users/access_targets pair to join)",
+          not _rows(db, "manager_bot_access", tg_user_id=9001))
+    check("F1: zero historical events deliverable after the backfill", _deliverable_count(db, 9001, "newmgr") == 0)
+
+    # F2: baseline for the ACTUAL repaired scenario (A1-style) -- the
+    # surviving manager_bot_access row's own cutoff must still gate delivery
+    # correctly after the restore, and the backfill (a no-op here, since
+    # INSERT OR IGNORE never touches an existing row) must not change it.
+    db = _make_temp_db()
+    _seed_manager(db, "r2mgr", 9002)
+    _seed_access_user(db, 9002)
+    _seed_mba(db, 9002, "r2mgr", cutoff=5)
+    for i in range(1, 11):
+        _seed_event(db, "r2mgr")
+    before_deliv = _deliverable_count(db, 9002, "r2mgr")
+    check("F2 precondition: 5 events (6-10) are deliverable before any restore", before_deliv == 5, detail=before_deliv)
+    ns = build_start_ns(db)
+    event = _FakeEvent(9002, _FakeSender(username="r2_tg"))
+    run_start(ns, event)
+    con = sqlite3.connect(db)
+    con.execute(M2_6B_BACKFILL_SQL)
+    con.execute(M2_6E_CUTOFF_REPAIR_SQL)
+    con.commit()
+    con.close()
+    check("F2: deliverable count unchanged after restore + backfill (still exactly 5, not all 10)",
+          _deliverable_count(db, 9002, "r2mgr") == before_deliv, detail=_deliverable_count(db, 9002, "r2mgr"))
+    mba_f2 = _row(db, "manager_bot_access", tg_user_id=9002, manager_key="r2mgr")
+    check("F2: event_cutoff_id is still exactly 5 (never read, never written by the helper)",
+          int(mba_f2.get("event_cutoff_id") or 0) == 5, detail=str(mba_f2))
+
+    # F3 (X9 mutation-proof / H4): remove the "matching manager_bot_access
+    # row must already exist" guard (BOTH the outer pre-check and the
+    # transactional re-check) -- proving this is the exact guard that
+    # structurally prevents the burst. With it removed, a uid that already
+    # has access_users (e.g. an existing operator picking up a brand-new,
+    # never-granted manager_key) now gets access_targets repaired with NO
+    # matching manager_bot_access row -- recreating precisely the precondition
+    # the real backfill exploits.
+    real_helper_src = src_of(MB_TREE, "_mbaccess_restore_access")
+    anchor_outer = "    if not mba_row:\n        return 'not_applicable'\n"
+    check("F3 precondition: outer mba_row-exists anchor found", anchor_outer in real_helper_src)
+    mutated9 = real_helper_src.replace(anchor_outer, "", 1)
+    # The transactional recheck must be neutralized, not blanked out: fetchone()
+    # returns None (not {}) for a missing row, and the very next line indexes
+    # mba_recheck['revoked'] -- blank-removing this guard would crash on that
+    # None dereference (a different, uninteresting failure mode) instead of
+    # actually exercising the "guard removed" behavior this mutation targets.
+    anchor_txn = "            if not mba_recheck:\n                con.rollback()\n                return 'not_applicable'\n"
+    check("F3 precondition: transactional mba_recheck anchor found", anchor_txn in mutated9)
+    mutated9 = mutated9.replace(
+        anchor_txn,
+        "            if mba_recheck is None:\n                mba_recheck = {'revoked': 0}\n",
+        1,
+    )
+    check("F3 precondition: mutation actually changed the text", mutated9 != real_helper_src)
+
+    db9 = _make_temp_db()
+    _seed_manager(db9, "newkeymgr", 9003)
+    _seed_access_user(db9, 9003)
+    for _ in range(50):
+        _seed_event(db9, "newkeymgr")
+    ns9 = _exec_mutated_helper(mutated9, db_path=db9)
+    result9 = ns9["_mbaccess_restore_access"](9003)
+    check("F3 mutation-proof: without the manager_bot_access-exists guard, a brand-new key now gets "
+          "access_targets repaired with no matching manager_bot_access row",
+          result9 == "restored" and bool(_rows(db9, "access_targets", tg_user_id=9003, manager_key="newkeymgr")),
+          detail=result9)
+    con9 = sqlite3.connect(db9)
+    con9.execute(M2_6B_BACKFILL_SQL)
+    con9.execute(M2_6E_CUTOFF_REPAIR_SQL)
+    con9.commit()
+    con9.close()
+    mba9 = _row(db9, "manager_bot_access", tg_user_id=9003, manager_key="newkeymgr")
+    check("F3 mutation-proof: the subsequent restart's REAL backfill now DOES create a manager_bot_access "
+          "row with event_cutoff_id=0 -- reproducing the exact BLOCKER B1 burst -- proving the guard removed "
+          "here is precisely what keeps this from happening in production",
+          bool(mba9) and int(mba9.get("event_cutoff_id") or 0) == 0, detail=str(mba9))
+    # The REAL delivery query caps at LIMIT 30 (round-5 review, R6 -- the
+    # prior hand-copied predicate omitted this and wrongly expected all 50).
+    # 30 is still the entire first page of the burst, not a small residual --
+    # the point (all currently-fetchable historical events becoming
+    # deliverable at once) stands.
+    check("F3 mutation-proof: the burst is confirmed via the REAL delivery query (capped at its own LIMIT 30, "
+          "not the naive full 50 a simplified predicate would report)",
+          _deliverable_count(db9, 9003, "newkeymgr") == 30, detail=_deliverable_count(db9, 9003, "newkeymgr"))
+
+
+# ==========================================================================
+# Section G -- mutation / negative-control proofs
+# ==========================================================================
+
+def run_mutations() -> None:
+    print("\n-- Section G: mutation proofs --")
+
+    real_helper_src = src_of(MB_TREE, "_mbaccess_restore_access")
+
+    # G1 (X1): remove the call to the restore helper entirely.
+    def _x1_mutate(src):
+        anchor = "restore_result = _mbaccess_restore_access(uid)"
+        check("X1 precondition: anchor found", anchor in src)
+        return src.replace(anchor, "restore_result = 'not_applicable'  # X1 mutation: restore call removed", 1)
+
+    db = _make_temp_db()
+    _seed_manager(db, "x1mgr", 800)
+    _seed_access_user(db, 800)
+    _seed_mba(db, 800, "x1mgr")
+    ns = build_start_ns(db, mutate=_x1_mutate)
+    event = _FakeEvent(800, _FakeSender(username="x1_tg"))
+    run_start(ns, event)
+    check("X1 mutation-proof: with the restore call removed, the bug state now falls through "
+          "to the legacy handler instead of being repaired",
+          event.responses == [("LEGACY", None)], detail=str(event.responses))
+
+    # G2 (X2): call _auto_grant_manager_bot_access from inside the new
+    # fragment instead of via the narrow helper.
+    def _x2_mutate(src):
+        anchor = "restore_result = _mbaccess_restore_access(uid)"
+        check("X2 precondition: anchor found", anchor in src)
+        replacement = (
+            "manager_row_x2 = _find_active_manager_by_tg_user_id(uid)\n"
+            "        _auto_grant_manager_bot_access(identity, manager_row_x2)\n"
+            "        " + anchor
+        )
+        return src.replace(anchor, replacement, 1)
+
+    db = _make_temp_db()
+    _seed_manager(db, "x2mgr", 801)
+    _seed_access_user(db, 801)
+    _seed_mba(db, 801, "x2mgr")
+    ns = build_start_ns(db, mutate=_x2_mutate)
+    event = _FakeEvent(801, _FakeSender(username="x2_tg"))
+    run_start(ns, event)
+    check("X2 mutation-proof: routing through _auto_grant_manager_bot_access is now detected",
+          bool(ns["_auto_grant_fake"].calls), detail=str(ns["_auto_grant_fake"].calls))
+
+    # G3 (X3): call _reconcile_reconnected_manager from inside the new fragment.
+    def _x3_mutate(src):
+        anchor = "restore_result = _mbaccess_restore_access(uid)"
+        check("X3 precondition: anchor found", anchor in src)
+        replacement = (
+            "manager_row_x3 = _find_active_manager_by_tg_user_id(uid)\n"
+            "        if manager_row_x3:\n"
+            "            _reconcile_reconnected_manager(uid, _norm_key(manager_row_x3.get('manager_key') or ''))\n"
+            "        " + anchor
+        )
+        return src.replace(anchor, replacement, 1)
+
+    db = _make_temp_db()
+    _seed_manager(db, "x3mgr", 802)
+    _seed_access_user(db, 802)
+    _seed_mba(db, 802, "x3mgr")
+    ns = build_start_ns(db, mutate=_x3_mutate)
+    event = _FakeEvent(802, _FakeSender(username="x3_tg"))
+    run_start(ns, event)
+    check("X3 mutation-proof: routing through _reconcile_reconnected_manager is now detected",
+          bool(ns["_reconcile_fake"].calls), detail=str(ns["_reconcile_fake"].calls))
+
+    # G4 (X4): remove BOTH layers of the revoked guard (outer + transactional
+    # re-check). A single-layer removal is non-discriminating by design (the
+    # other layer still catches it on a static, non-race scenario) -- proven
+    # deliberately here by removing both to show revoked protection collapses.
+    anchor4a = "    if int(mba_row.get('revoked') or 0) != 0:\n        return 'revoked'\n"
+    check("X4 precondition: outer revoked-guard anchor found", anchor4a in real_helper_src)
+    mutated4 = real_helper_src.replace(anchor4a, "", 1)
+    anchor4b = "            if int(mba_recheck['revoked'] or 0) != 0:\n                con.rollback()\n                return 'revoked'\n"
+    check("X4 precondition: transactional revoked-recheck anchor found", anchor4b in mutated4)
+    mutated4 = mutated4.replace(anchor4b, "", 1)
+    check("X4 precondition: mutation actually changed the text", mutated4 != real_helper_src)
+    db4 = _make_temp_db()
+    _seed_manager(db4, "x4mgr", 803)
+    _seed_access_user(db4, 803)
+    _seed_mba(db4, 803, "x4mgr", revoked=1)
+    ns4 = _exec_mutated_helper(mutated4, db_path=db4)
+    result4 = ns4["_mbaccess_restore_access"](803)
+    check("X4 mutation-proof: without either revoked guard, a revoked manager now gets access_targets repaired",
+          result4 == "restored" and bool(_rows(db4, "access_targets", tg_user_id=803)), detail=result4)
+
+    # G5 (X5): remove BOTH layers of the is_enabled guard.
+    anchor5a = "    if int(existing_user.get('is_enabled') or 0) != 1:\n        return 'disabled'\n"
+    check("X5 precondition: outer is_enabled-guard anchor found", anchor5a in real_helper_src)
+    mutated5 = real_helper_src.replace(anchor5a, "", 1)
+    anchor5b = "            if int(user_row['is_enabled'] or 0) != 1:\n                con.rollback()\n                return 'disabled'\n"
+    check("X5 precondition: transactional is_enabled-recheck anchor found", anchor5b in mutated5)
+    mutated5 = mutated5.replace(anchor5b, "", 1)
+    check("X5 precondition: mutation actually changed the text", mutated5 != real_helper_src)
+    db5 = _make_temp_db()
+    _seed_manager(db5, "x5mgr", 804)
+    _seed_access_user(db5, 804, is_enabled=0)
+    _seed_mba(db5, 804, "x5mgr")
+    ns5 = _exec_mutated_helper(mutated5, db_path=db5)
+    result5 = ns5["_mbaccess_restore_access"](804)
+    check("X5 mutation-proof: without either is_enabled guard, a disabled user's access_targets now gets repaired",
+          result5 == "restored" and bool(_rows(db5, "access_targets", tg_user_id=804)), detail=result5)
+
+    # G6 (X6): remove BOTH layers of the scope_mode='all' guard.
+    anchor6a = "    if scope_mode == 'all':\n        return 'not_applicable'\n"
+    check("X6 precondition: outer scope_mode='all' anchor found", anchor6a in real_helper_src)
+    mutated6 = real_helper_src.replace(anchor6a, "", 1)
+    anchor6b = "            if str(user_row['scope_mode'] or 'selected').strip().lower() == 'all':\n                con.rollback()\n                return 'not_applicable'\n"
+    check("X6 precondition: transactional scope_mode='all' recheck anchor found", anchor6b in mutated6)
+    mutated6 = mutated6.replace(anchor6b, "", 1)
+    check("X6 precondition: mutation actually changed the text", mutated6 != real_helper_src)
+    db6 = _make_temp_db()
+    _seed_manager(db6, "x6mgr", 805)
+    _seed_access_user(db6, 805, scope_mode="all", access_level=2)
+    _seed_mba(db6, 805, "x6mgr")
+    ns6 = _exec_mutated_helper(mutated6, db_path=db6)
+    result6 = ns6["_mbaccess_restore_access"](805)
+    check("X6 mutation-proof: without either scope_mode='all' guard, an explicit access_targets row now "
+          "gets added for a blanket-scope admin",
+          result6 == "restored" and bool(_rows(db6, "access_targets", tg_user_id=805)), detail=result6)
+
+    # G7 (X7, FIXED): the prior round's X7 was a confirmed fake -- it left the
+    # correct late buttons call untouched, so no observable behavior differed.
+    # This version removes buttons from the ACTUAL restored-branch call (so
+    # the real response carries None) while still inserting an early spurious
+    # call, proving a naive "was it called" check is insufficient and that
+    # the discriminator must be the response's own buttons value.
+    def _x7_mutate(src):
+        anchor_call = "restore_result = _mbaccess_restore_access(uid)"
+        check("X7 precondition: call anchor found", anchor_call in src)
+        src = src.replace(
+            anchor_call,
+            "_early_buttons_x7 = _mbstat_start_buttons(uid)  # X7 mutation: computed too early\n        " + anchor_call,
+            1,
+        )
+        anchor_respond = "await event.respond('✅ Доступ восстановлен', buttons=_mbstat_start_buttons(uid))"
+        check("X7 precondition: restored-branch respond anchor found", anchor_respond in src)
+        return src.replace(
+            anchor_respond,
+            "await event.respond('✅ Доступ восстановлен', buttons=None)  # X7 mutation: real call dropped",
+            1,
+        )
+
+    db = _make_temp_db()
+    _seed_manager(db, "x7mgr", 806)
+    _seed_access_user(db, 806)
+    _seed_mba(db, 806, "x7mgr")
+    ns_unmutated = build_start_ns(db)
+    event_u = _FakeEvent(806, _FakeSender(username="x7u_tg"))
+    run_start(ns_unmutated, event_u)
+    check("X7 sanity: unmutated code carries real (non-None) buttons on the restored response",
+          event_u.responses and event_u.responses[0][1] is not None, detail=str(event_u.responses))
+
+    db = _make_temp_db()
+    _seed_manager(db, "x7mgr2", 8060)
+    _seed_access_user(db, 8060)
+    _seed_mba(db, 8060, "x7mgr2")
+    ns = build_start_ns(db, mutate=_x7_mutate)
+    event = _FakeEvent(8060, _FakeSender(username="x7_tg"))
+    run_start(ns, event)
+    check("X7 mutation-proof: the actual response's buttons are now None even though the buttons "
+          "helper was still called (proves 'was it called' alone is not a sufficient check)",
+          bool(ns["_buttons_fake"].calls) and event.responses and event.responses[0][1] is None,
+          detail=str((ns["_buttons_fake"].calls, event.responses)))
+
+    # G8 (X8): remove the "exactly one active manager" fail-closed rule from
+    # _find_active_manager_by_tg_user_id.
+    real_finder_src = src_of(MB_TREE, "_find_active_manager_by_tg_user_id")
+    anchor8 = "        if len(rows) != 1:\n            return {}"
+    check("X8 precondition: len(rows)!=1 anchor found", anchor8 in real_finder_src)
+    mutated8 = real_finder_src.replace(anchor8, "        if not rows:\n            return {}", 1)
+    check("X8 precondition: mutation actually changed the text", mutated8 != real_finder_src)
+
+    picked8 = {}
+    for node in MB_TREE.body:
+        nm = getattr(node, "name", None)
+        if nm in (MB_TARGET_NAMES - {"_find_active_manager_by_tg_user_id", "_handle_start"}):
+            picked8[nm] = node
+    handle_start_src8 = src_of(MB_TREE, "_handle_start")
+    module_src8 = "\n\n".join(ast.unparse(picked8[n]) for n in sorted(picked8)) + "\n\n" + mutated8 + "\n\n" + handle_start_src8
+    reconcile_fake8 = _CallRecorder()
+    auto_grant_fake8 = _CallRecorder(return_value=False)
+
+    async def _legacy8(event, uid):
+        await event.respond("LEGACY", buttons=None)
+
+    # manager_key literals must already be lowercase: _norm_key() lowercases
+    # every key before it is used for access_targets/manager_bot_access
+    # lookups, so a mixed-case fixture ("dupA") would mismatch against its own
+    # seeded manager_bot_access row and mask the mutation being tested here.
+    db = _make_temp_db()
+    _seed_manager(db, "dupa", 807)
+    _seed_manager(db, "dupb", 807)
+    _seed_access_user(db, 807)
+    _seed_mba(db, 807, "dupa")
+    ns8 = _base_ns(db)
+    ns8.update({
+        "_reconcile_reconnected_manager": reconcile_fake8,
+        "_auto_grant_manager_bot_access": auto_grant_fake8,
+        "_mbstat_start_buttons": _ButtonsFake(db),
+        "_M26D_ORIG_HANDLE_START": _legacy8,
+    })
+    exec(compile(module_src8, "<x8-mutated>", "exec"), ns8)
+    event = _FakeEvent(807, _FakeSender(username="x8_tg"))
+    asyncio.run(ns8["_handle_start"](event))
+    check("X8 mutation-proof: without the exactly-one-active-manager rule, an ambiguous uid now "
+          "gets access_targets repaired for whichever key sorts first",
+          bool(_rows(db, "access_targets", tg_user_id=807, manager_key="dupa")), detail=str(event.responses))
+
+
+# ==========================================================================
+# Self-guard: this file must contain no vacuous check(...) calls
+# ==========================================================================
+
+_SELF_GUARD_SAFE_BUILTINS = {
+    "any": any, "all": all, "bool": bool, "len": len, "int": int, "str": str,
+    "set": set, "list": list, "tuple": tuple, "dict": dict, "sorted": sorted,
+    "abs": abs, "min": min, "max": max, "sum": sum,
+}
+
+
+def _condition_is_constantly_true(node) -> bool:
+    """Constant-fold `node` in an empty namespace. Anything that evaluates
+    without a NameError is independent of program state; if also truthy, the
+    surrounding check() can never fail. Ported from the prior round's audited
+    fix (proven against 8 always-true/genuine forms)."""
+    try:
+        expr = ast.Expression(body=node)
+        ast.fix_missing_locations(expr)
+        value = eval(  # noqa: S307 -- constant-folding only; no names, allowlisted builtins
+            compile(expr, "<self-guard>", "eval"),
+            {"__builtins__": _SELF_GUARD_SAFE_BUILTINS},
+            {},
+        )
+    except Exception:
+        return False
+    return bool(value)
+
+
+def _scan_self_for_vacuous_checks() -> list[str]:
+    self_src = THIS_FILE.read_text(encoding="utf-8")
+    self_tree = ast.parse(self_src)
+    offenders = []
+
+    class _Visitor(ast.NodeVisitor):
+        def visit_Call(self, node):
+            if isinstance(node.func, ast.Name) and node.func.id == "check" and len(node.args) >= 2:
+                cond = node.args[1]
+                if _condition_is_constantly_true(cond):
+                    label = node.args[0].value if isinstance(node.args[0], ast.Constant) else "<dynamic label>"
+                    offenders.append(f"line {node.lineno}: check({label!r}, {ast.unparse(cond)})")
+            self.generic_visit(node)
+
+    _Visitor().visit(self_tree)
+    return offenders
+
+
+def _self_guard_detector_probe() -> list[str]:
+    must_catch = [
+        "True", "bool(True)", "any([True])", "any(c for c in [True])",
+        "1 == 1", "not False", "len([1]) > 0", "all([])",
+    ]
+    must_not_catch = [
+        "r['status'] == 'granted_now'", "not offenders",
+        "event.responses and event.responses[0][1] is not None",
+        "bool(result4)", "False", "1 == 2",
+    ]
+    problems = []
+    for src in must_catch:
+        node = ast.parse(src, mode="eval").body
+        if not _condition_is_constantly_true(node):
+            problems.append(f"MISSED always-true form: {src}")
+    for src in must_not_catch:
+        node = ast.parse(src, mode="eval").body
+        if _condition_is_constantly_true(node):
+            problems.append(f"FALSE POSITIVE on genuine/false condition: {src}")
+    return problems
+
+
+def _cleanup_temp_dbs() -> None:
+    """Round-5 review (R8): every temp DB this suite creates now gets deleted
+    here (best-effort, including SQLite's -wal/-shm sidecar files left by
+    the real _connect()'s WAL mode) instead of leaking into %TEMP% forever."""
+    for path in _TEMP_DB_PATHS:
+        for candidate in (path, path + "-wal", path + "-shm", path + "-journal"):
+            try:
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+            except Exception:
+                pass
+
+
+def main() -> int:
+    try:
+        probe_problems = _self_guard_detector_probe()
+        check("SELF-GUARD PROBE: the vacuous-check detector catches every always-true form "
+              "and none of the genuine ones", not probe_problems, detail=str(probe_problems))
+
+        offenders = _scan_self_for_vacuous_checks()
+        check("SELF-GUARD: no vacuous check(...) calls in this file", not offenders, detail=str(offenders))
+
+        run_core_contract_checks()
+        run_forbidden_area_checks()
+        run_race_checks()
+        run_inactive_manager_state_checks()
+        run_error_and_username_checks()
+        run_blocker_b1_regression()
+        run_mutations()
+
+        print(f"\n{len(FAILURES)} failing check(s)." if FAILURES else "\nAll checks passed.")
+        for f in FAILURES:
+            print(f" - {f}")
+        return 1 if FAILURES else 0
+    finally:
+        _cleanup_temp_dbs()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

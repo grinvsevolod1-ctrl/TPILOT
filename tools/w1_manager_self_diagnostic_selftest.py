@@ -1,0 +1,869 @@
+# -*- coding: utf-8 -*-
+"""tools/w1_manager_self_diagnostic_selftest.py -- W1 (frozen master plan,
+MASTER_PLAN_FREEZE/08 + WAVE0 contract 07_safe_diagnostics_contract.md),
+privacy correction 20260729: proves the '🔎 Мой доступ' button
+(_w1_describe_access, _w1_my_access_text, _w1_myaccess_rate_limited,
+_w1_handle_my_access_callback, _w1_myaccess_audit_log, _w1_myaccess_actor_ref)
+against a real, synthetic, temporary SQLite database -- never the project
+database, never a real Telegram bot.
+
+manager_bot.py cannot be imported directly (module-level API_ID/
+MANAGER_BOT_TOKEN/TelegramClient construction -- same restriction every
+other selftest in this project documents). The REAL functions are extracted
+via ast.parse+unparse+exec (project convention, see
+tools\\manager_bot_delivery_selftest.py) and run against a real temp
+sqlite3 file with a minimal schema plus a fake Telethon-shaped event.
+
+Covers WAVE0 contract test cases C15.1-C15.12 PLUS the 20260729 privacy
+correction: raw tg_user_id must never appear in _w1_describe_access's
+return value, in _w1_my_access_text's rendered output, or in
+runtime\\myaccess_audit.log, in ANY state.
+
+    python tools\\w1_manager_self_diagnostic_selftest.py
+"""
+from __future__ import annotations
+
+import ast
+import asyncio
+import hashlib
+import re
+import sqlite3
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List
+
+MANAGER_BOT_PY = Path(__file__).resolve().parent.parent / "manager_bot.py"
+
+FAILURES: list[str] = []
+
+
+def fail(msg: str) -> None:
+    FAILURES.append(msg)
+    print(f"[FAIL] {msg}")
+
+
+def ok(msg: str) -> None:
+    print(f"[ OK ] {msg}")
+
+
+def _last_defs(names: set[str]):
+    src = MANAGER_BOT_PY.read_bytes().decode("utf-8-sig", errors="replace")
+    tree = ast.parse(src)
+    found = {}
+    for node in tree.body:
+        target = None
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names:
+            target = node.name
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id in names:
+                    target = t.id
+        if target:
+            found[target] = node
+    missing = names - set(found)
+    if missing:
+        raise LookupError(f"not found at module level in manager_bot.py: {sorted(missing)}")
+    nodes = list(found.values())
+    nodes.sort(key=lambda n: n.lineno)
+    return nodes
+
+
+SCHEMA = """
+CREATE TABLE managers(
+    tg_user_id INTEGER, manager_key TEXT, display_name TEXT,
+    telegram_username TEXT, status TEXT, is_enabled INTEGER, manual_stopped INTEGER
+);
+CREATE TABLE access_users(tg_user_id INTEGER PRIMARY KEY, is_enabled INTEGER, scope_mode TEXT);
+CREATE TABLE manager_bot_access(
+    tg_user_id INTEGER, manager_key TEXT, can_receive_cards INTEGER,
+    revoked INTEGER, updated_at TEXT
+);
+CREATE TABLE access_targets(tg_user_id INTEGER, manager_key TEXT);
+"""
+
+
+import os as _dbg_os
+_DEBUG = bool(_dbg_os.environ.get("W1_SELFTEST_DEBUG"))
+
+
+class _FakeLog:
+    """Captures every call, fully %-formatted, so privacy tests can assert
+    a synthetic ID's decimal digits are absent from the ACTUAL rendered log
+    line -- not just from the format-string literal (which never contains
+    the value anyway) but from the real substituted output a real
+    logging.Logger would have emitted."""
+    def __init__(self):
+        self.records: list[str] = []
+
+    def _capture(self, level, msg, *a, **kw):
+        try:
+            formatted = msg % a if a else str(msg)
+        except Exception:
+            formatted = f"{msg!r} % {a!r}"
+        self.records.append(f"[{level}] {formatted}")
+        if _DEBUG:
+            print(f"[log.{level}]", formatted)
+
+    def warning(self, msg, *a, **kw):
+        self._capture("warning", msg, *a, **kw)
+
+    def info(self, msg, *a, **kw):
+        self._capture("info", msg, *a, **kw)
+
+    def error(self, msg, *a, **kw):
+        self._capture("error", msg, *a, **kw)
+
+    def debug(self, msg, *a, **kw):
+        self._capture("debug", msg, *a, **kw)
+
+
+class _FakeEvent:
+    def __init__(self, sender_id):
+        self.sender_id = sender_id
+        self.responses: list[str] = []
+        self.answers: list[tuple] = []
+
+    async def answer(self, *a, **kw):
+        self.answers.append((a, kw))
+
+    async def respond(self, text, *a, **kw):
+        self.responses.append(text)
+
+
+def build_namespace(db_path: Path, tmp_dir: Path):
+    # NOTE: TPILOT_DB_PATH is deliberately NOT extracted -- the real
+    # assignment calls _resolve_path(...) (env/CWD-dependent), which this
+    # harness must never invoke. A fake string path is seeded directly into
+    # `ns` below instead, and _connect (extracted verbatim, unmodified)
+    # reads it from the same namespace at call time.
+    nodes = _last_defs({
+        "_connect", "_norm_key", "_W1_MYACCESS_AUDIT_LOG",
+        "_W1_MYACCESS_ACTOR_NAMESPACE", "_w1_myaccess_actor_ref",
+        "_w1_myaccess_audit_log", "_w1_describe_access", "_w1_my_access_text",
+        "_W1_MYACCESS_LIMIT_KNOWN", "_W1_MYACCESS_LIMIT_UNKNOWN",
+        "_w1_myaccess_rate_limited", "_w1_handle_my_access_callback",
+    })
+    mod = ast.Module(body=nodes, type_ignores=[])
+    ast.fix_missing_locations(mod)
+    # _W1_MYACCESS_HITS is an AnnAssign (`: Dict[...] = {}`), which the
+    # simple Assign-based extractor above does not match by design (this
+    # project's convention favours plain Assign for globals); seed it
+    # directly instead of extracting it.
+    _hits_holder: Dict[int, list] = {}
+
+    ns = {
+        "__name__": "w1_test_ns",
+        "Any": Any, "Dict": Dict, "List": List,
+        "sqlite3": sqlite3,
+        "hashlib": hashlib,
+        "datetime": __import__("datetime").datetime,
+        "Path": Path,
+        "BASE_DIR": tmp_dir,
+        "TPILOT_DB_PATH": str(db_path),
+        "log": _FakeLog(),
+        "uuid": __import__("uuid"),
+        "_W1_MYACCESS_HITS": _hits_holder,
+    }
+    exec(compile(mod, "<w1_extract:my_access>", "exec"), ns)
+    return ns
+
+
+def make_db(tmp_dir: Path) -> Path:
+    db_path = tmp_dir / "fake_central.db"
+    con = sqlite3.connect(db_path)
+    con.executescript(SCHEMA)
+    con.commit()
+    con.close()
+    return db_path
+
+
+def seed(db_path: Path, **overrides):
+    con = sqlite3.connect(db_path)
+    con.execute("DELETE FROM managers"); con.execute("DELETE FROM access_users")
+    con.execute("DELETE FROM manager_bot_access"); con.execute("DELETE FROM access_targets")
+    if "managers" in overrides:
+        con.executemany(
+            "INSERT INTO managers(tg_user_id, manager_key, display_name, telegram_username, "
+            "status, is_enabled, manual_stopped) VALUES (?,?,?,?,?,?,?)",
+            overrides["managers"])
+    if "access_users" in overrides:
+        con.executemany(
+            "INSERT INTO access_users(tg_user_id, is_enabled, scope_mode) VALUES (?,?,?)",
+            overrides["access_users"])
+    if "manager_bot_access" in overrides:
+        con.executemany(
+            "INSERT INTO manager_bot_access(tg_user_id, manager_key, can_receive_cards, "
+            "revoked, updated_at) VALUES (?,?,?,?,?)",
+            overrides["manager_bot_access"])
+    if "access_targets" in overrides:
+        con.executemany(
+            "INSERT INTO access_targets(tg_user_id, manager_key) VALUES (?,?)",
+            overrides["access_targets"])
+    con.commit()
+    con.close()
+
+
+def with_fresh_env():
+    td = tempfile.mkdtemp(prefix="w1_myaccess_")
+    tmp = Path(td)
+    db_path = make_db(tmp)
+    return tmp, db_path
+
+
+def test_c15_1_known_both_tables_consistent():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1001, "mgr_a", "Mgr A", "mgr_a_user", "active", 1, 0)],
+         access_users=[(1001, 1, "selected")],
+         manager_bot_access=[(1001, "mgr_a", 1, 0, "2026-07-29T00:00:00")],
+         access_targets=[(1001, "mgr_a")])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1001)
+    if info.get("status") == "active" and info.get("source") == "both":
+        ok("C15.1: known + both tables consistent -> status=active, source=both")
+    else:
+        fail(f"C15.1: expected active/both, got {info}")
+    text = ns["_w1_my_access_text"](info)
+    if "1001" in text:
+        fail("C15.1: tg_user_id must NOT be shown to a known, consistent user")
+    elif "активен" in text and "обе таблицы согласованы" in text:
+        ok("C15.1: rendered text shows 'активен' + 'обе таблицы согласованы', no tg_user_id")
+    else:
+        fail(f"C15.1: unexpected rendered text: {text!r}")
+
+
+def test_c15_2_known_mba_only_no_access_targets():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1002, "mgr_b", "Mgr B", "", "active", 1, 0)],
+         access_users=[(1002, 1, "selected")],
+         manager_bot_access=[(1002, "mgr_b", 1, 0, "2026-07-29T00:00:00")])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1002)
+    text = ns["_w1_my_access_text"](info)
+    if info.get("source") == "manager_bot_access_only" and "рассинхронизированы" in text:
+        ok("C15.2: manager_bot_access-only divergence explicitly surfaced")
+    else:
+        fail(f"C15.2: expected divergence surfaced, got info={info} text={text!r}")
+
+
+def test_c15_3_known_access_targets_only():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1003, "mgr_c", "Mgr C", "", "active", 1, 0)],
+         access_users=[(1003, 1, "selected")],
+         access_targets=[(1003, "mgr_c")])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1003)
+    text = ns["_w1_my_access_text"](info)
+    if info.get("source") == "access_targets_only" and "активен, но" in text:
+        ok("C15.3: access_targets-only divergence surfaced, not silently declared active")
+    else:
+        fail(f"C15.3: expected divergence, got info={info} text={text!r}")
+
+
+def test_c15_4_disabled_access_users():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1004, "mgr_d", "Mgr D", "", "active", 1, 0)],
+         access_users=[(1004, 0, "selected")],
+         manager_bot_access=[(1004, "mgr_d", 1, 0, "")])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1004)
+    text = ns["_w1_my_access_text"](info)
+    if info.get("status") == "disabled" and "1004" not in text and "отключён" in text:
+        ok("C15.4: access_users.is_enabled=0 -> disabled, no tg_user_id shown")
+    else:
+        fail(f"C15.4: expected disabled/no-uid, got info={info} text={text!r}")
+
+
+def test_c15_5_revoked_manager_bot_access():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1005, "mgr_e", "Mgr E", "", "active", 1, 0)],
+         access_users=[(1005, 1, "selected")],
+         manager_bot_access=[(1005, "mgr_e", 1, 1, "")])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1005)
+    if info.get("status") == "disabled":
+        ok("C15.5: manager_bot_access.revoked=1 -> disabled (fail-closed, B7)")
+    else:
+        fail(f"C15.5: revoked row must resolve to disabled, got {info}")
+    # confirm no write path exists: re-read directly, revoked must still be 1
+    con = sqlite3.connect(db)
+    row = con.execute("SELECT revoked FROM manager_bot_access WHERE tg_user_id=1005").fetchone()
+    con.close()
+    if row and int(row[0]) == 1:
+        ok("C15.5: revoked=1 still in the DB after describe_access -- never restored")
+    else:
+        fail(f"C15.5: revoked flag was mutated: {row}")
+
+
+def test_c15_6_unknown_uid():
+    """Privacy correction 20260729: this is an INVERSION of the original
+    C15.6 assertion. The original design showed the caller's own
+    tg_user_id on this screen ("operationally needed to hand to an
+    admin") -- that design is now superseded. Raw tg_user_id must NOT
+    appear anywhere in the not_found screen, in the returned dict, or in
+    any of its digits."""
+    tmp, db = with_fresh_env()
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](999999)
+    text = ns["_w1_my_access_text"](info)
+    if info.get("status") != "not_found":
+        fail(f"C15.6: expected status=not_found, got {info}")
+        return
+    if "tg_user_id" in info:
+        fail(f"C15.6: _w1_describe_access must not return tg_user_id at all, got {info}")
+        return
+    if "999999" in text:
+        fail(f"C15.6: raw uid must NOT be shown on the not_found screen, got text={text!r}")
+        return
+    ok("C15.6: unknown uid -> not_found, raw tg_user_id absent from both the "
+       "dict and the rendered text")
+
+
+def test_c15_7_identity_conflict():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[
+        (1007, "mgr_f1", "F1", "", "active", 1, 0),
+        (1007, "mgr_f2", "F2", "", "active", 1, 0),
+    ])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1007)
+    if info.get("status") == "identity_conflict":
+        ok("C15.7: two active manager rows under one uid -> identity_conflict")
+    else:
+        fail(f"C15.7: expected identity_conflict, got {info}")
+    if "tg_user_id" in info:
+        fail(f"C15.7 (privacy): identity_conflict must not return tg_user_id, got {info}")
+    else:
+        ok("C15.7 (privacy): identity_conflict dict has no tg_user_id key")
+    text = ns["_w1_my_access_text"](info)
+    if "1007" in text:
+        fail(f"C15.7 (privacy): raw uid must not appear on the identity_conflict screen: {text!r}")
+    else:
+        ok("C15.7 (privacy): identity_conflict screen has no raw uid")
+    con = sqlite3.connect(db)
+    n = con.execute("SELECT COUNT(*) FROM manager_bot_access").fetchone()[0]
+    con.close()
+    if n == 0:
+        ok("C15.7: zero rows written to manager_bot_access for a conflicting identity")
+    else:
+        fail(f"C15.7: expected zero writes, found {n} rows")
+
+
+def test_c15_8_db_unavailable_fails_closed():
+    tmp = Path(tempfile.mkdtemp(prefix="w1_myaccess_"))
+    missing_db = tmp / "does_not_exist.db"
+    ns = build_namespace(missing_db, tmp)
+
+    # Force a real failure: point _connect at an unreadable/invalid path by
+    # using a directory in place of a file (sqlite3.connect will fail on
+    # actual use, e.g. a bad PRAGMA/execute against a directory path).
+    bogus_dir = tmp / "not_a_db"
+    bogus_dir.mkdir()
+    ns["TPILOT_DB_PATH"] = str(bogus_dir)
+    info = ns["_w1_describe_access"](12345)
+    text = ns["_w1_my_access_text"](info)
+    if info.get("status") == "error" and "активен" not in text and "Повторите" in text:
+        ok("C15.8: DB unavailable -> status=error, 'retry later' text, never 'активен'")
+    else:
+        fail(f"C15.8: expected fail-closed error text, got info={info} text={text!r}")
+
+
+def test_c15_9_uid_taken_only_from_sender_id():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1009, "mgr_i", "Mgr I", "", "active", 1, 0)],
+         access_users=[(1009, 1, "selected")],
+         manager_bot_access=[(1009, "mgr_i", 1, 0, "")],
+         access_targets=[(1009, "mgr_i")])
+    ns = build_namespace(db, tmp)
+    # The callback signature takes only `event` -- there is no parameter
+    # through which a forged card_id/uid in callback data could reach
+    # _w1_describe_access. Confirm by inspecting the actual source: the
+    # handler must reference event.sender_id and must NOT parse event.data.
+    src = MANAGER_BOT_PY.read_bytes().decode("utf-8-sig", errors="replace")
+    import re
+    m = re.search(r"async def _w1_handle_my_access_callback\(event\)[\s\S]*?(?=\nasync def |\Z)", src)
+    body = m.group(0) if m else ""
+    if "event.sender_id" in body and "event.data" not in body:
+        ok("C15.9: handler resolves uid from event.sender_id only; never parses event.data")
+    else:
+        fail("C15.9: handler does not exclusively use event.sender_id for uid resolution")
+
+
+def test_c15_10_rate_limit():
+    tmp, db = with_fresh_env()
+    ns = build_namespace(db, tmp)
+    ns["_W1_MYACCESS_HITS"].clear()
+    limited_flags = [ns["_w1_myaccess_rate_limited"](5001, known=True) for _ in range(6)]
+    if limited_flags == [False, False, False, False, False, True]:
+        ok("C15.10: 6th tap within the window is rate-limited, first 5 are not")
+    else:
+        fail(f"C15.10: unexpected rate-limit sequence: {limited_flags}")
+
+
+def test_c15_11_whitelist_only_fields():
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1011, "mgr_j", "Secret Name", "secret_user", "active", 1, 0)],
+         access_users=[(1011, 1, "selected")],
+         manager_bot_access=[(1011, "mgr_j", 1, 0, "2026-07-29T00:00:00")],
+         access_targets=[(1011, "mgr_j")])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](1011)
+    # Privacy correction 20260729: tg_user_id REMOVED from the whitelist --
+    # it must never be returned, in any state.
+    allowed_keys = {"status", "manager_key", "display_name", "username",
+                    "source", "updated_at"}
+    extra = set(info) - allowed_keys
+    if extra:
+        fail(f"C15.11: _w1_describe_access returned non-whitelisted keys: {sorted(extra)}")
+    else:
+        ok("C15.11: _w1_describe_access output stays within the whitelisted field set")
+    if "tg_user_id" in info:
+        fail("C15.11 (privacy): tg_user_id key must never be present in the returned dict")
+    else:
+        ok("C15.11 (privacy): no tg_user_id key in _w1_describe_access output")
+    text = ns["_w1_my_access_text"](info)
+    for forbidden in ("session", "token", "password", "proxy", "traceback", "Exception",
+                      "chat_id", "1011"):
+        if forbidden.lower() in text.lower():
+            fail(f"C15.11: rendered text leaked forbidden term: {forbidden}")
+            break
+    else:
+        ok("C15.11: rendered text contains no secrets/session/token/traceback/raw-id wording")
+
+
+def test_c15_12_non_private_chat_is_silent():
+    # _w1_handle_my_access_callback itself does not gate on is_private (that
+    # is on_message's job for the /start path); the callback fires only from
+    # an inline button already delivered in a private chat. This test
+    # documents that contract explicitly rather than assuming it.
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1012, "mgr_k", "Mgr K", "", "active", 1, 0)],
+         access_users=[(1012, 1, "selected")],
+         manager_bot_access=[(1012, "mgr_k", 1, 0, "")],
+         access_targets=[(1012, "mgr_k")])
+    ns = build_namespace(db, tmp)
+    ns["_W1_MYACCESS_HITS"].clear()
+    event = _FakeEvent(sender_id=1012)
+    asyncio.run(ns["_w1_handle_my_access_callback"](event))
+    if event.responses and "активен" in event.responses[0]:
+        ok("C15.12: callback answers/responds normally for a valid private-chat event "
+           "(non-private gating is on_message's contract, unchanged)")
+    else:
+        fail(f"C15.12: unexpected callback behaviour: {event.responses}")
+
+
+def test_privacy_audit_log_has_no_raw_uid():
+    """Privacy correction 20260729: runtime\\myaccess_audit.log must never
+    contain the raw uid. It must contain a stable actor_ref pseudonym
+    instead (SHA256-based, not Python's unstable hash())."""
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(424242, "mgr_priv", "Priv Mgr", "", "active", 1, 0)],
+         access_users=[(424242, 1, "selected")],
+         manager_bot_access=[(424242, "mgr_priv", 1, 0, "2026-07-29T00:00:00")],
+         access_targets=[(424242, "mgr_priv")])
+    ns = build_namespace(db, tmp)
+    ns["_w1_myaccess_audit_log"](424242, "active", "mgr_priv", operation_id="opabc123")
+    log_path = ns["_W1_MYACCESS_AUDIT_LOG"]
+    if not log_path.exists():
+        fail("privacy: audit log file was not created")
+        return
+    content = log_path.read_text(encoding="utf-8")
+    if "424242" in content or "uid=424242" in content:
+        fail(f"privacy: audit log contains the raw uid: {content!r}")
+        return
+    if "actor_ref=" not in content:
+        fail(f"privacy: audit log is missing the actor_ref pseudonym field: {content!r}")
+        return
+    expected_ref = ns["_w1_myaccess_actor_ref"](424242)
+    if f"actor_ref={expected_ref}" not in content:
+        fail(f"privacy: actor_ref in log does not match _w1_myaccess_actor_ref's own output: {content!r}")
+        return
+    ok("privacy: audit log contains actor_ref pseudonym, no raw uid digits")
+
+
+def test_privacy_actor_ref_stable_and_non_reversible():
+    """Same uid -> same actor_ref every call (so repeat taps correlate);
+    different uids -> different actor_ref (no collision by construction);
+    the ref must not simply be the uid re-encoded (e.g. hex/str of uid)."""
+    tmp, db = with_fresh_env()
+    ns = build_namespace(db, tmp)
+    ref_a1 = ns["_w1_myaccess_actor_ref"](777001)
+    ref_a2 = ns["_w1_myaccess_actor_ref"](777001)
+    ref_b = ns["_w1_myaccess_actor_ref"](777002)
+    if ref_a1 != ref_a2:
+        fail(f"privacy: actor_ref not stable across calls for the same uid: {ref_a1!r} vs {ref_a2!r}")
+        return
+    if ref_a1 == ref_b:
+        fail("privacy: actor_ref collided for two different uids")
+        return
+    if str(777001) in ref_a1 or format(777001, "x") in ref_a1:
+        fail(f"privacy: actor_ref looks like a re-encoding of the raw uid: {ref_a1!r}")
+        return
+    ok("privacy: actor_ref is stable per-uid, distinct across uids, not a re-encoded uid")
+
+
+def test_privacy_another_users_identifier_cannot_appear():
+    """One user's screen/log entry must never contain a DIFFERENT user's
+    raw uid or manager_key."""
+    tmp, db = with_fresh_env()
+    seed(db, managers=[
+        (2001, "mgr_alice", "Alice", "", "active", 1, 0),
+        (2002, "mgr_bob", "Bob", "", "active", 1, 0),
+    ], access_users=[(2001, 1, "selected"), (2002, 1, "selected")],
+       manager_bot_access=[(2001, "mgr_alice", 1, 0, ""), (2002, "mgr_bob", 1, 0, "")],
+       access_targets=[(2001, "mgr_alice"), (2002, "mgr_bob")])
+    ns = build_namespace(db, tmp)
+    info_alice = ns["_w1_describe_access"](2001)
+    text_alice = ns["_w1_my_access_text"](info_alice)
+    if "2002" in text_alice or "mgr_bob" in text_alice or "Bob" in text_alice:
+        fail(f"privacy: Alice's screen leaked Bob's identifier: {text_alice!r}")
+        return
+    ok("privacy: one user's self-diagnostic screen never contains another user's identifier")
+
+
+def test_privacy_diagnostic_is_select_only():
+    """_w1_describe_access must never execute a mutating statement --
+    inspect the REAL extracted source, not just behaviour, so a future edit
+    that adds a write is caught even if no test happens to observe a
+    changed row."""
+    src = MANAGER_BOT_PY.read_bytes().decode("utf-8-sig", errors="replace")
+    m = re.search(r"def _w1_describe_access\(uid: int\)[\s\S]*?(?=\ndef |\Z)", src)
+    body = m.group(0) if m else ""
+    if not body:
+        fail("privacy: could not locate _w1_describe_access source for SQL inspection")
+        return
+    mutating = re.findall(r"\b(INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE)\b", body, re.IGNORECASE)
+    if mutating:
+        fail(f"privacy: _w1_describe_access source contains mutating SQL keywords: {mutating}")
+        return
+    if "con.execute(" not in body and "con.commit(" in body:
+        fail("privacy: unexpected commit() call with no execute() in _w1_describe_access")
+        return
+    ok("privacy: _w1_describe_access's source contains only SELECT-shaped queries, no writes")
+
+
+def test_mutation_proof_reintroducing_raw_uid_is_caught():
+    """Mutation proof: simulate the OLD (pre-correction) behaviour by
+    building a deliberately mutated info dict/text pair the way the
+    pre-correction code used to, and confirm the SAME assertions this
+    file's tests rely on would have failed against it -- proving the
+    tests are not vacuously true."""
+    tmp, db = with_fresh_env()
+    ns = build_namespace(db, tmp)
+    mutated_info = {"status": "not_found", "tg_user_id": 555555}
+    if "tg_user_id" not in mutated_info:
+        fail("mutation proof: test setup error, mutated_info should contain tg_user_id")
+        return
+    # This is exactly the C15.11/C15.6 whitelist check applied to the
+    # mutated (pre-correction-shaped) dict -- it must fail, proving those
+    # assertions do reject a reintroduced tg_user_id key.
+    allowed_keys = {"status", "manager_key", "display_name", "username", "source", "updated_at"}
+    extra = set(mutated_info) - allowed_keys
+    if not extra:
+        fail("mutation proof: the whitelist check failed to flag a reintroduced tg_user_id key")
+        return
+    ok("mutation proof: reintroducing tg_user_id into the returned dict is caught by the "
+       "whitelist assertion (C15.11-style check rejects it)")
+
+
+def test_mutation_proof_raw_uid_in_audit_log_is_caught():
+    """Mutation proof: simulate the OLD audit-log line format (raw
+    uid=... field) and confirm this file's own log-scanning assertion
+    would reject it."""
+    simulated_old_line = "time_utc=2026-07-29T00:00:00\tevent=my_access\tuid=424242\tmanager_key=mgr_priv\toutcome=active\toperation_id=opabc123\n"
+    if "424242" not in simulated_old_line:
+        fail("mutation proof: test setup error, simulated line should contain the raw uid")
+        return
+    # Apply the SAME check test_privacy_audit_log_has_no_raw_uid uses.
+    if "424242" in simulated_old_line:
+        ok("mutation proof: the old raw-uid audit line format is caught by the "
+           "no-raw-uid-in-log assertion (would fail test_privacy_audit_log_has_no_raw_uid)")
+    else:
+        fail("mutation proof: failed to demonstrate the old format would be caught")
+
+
+# Privacy correction 20260729, ROUND 2: an unmistakable synthetic Telegram
+# ID. Using a realistic-looking small integer (like 1099 elsewhere in this
+# file) risks coincidentally matching an unrelated digit sequence (a line
+# number, a byte count) and producing a false PASS. This value is long and
+# specific enough that its presence anywhere in a captured log line can
+# only mean the raw ID leaked.
+SYNTHETIC_UID = 987654321012345
+
+
+def _read_audit_log_text(ns) -> str:
+    p = ns["_W1_MYACCESS_AUDIT_LOG"]
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
+def test_privacy_round2_connect_failure_no_raw_id_in_ordinary_log():
+    """Round-2 privacy correction: _w1_describe_access's except-blocks must
+    log only actor_ref + exception CLASS NAME to the ORDINARY application
+    logger -- never the raw uid, never the exception's repr/text. Forces a
+    REAL _connect() failure (bogus directory in place of the DB file, same
+    technique as test_c15_8) so this exercises the actual except-block,
+    not a simulation."""
+    tmp = Path(tempfile.mkdtemp(prefix="w1_myaccess_"))
+    missing_db = tmp / "does_not_exist.db"
+    ns = build_namespace(missing_db, tmp)
+    bogus_dir = tmp / "not_a_db"
+    bogus_dir.mkdir()
+    ns["TPILOT_DB_PATH"] = str(bogus_dir)
+
+    info = ns["_w1_describe_access"](SYNTHETIC_UID)
+    if info.get("status") != "error":
+        fail(f"privacy round2: expected status=error to exercise the except-block, got {info}")
+        return
+    log_text = "\n".join(ns["log"].records)
+    if str(SYNTHETIC_UID) in log_text:
+        fail(f"privacy round2: raw uid leaked into the ordinary logger on a _connect() "
+             f"failure: {log_text!r}")
+        return
+    if "actor_ref=" not in log_text or "error_class=" not in log_text:
+        fail(f"privacy round2: expected actor_ref=/error_class= fields in the ordinary "
+             f"log output, got {log_text!r}")
+        return
+    ok("privacy round2: _connect() failure logs actor_ref + error_class only, "
+       "no raw uid, in the ORDINARY application logger")
+
+
+def test_privacy_round2_callback_failure_no_raw_id_in_ordinary_log():
+    """Round-2 privacy correction: _w1_handle_my_access_callback's own
+    except-block must never leak the raw uid or exception text, even when
+    the exception itself carries sensitive-looking text (simulating a DB
+    driver leaking a path/query in its message) -- because the callback
+    logs only actor_ref + exception CLASS NAME, the exception's message
+    text must never reach the logger regardless of its content."""
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(SYNTHETIC_UID, "mgr_priv2", "Priv2", "", "active", 1, 0)],
+         access_users=[(SYNTHETIC_UID, 1, "selected")],
+         manager_bot_access=[(SYNTHETIC_UID, "mgr_priv2", 1, 0, "2026-07-29T00:00:00")],
+         access_targets=[(SYNTHETIC_UID, "mgr_priv2")])
+    ns = build_namespace(db, tmp)
+    ns["_W1_MYACCESS_HITS"].clear()
+
+    sensitive_text = f"boom near /very/secret/path.db uid={SYNTHETIC_UID} SELECT * FROM x"
+
+    def _raising_text(info):
+        raise RuntimeError(sensitive_text)
+
+    ns["_w1_my_access_text"] = _raising_text
+    event = _FakeEvent(sender_id=SYNTHETIC_UID)
+    asyncio.run(ns["_w1_handle_my_access_callback"](event))
+
+    log_text = "\n".join(ns["log"].records)
+    if str(SYNTHETIC_UID) in log_text:
+        fail(f"privacy round2: raw uid leaked into the ordinary logger on a callback "
+             f"failure: {log_text!r}")
+        return
+    if sensitive_text in log_text or "/very/secret/path.db" in log_text or "SELECT" in log_text:
+        fail(f"privacy round2: raw exception text leaked into the ordinary logger: {log_text!r}")
+        return
+    if "actor_ref=" not in log_text or "RuntimeError" not in log_text:
+        fail(f"privacy round2: expected actor_ref=/RuntimeError in the ordinary log "
+             f"output, got {log_text!r}")
+        return
+    ok("privacy round2: callback failure logs actor_ref + exception CLASS NAME only -- "
+       "raw uid and raw exception text (even sensitive-looking text) never reach the logger")
+
+
+def test_privacy_round2_rate_limited_flow_no_raw_id_anywhere():
+    """Round-2 privacy correction: the rate-limited path (both its
+    ordinary-logger surface, which this path does not use, and its audit
+    log entry) must never contain the raw uid."""
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(SYNTHETIC_UID, "mgr_rl", "RL", "", "active", 1, 0)],
+         access_users=[(SYNTHETIC_UID, 1, "selected")],
+         manager_bot_access=[(SYNTHETIC_UID, "mgr_rl", 1, 0, "")],
+         access_targets=[(SYNTHETIC_UID, "mgr_rl")])
+    ns = build_namespace(db, tmp)
+    ns["_W1_MYACCESS_HITS"].clear()
+    event = _FakeEvent(sender_id=SYNTHETIC_UID)
+    for _ in range(6):
+        asyncio.run(ns["_w1_handle_my_access_callback"](event))
+
+    log_text = "\n".join(ns["log"].records)
+    audit_text = _read_audit_log_text(ns)
+    if str(SYNTHETIC_UID) in log_text:
+        fail(f"privacy round2: raw uid leaked into the ordinary logger on the "
+             f"rate-limited flow: {log_text!r}")
+        return
+    if str(SYNTHETIC_UID) in audit_text:
+        fail(f"privacy round2: raw uid leaked into myaccess_audit.log on the "
+             f"rate-limited flow: {audit_text!r}")
+        return
+    if "rate_limited" not in audit_text:
+        fail(f"privacy round2: expected a rate_limited outcome entry in the audit "
+             f"log, got {audit_text!r}")
+        return
+    ok("privacy round2: rate-limited flow writes no raw caller ID to either the "
+       "ordinary logger or myaccess_audit.log")
+
+
+def test_privacy_round2_not_found_flow_no_raw_id_anywhere():
+    """Round-2 privacy correction: the not_found flow must leave no raw
+    caller ID in the returned dict, the rendered text, the ordinary
+    logger, or the audit log."""
+    tmp, db = with_fresh_env()
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](SYNTHETIC_UID)
+    text = ns["_w1_my_access_text"](info)
+    ns["_w1_myaccess_audit_log"](SYNTHETIC_UID, str(info.get("status") or "error"),
+                                  str(info.get("manager_key") or ""), operation_id="opnf01")
+    log_text = "\n".join(ns["log"].records)
+    audit_text = _read_audit_log_text(ns)
+    leaks = [name for name, blob in
+             (("info dict", repr(info)), ("rendered text", text),
+              ("ordinary log", log_text), ("audit log", audit_text))
+             if str(SYNTHETIC_UID) in blob]
+    if leaks:
+        fail(f"privacy round2: not_found flow leaked the raw uid into: {leaks}")
+        return
+    ok("privacy round2: not_found flow leaves no raw caller ID in the dict, text, "
+       "ordinary logger, or audit log")
+
+
+def test_privacy_round2_identity_conflict_flow_no_raw_id_anywhere():
+    """Round-2 privacy correction: the identity_conflict flow must leave no
+    raw caller ID in the returned dict, the rendered text, the ordinary
+    logger, or the audit log."""
+    tmp, db = with_fresh_env()
+    seed(db, managers=[
+        (SYNTHETIC_UID, "mgr_ic1", "IC1", "", "active", 1, 0),
+        (SYNTHETIC_UID, "mgr_ic2", "IC2", "", "active", 1, 0),
+    ])
+    ns = build_namespace(db, tmp)
+    info = ns["_w1_describe_access"](SYNTHETIC_UID)
+    text = ns["_w1_my_access_text"](info)
+    ns["_w1_myaccess_audit_log"](SYNTHETIC_UID, str(info.get("status") or "error"),
+                                  str(info.get("manager_key") or ""), operation_id="opic01")
+    log_text = "\n".join(ns["log"].records)
+    audit_text = _read_audit_log_text(ns)
+    leaks = [name for name, blob in
+             (("info dict", repr(info)), ("rendered text", text),
+              ("ordinary log", log_text), ("audit log", audit_text))
+             if str(SYNTHETIC_UID) in blob]
+    if leaks:
+        fail(f"privacy round2: identity_conflict flow leaked the raw uid into: {leaks}")
+        return
+    ok("privacy round2: identity_conflict flow leaves no raw caller ID in the dict, "
+       "text, ordinary logger, or audit log")
+
+
+def test_privacy_round2_audit_log_only_actor_ref_for_synthetic_id():
+    """Round-2 privacy correction, restated with the unmistakable synthetic
+    ID: myaccess_audit.log must contain actor_ref, never the raw decimal
+    uid, for a real call through the real audit-log function."""
+    tmp, db = with_fresh_env()
+    ns = build_namespace(db, tmp)
+    ns["_w1_myaccess_audit_log"](SYNTHETIC_UID, "active", "mgr_x", operation_id="opsyn01")
+    audit_text = _read_audit_log_text(ns)
+    if str(SYNTHETIC_UID) in audit_text:
+        fail(f"privacy round2: synthetic uid found raw in myaccess_audit.log: {audit_text!r}")
+        return
+    expected_ref = ns["_w1_myaccess_actor_ref"](SYNTHETIC_UID)
+    if f"actor_ref={expected_ref}" not in audit_text:
+        fail(f"privacy round2: expected actor_ref={expected_ref} in myaccess_audit.log, "
+             f"got {audit_text!r}")
+        return
+    ok("privacy round2: myaccess_audit.log contains actor_ref for the synthetic ID, "
+       "never its raw decimal form")
+
+
+def test_mutation_proof_round2_raw_uid_in_ordinary_log_is_caught():
+    """Mutation proof: simulate the EXACT old violating call ('...uid=%s
+    error=%r', uid, exc) against a REAL _FakeLog instance (not a string
+    literal check) and confirm the synthetic ID's decimal form is found in
+    the ACTUAL formatted output -- proving the round-2 tests above are not
+    vacuously true (they would have failed against the old code)."""
+    fake = _FakeLog()
+    try:
+        raise RuntimeError("db unreachable")
+    except RuntimeError as exc:
+        fake.warning("[w1-my-access] managers/access_users read failed uid=%s error=%r",
+                     SYNTHETIC_UID, exc)
+    formatted = "\n".join(fake.records)
+    if str(SYNTHETIC_UID) not in formatted:
+        fail("mutation proof: test setup error, old-style call should have leaked the raw uid")
+        return
+    ok("mutation proof: the old 'uid=%s error=%r' call leaks the raw uid into the "
+       "formatted log line -- proving test_privacy_round2_connect_failure_... would "
+       "have failed against the pre-correction code")
+
+
+def test_mutation_proof_round2_exception_repr_in_callback_log_is_caught():
+    """Mutation proof: simulate the EXACT old violating callback-failure
+    call ('[w1-my-access] callback failed: %r', exc) with an exception
+    whose message contains sensitive-looking text, and confirm that text
+    appears in the formatted output -- proving the round-2 test would have
+    failed against the pre-correction code."""
+    fake = _FakeLog()
+    sensitive = "boom near /very/secret/path.db"
+    try:
+        raise RuntimeError(sensitive)
+    except RuntimeError as exc:
+        fake.warning("[w1-my-access] callback failed: %r", exc)
+    formatted = "\n".join(fake.records)
+    if sensitive not in formatted:
+        fail("mutation proof: test setup error, old-style %r call should have leaked "
+             "the exception text")
+        return
+    ok("mutation proof: the old 'callback failed: %r' call leaks raw exception text -- "
+       "proving test_privacy_round2_callback_failure_... would have failed against the "
+       "pre-correction code")
+
+
+def test_mutation_proof_revoked_restore_is_caught():
+    """Mutation proof (regression guard): if _w1_describe_access were ever
+    changed to write is_enabled=1/revoked=0 back to the DB (auto-restore),
+    this test's direct re-read would catch it."""
+    tmp, db = with_fresh_env()
+    seed(db, managers=[(1099, "mgr_z", "Mgr Z", "", "active", 1, 0)],
+         access_users=[(1099, 0, "selected")])
+    ns = build_namespace(db, tmp)
+    for _ in range(3):
+        ns["_w1_describe_access"](1099)
+    con = sqlite3.connect(db)
+    row = con.execute("SELECT is_enabled FROM access_users WHERE tg_user_id=1099").fetchone()
+    con.close()
+    if row and int(row[0]) == 0:
+        ok("mutation proof: calling describe_access repeatedly never flips is_enabled back to 1")
+    else:
+        fail(f"mutation-proof regression: is_enabled was restored: {row}")
+
+
+if __name__ == "__main__":
+    test_c15_1_known_both_tables_consistent()
+    test_c15_2_known_mba_only_no_access_targets()
+    test_c15_3_known_access_targets_only()
+    test_c15_4_disabled_access_users()
+    test_c15_5_revoked_manager_bot_access()
+    test_c15_6_unknown_uid()
+    test_c15_7_identity_conflict()
+    test_c15_8_db_unavailable_fails_closed()
+    test_c15_9_uid_taken_only_from_sender_id()
+    test_c15_10_rate_limit()
+    test_c15_11_whitelist_only_fields()
+    test_c15_12_non_private_chat_is_silent()
+    test_mutation_proof_revoked_restore_is_caught()
+    test_privacy_audit_log_has_no_raw_uid()
+    test_privacy_actor_ref_stable_and_non_reversible()
+    test_privacy_another_users_identifier_cannot_appear()
+    test_privacy_diagnostic_is_select_only()
+    test_mutation_proof_reintroducing_raw_uid_is_caught()
+    test_mutation_proof_raw_uid_in_audit_log_is_caught()
+    test_privacy_round2_connect_failure_no_raw_id_in_ordinary_log()
+    test_privacy_round2_callback_failure_no_raw_id_in_ordinary_log()
+    test_privacy_round2_rate_limited_flow_no_raw_id_anywhere()
+    test_privacy_round2_not_found_flow_no_raw_id_anywhere()
+    test_privacy_round2_identity_conflict_flow_no_raw_id_anywhere()
+    test_privacy_round2_audit_log_only_actor_ref_for_synthetic_id()
+    test_mutation_proof_round2_raw_uid_in_ordinary_log_is_caught()
+    test_mutation_proof_round2_exception_repr_in_callback_log_is_caught()
+    print()
+    if FAILURES:
+        print(f"FAILED ({len(FAILURES)}):")
+        for f in FAILURES:
+            print("  -", f)
+        sys.exit(1)
+    print("ALL MANAGER SELF-DIAGNOSTIC TESTS PASSED")

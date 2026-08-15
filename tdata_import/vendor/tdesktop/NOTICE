@@ -1,0 +1,160 @@
+tdata_import/vendor/tdesktop -- attribution and provenance (R0)
+=================================================================
+
+Upstream project : thedemons/opentele
+Upstream URL      : https://github.com/thedemons/opentele
+Pinned commit SHA : 1a6f0816eac47ff3cb907af72ed9f8cbbbe8fba0  (main, 2024-07-15T03:49:39Z)
+Corresponds to    : opentele 1.15.1 (this commit's tree contains
+                     dist/opentele-1.15.1-py3-none-any.whl and
+                     dist/opentele-1.15.1.tar.gz, tying it to the published
+                     PyPI 1.15.1 release referenced in the approved plan)
+License           : MIT, "Copyright (c) 2022 thedemons" (see LICENSE in this
+                     directory -- verbatim copy of the upstream LICENSE file
+                     at the pinned commit)
+Retrieved         : 2026-07-19, via raw.githubusercontent.com at the pinned SHA
+Alternative source considered: eyMarv/OpenTele (fork under the same MIT terms)
+                     -- not used; thedemons/opentele (the approved plan's
+                     named reference) was reviewed and is sufficient.
+
+Files reviewed at the pinned commit (read-only, for algorithm extraction only):
+    src/td/tdesktop.py   (27907 bytes)
+    src/td/account.py    (37648 bytes)
+    src/td/storage.py    (18700 bytes)
+    src/td/auth.py       (2768 bytes)
+    src/td/configs.py    (10739 bytes)
+    src/td/shared.py     (344 bytes, import aggregator only)
+    src/td/mtp.py, src/api.py, src/utils.py, src/td/__init__.py (skimmed for
+        context; nothing from them is ported -- see "Explicitly NOT vendored")
+
+What was ported (algorithm reimplementation, not a file-for-file copy)
+------------------------------------------------------------------------
+The upstream files above depend on PyQt5.QtCore (QByteArray/QDataStream/
+QBuffer/QIODevice/QFile) and on `tgcrypto` for AES-256-IGE. Neither dependency
+is present in, or added to, this project's venv (confirmed: no PyQt5, no
+tgcrypto installed; `opentele` itself remains absent -- see decision #3 in the
+project plan). Rather than vendor those files verbatim (which would pull in
+PyQt5/tgcrypto transitively), this package reimplements, from scratch and in
+plain stdlib + `telethon.crypto.aes` + `pyaes`, exactly the following
+algorithms as observed in the upstream source, and cross-validated against the
+real test fixture (see "Validation" below):
+
+  1. Qt QDataStream binary primitives actually used by the read path:
+     big-endian (network byte order) int32/uint32/int64/uint64, the
+     length-prefixed QByteArray wire format (4-byte BE uint32 length, or the
+     0xFFFFFFFF null sentinel, followed by that many raw bytes), and
+     `readRawData(n)` (n raw bytes, no length prefix). This is the Qt
+     QDataStream binary format as documented by Qt itself
+     (https://doc.qt.io/qt-5/datastreamformat.html) -- observed here only to
+     confirm which primitives the read path actually exercises, since upstream
+     imports the real PyQt5 class rather than reimplementing it.
+     -> ported to: qtstream.py
+
+  2. `Storage.ReadFile` (storage.py): the on-disk "TDF" container format --
+     4-byte magic `b"TDF$"`, 4-byte little-endian version, payload, trailing
+     16-byte MD5 checksum over (payload || size4LE || version4LE || magic);
+     and the fallback filename-suffix try-order `"s"`, `"1"`, `"0"`.
+     -> ported to: container.py
+
+  3. `Storage.CreateLocalKey` (storage.py): the local-key derivation --
+     `sha512(salt || passcode || salt).digest()` fed as the PBKDF2-HMAC-SHA512
+     password, with `salt` as the PBKDF2 salt, 1 iteration if passcode is
+     empty else 100000, producing a 256-byte key.
+     -> ported to: crypto.py: create_local_key()
+
+  4. `AuthKey.prepareAES_oldmtp` (auth.py): the legacy ("old MTP") SHA1-based
+     AES key/IV derivation from a 256-byte key and a 16-byte msgKey, offset
+     x=8 for the "receive" (non-send) direction used by local storage. This is
+     Telegram's own published legacy local-encryption scheme (documented as
+     part of MTProto's history), not upstream-proprietary logic.
+     -> ported to: crypto.py: prepare_aes_oldmtp()
+
+  5. `Storage.DecryptLocal` (storage.py): AES-256-IGE-decrypt the payload with
+     the derived key/IV, verify `sha1(decrypted)[:16] == msgKey` (wrong
+     key/passcode detection), then strip a 4-byte little-endian length prefix
+     from the decrypted plaintext to get the true (unpadded) inner data.
+     AES-IGE itself is performed by this project's existing
+     `telethon.crypto.aes.AES.decrypt_ige` (already a project dependency) --
+     NOT tgcrypto.
+     -> ported to: crypto.py: decrypt_local()
+
+  6. `Storage.ComposeDataString` / `ComputeDataNameKey` / `ToFilePart`
+     (storage.py): the deterministic per-account folder/file basename derived
+     from the data name ("data", "data#2", ... for account index >0) via
+     `md5(name.encode('utf-8'))` read as a little-endian 128-bit int, hex-
+     encoded 16 characters low-nibble-first via repeated `val & 0xF; val >>=
+     4`. VALIDATED (see below) byte-exact against the real fixture.
+     -> ported to: naming.py
+
+  7. `TDesktop.__loadFromTData` (tdesktop.py) top-level sequence: read
+     `"key_" + keyFile` (default keyFile="data") as a TDF container yielding
+     three QByteArrays (salt, keyEncrypted, infoEncrypted); derive
+     passcodeKey = create_local_key(salt, passcode); decrypt keyEncrypted with
+     passcodeKey to get the 256-byte localKey; decrypt infoEncrypted with
+     localKey to get the account-index list (count, then `count` int32
+     indices, then an optional trailing active_index int32).
+     -> ported to: reader.py: _read_key_data()
+
+  8. `StorageAccount.readMtpData` + `Account._setMtpAuthorization`
+     (account.py): for each account index, read the TDF container named by
+     `ToFilePart(ComputeDataNameKey(ComposeDataString("data", index)))`
+     directly under the tdata root (NOT inside the per-account subfolder),
+     decrypt with the *same* global localKey, require the first int32 to
+     equal 75 (`dbi.MtpAuthorization`), then parse the following QByteArray
+     as: userId (int32) + mainDcId (int32); if both equal the "wide ids"
+     sentinel (-1, -1) re-read userId as uint64 + mainDcId as int32; then a
+     list of (dcId int32, 256-byte raw key) pairs (`mtpKeys`), then a second
+     such list (`mtpKeysToDestroy`, read to keep stream position sane, then
+     discarded -- these are superseded/revoked keys, never used); the account
+     AuthKey is the mtpKeys entry whose dcId equals mainDcId.
+     -> ported to: reader.py: _read_account_auth()
+
+Explicitly NOT vendored / NOT used
+------------------------------------
+  - `opentele.tl` / `td/mtp.py` MTP.Config / DcOptions parsing (the "config"
+    cache file): not read. This project builds the Telethon session directly
+    from (dc_id, auth_key) and a small public production-DC address table
+    (dcs.py) instead of TDesktop's cached DC-options blob.
+  - `MapData` / the per-account "map" file and its `lsk*` key-type state
+    machine (drafts, stickers, saved gifs, etc., account.py lines ~16-403):
+    not read. Upstream's own call sequence reads this file only because its
+    OWN control flow (`readMapWith`) happens to gate the mtp-data read behind
+    it; the mtp-data decrypt itself needs only the global localKey, not
+    anything from the map file's content, so this project's reader.py calls
+    the mtp-data step directly and skips the map file entirely.
+  - `opentele.api` (device/API-ID fingerprint generation): not used. This
+    project's imported/converted session is opened with the main TPilot
+    project's own `API_ID`/`API_HASH` and `_TELETHON_DEVICE_KWARGS`
+    (main.py), per owner decision #6 (source="tdata_import").
+  - `opentele.tl.telethon` (`TelegramClient.FromTDesktop`/`ToTelethon` glue),
+    the entire write-path (`SaveTData`, `writeMap`, `writeMtpConfig`,
+    `writeMtpData`), legacy single-key `dbi.Key` fallback parsing, and
+    `API.Generate`/device randomization: not used, not ported.
+  - `tgcrypto` (AES-IGE): not installed, not imported. Replaced by this
+    project's existing `telethon.crypto.aes.AES.decrypt_ige`.
+  - `PyQt5` (QByteArray/QDataStream/QBuffer/QIODevice/QFile/QDir/QSysInfo):
+    not installed, not imported. Replaced by qtstream.py (stdlib only).
+  - `opentele` itself: never `pip install`-ed, never imported at runtime,
+    never a dependency of this project (owner decision #3).
+
+Validation performed offline (see tools/tdata_converter_selftest.py)
+------------------------------------------------------------------------
+  - `naming.py`'s `compute_data_name_key("data")` + `to_file_part(...)`
+    reproduces the account folder name "D877F783D5D3EF8C" found in the real
+    authorized test fixture (`_fixtures`-supplied ZIP), confirming the ported
+    hashing/hex-encoding formula is byte-exact, not reconstructed from memory.
+  - The full read chain (key_data -> passcodeKey -> localKey -> infoEncrypted
+    -> per-account "<hash>s" TDF container -> AuthKey) is exercised end-to-end
+    against that same real fixture's tdata directory (ready `.session`
+    excluded/ignored for this path, per fixture rule #4) and the resulting
+    256-byte auth_key + dc_id are written into a fresh Telethon v7
+    `SQLiteSession`, which is then validated with
+    tdata_import/session_inspector.py -- the SAME static validator used for
+    ready-`.session` imports. No Telegram network connection is made during
+    this validation.
+
+Dependency footprint of this vendored subpackage
+------------------------------------------------------------------------
+  stdlib only (hashlib, struct) + telethon.crypto.aes (already a project
+  dependency) + pyaes (already present in venv, used transitively by
+  telethon.crypto.aes as its pure-Python IGE fallback). No new pip package was
+  installed for this feature.
