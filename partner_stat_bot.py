@@ -536,53 +536,6 @@ def _collect_source_leads(source_key: str, start: date, end: date) -> List[Dict[
                 out.append(lead)
     out.sort(key=lambda x: (str(x.get("first_seen_utc") or ""), str(x.get("manager_key") or ""), int(x.get("id") or 0)))
     return out
-    # --- TPILOT HISTSTATS M2.6H END ---
-
-
-def _bucket_empty() -> Dict[str, int]:
-    return {"otpisok": 0, "nonliquid": 0, "geo": 0, "under18": 0, "na": 0, "trash": 0, "liquid": 0}
-
-
-def _bucket_add(b: Dict[str, int], lead: Dict[str, Any]) -> None:
-    b["otpisok"] += 1
-    status = str(lead.get("status") or "").strip().lower()
-    reason = str(lead.get("nonliquid_reason") or "").strip().lower()
-    country = str(lead.get("country") or "").strip()
-    try:
-        age = int(lead.get("age")) if lead.get("age") is not None and str(lead.get("age")).strip() != "" else None
-    except Exception:
-        age = None
-    is_trash = status == "trash" or "trash" in reason or "send_failed" in reason or "недоступ" in reason
-    if is_trash:
-        b["trash"] += 1
-    elif age is not None and age < 18:
-        b["under18"] += 1
-    elif country and country != "Россия":
-        b["geo"] += 1
-    elif status == "liquid":
-        b["liquid"] += 1
-    elif status == "nonliquid":
-        if "18" in reason:
-            b["under18"] += 1
-        elif reason:
-            b["geo"] += 1
-        else:
-            b["na"] += 1
-    else:
-        b["na"] += 1
-    b["nonliquid"] = b["geo"] + b["under18"] + b["na"] + b["trash"]
-
-
-def _format_bucket_lines(b: Dict[str, int]) -> List[str]:
-    return [
-        f"ОТПИСОК: {b['otpisok']}",
-        f"НЕЛИКВИД: {b['nonliquid']}",
-        f"ГЕО: {b['geo']}",
-        f"-18: {b['under18']}",
-        f"NA: {b['na']}",
-        f"TRASH: {b['trash']}",
-        f"ЛИКВИД: {b['liquid']}",
-    ]
 
 
 def _manager_account_label(row: Dict[str, Any], fallback_key: str = "") -> str:
@@ -601,48 +554,6 @@ def _manager_account_label(row: Dict[str, Any], fallback_key: str = "") -> str:
     if display:
         return display
     return key
-
-
-def _format_stats_light_for_buyer(user_id: int, token: str = "today") -> str:
-    buyer = _buyer(user_id)
-    if not buyer or int(buyer.get("is_enabled") or 0) != 1:
-        return "Доступ не выдан или выключен. Напишите /start, чтобы отправить заявку."
-    if int(buyer.get("can_view_stats") or 0) != 1:
-        return "Статистика для вашего доступа выключена администратором."
-    sk = _norm_key(buyer.get("source_key") or "")
-    if not sk:
-        return "Источник для вашего доступа ещё не назначен."
-    start, end, label = _parse_date_token(token)
-    managers = _manager_rows_for_source(sk)
-    if not managers:
-        return f"Источник { _source_name(sk) } пока не привязан к менеджерам."
-    total_all = 0
-    new_all = 0
-    dup_all = 0
-    # For a single date keep the user-facing short format from the admin report.
-    try:
-        title_label = start.strftime("%d.%m.%y") if start == end else label
-    except Exception:
-        title_label = label
-    lines = [f"📊 Статистика за {title_label}", ""]
-    for row in managers:
-        leads = _list_leads_for_manager(row, start, end)
-        total = len(leads)
-        dup = sum(1 for x in leads if int(x.get("duplicate") or 0) == 1)
-        new = total - dup
-        total_all += total
-        new_all += new
-        dup_all += dup
-        lines.append(f"Менеджер: {_manager_account_label(row)}")
-        lines.append(f"Всего написавших: {total}")
-        lines.append(f"Новые: {new}")
-        lines.append(f"Дубликаты: {dup}")
-        lines.append("")
-    lines.append("Итого:")
-    lines.append(f"Всего написавших: {total_all}")
-    lines.append(f"Новые: {new_all}")
-    lines.append(f"Дубликаты: {dup_all}")
-    return "\n".join(lines).rstrip()
 
 
 def _country_code(country: str, reason: str = "") -> str:
@@ -667,70 +578,6 @@ def _country_code(country: str, reason: str = "") -> str:
     return cleaned[:20] if cleaned else "не указано"
 
 
-def _geo_reason_counts(leads: List[Dict[str, Any]]) -> Dict[str, int]:
-    out: Dict[str, int] = {}
-    for lead in leads:
-        status = str(lead.get("status") or "").strip().lower()
-        country = str(lead.get("country") or "").strip()
-        reason = str(lead.get("nonliquid_reason") or "").strip()
-        try:
-            age = int(lead.get("age")) if lead.get("age") is not None and str(lead.get("age")).strip() != "" else None
-        except Exception:
-            age = None
-        is_geo = False
-        if country and country != "Россия":
-            is_geo = True
-        elif status == "nonliquid" and reason and "18" not in reason.lower() and "trash" not in reason.lower() and "send_failed" not in reason.lower():
-            is_geo = True
-        if is_geo and not (age is not None and age < 18):
-            code = _country_code(country, reason)
-            out[code] = out.get(code, 0) + 1
-    return out
-
-
-def _format_stats_pro_for_buyer(user_id: int, token: str = "today") -> str:
-    buyer = _buyer(user_id)
-    if not buyer or int(buyer.get("is_enabled") or 0) != 1:
-        return "Доступ не выдан или выключен. Напишите /start, чтобы отправить заявку."
-    if int(buyer.get("can_view_stats") or 0) != 1:
-        return "Статистика для вашего доступа выключена администратором."
-    sk = _norm_key(buyer.get("source_key") or "")
-    if not sk:
-        return "Источник для вашего доступа ещё не назначен."
-    start, end, label = _parse_date_token(token)
-    managers = _manager_rows_for_source(sk)
-    if not managers:
-        return f"Источник { _source_name(sk) } пока не привязан к менеджерам."
-    by_manager: Dict[str, Dict[str, int]] = {}
-    manager_names: Dict[str, str] = {}
-    total = _bucket_empty()
-    all_leads: List[Dict[str, Any]] = []
-    for row in managers:
-        mk = _norm_key(row.get("manager_key") or "")
-        manager_names[mk] = _manager_account_label(row, mk)
-        b = _bucket_empty()
-        leads = _list_leads_for_manager(row, start, end)
-        all_leads.extend(leads)
-        for lead in leads:
-            _bucket_add(b, lead)
-            _bucket_add(total, lead)
-        by_manager[mk] = b
-    lines = [label, ""]
-    for mk, b in by_manager.items():
-        lines.append(manager_names.get(mk, mk))
-        lines.extend(_format_bucket_lines(b))
-        lines.append("")
-    lines.append("ИТОГО ПО ВСЕМ МЕНЕДЖЕРАМ")
-    lines.extend(_format_bucket_lines(total))
-    reasons = _geo_reason_counts(all_leads)
-    if reasons:
-        lines.append("")
-        lines.append("Причины неликвида ГЕО")
-        for reason, cnt in sorted(reasons.items(), key=lambda x: (-int(x[1]), str(x[0]))):
-            lines.append(f"{reason}: {int(cnt)}")
-    return "\n".join(lines).rstrip()
-
-
 def _format_stats_for_buyer(user_id: int, token: str = "today") -> str:
     buyer = _buyer(user_id)
     mode = str((buyer or {}).get("stat_format") or "pro").strip().lower()
@@ -750,45 +597,6 @@ def _lead_dt(row: Dict[str, Any]) -> datetime:
         return dt.astimezone(TZ)
     except Exception:
         return _kyiv_now()
-
-
-
-
-def _fmt_lead_notification(row: Dict[str, Any], buyer: Dict[str, Any]) -> str:
-    duplicate = int(row.get("duplicate") or 0) == 1
-    icon = "🔁 Дубликат" if duplicate else "🆕 Новый лид"
-    dt = _lead_dt(row).strftime("%d.%m.%y %H:%M")
-
-    manager_username = str(row.get("manager_username") or "").strip().lstrip("@")
-    manager_name = str(row.get("manager_display_name") or "").strip()
-    if manager_username and manager_name and manager_name.lower() != manager_username.lower():
-        account = f"{manager_name} | @{manager_username}"
-    elif manager_username:
-        account = f"@{manager_username}"
-    else:
-        account = manager_name or "_"
-
-    source_name = _source_name(str(row.get("source_key") or buyer.get("source_key") or ""))
-    lines = [
-        icon,
-        "",
-        f"Аккаунт: {account}",
-        f"Время: {dt}",
-    ]
-
-    if int(buyer.get("can_view_contacts") or 0) == 1:
-        username = str(row.get("username") or "").strip().lstrip("@")
-        full_name = str(row.get("full_name") or "").strip()
-        phone = str(row.get("phone") or "").strip()
-        lines.append(f"chat_id: {int(row.get('chat_id') or 0)}")
-        lines.append("username: " + (f"@{username}" if username else "_"))
-        lines.append(f"Имя: {full_name or '_'}")
-        lines.append(f"Телефон: {phone or '_'}")
-    else:
-        lines.append("Данные лида: скрыты")
-
-    lines.append(f"Дубликат: {'да' if duplicate else 'нет'}")
-    return "\n".join(lines).rstrip()
 
 
 
@@ -1121,24 +929,6 @@ _TPILOT_PARTNER_PERIOD_STATE: Dict[int, str] = {}
 
 def _partner_period_cancel_buttons():
     return [[Button.inline("🤝 Панель", b"menu:main"), Button.inline("✖️ Отмена", b"period:cancel")]]
-
-
-def _partner_period_prompt(kind: str) -> str:
-    title = {
-        "data": "📅 Статистика за период",
-        "excel": "📦 Excel за период",
-        "dup": "🔁 Дубликаты за период",
-        "dup_excel": "📦 Excel дублей за период",
-    }.get(str(kind or ""), "📅 Период")
-    return "\n".join([
-        title,
-        "",
-        "Введите даты одним сообщением:",
-        "",
-        "`01.05.26 07.05.26`",
-        "",
-        "Можно использовать формат ДД.ММ.ГГ или ДД.ММ.ГГГГ.",
-    ]).rstrip()
 
 
 async def _partner_start_period_wizard(event, kind: str) -> None:
@@ -1715,31 +1505,6 @@ def _format_stats_for_buyer(user_id: int, token: str = "today") -> str:
         return _partner_strip_duplicate_lines(_TPILOT_PARTNER_ORIG_FORMAT_STATS(user_id, token))
     return "Статистика недоступна."
 
-
-def _fmt_lead_notification(row: Dict[str, Any], buyer: Dict[str, Any]) -> str:
-    duplicate = int(row.get("duplicate") or 0) == 1
-    icon = "🔁 Дубликат" if duplicate else "🆕 Новый лид"
-    dt = _lead_dt(row).strftime("%d.%m.%y %H:%M")
-    manager_username = str(row.get("manager_username") or "").strip().lstrip("@")
-    manager_name = str(row.get("manager_display_name") or "").strip()
-    account = f"{manager_name} | @{manager_username}" if manager_username and manager_name else (f"@{manager_username}" if manager_username else (manager_name or "_"))
-    lines = [icon, "", f"Аккаунт: {account}", f"Время: {dt}"]
-    if int(buyer.get("can_view_contacts") or 0) == 1:
-        lines.append(f"chat_id: {int(row.get('chat_id') or 0)}")
-        username = str(row.get("username") or "").strip().lstrip("@")
-        full_name = str(row.get("full_name") or "").strip()
-        phone = str(row.get("phone") or "").strip()
-        if username:
-            lines.append(f"username: @{username}")
-        if full_name:
-            lines.append(f"Имя: {full_name}")
-        if phone:
-            lines.append(f"Телефон: {phone}")
-    else:
-        lines.append("Данные лида: скрыты")
-    lines.append("Дубликат: да, контакт уже встречался ранее" if duplicate else "Дубликат: нет")
-    return "\n".join(lines).rstrip()
-
 # --- TPILOT PARTNER DUPLICATES CLEAN STATS UPDATE 20260507 END ---
 
 
@@ -1747,14 +1512,6 @@ def _fmt_lead_notification(row: Dict[str, Any], buyer: Dict[str, Any]) -> str:
 # --- TPILOT PARTNER BOT EXCEL MENU / TODAY STATS UX UPDATE 20260507 START ---
 _TPILOT_PARTNER_PREV_MAIN_BUTTONS_FOR_EXCEL_MENU = globals().get("_main_buttons")
 _TPILOT_PARTNER_PREV_SEND_MENU_FOR_TODAY_STATS = globals().get("_send_menu")
-
-
-def _partner_nonduplicate_leads(leads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [x for x in list(leads or []) if int((x or {}).get("duplicate") or 0) != 1]
-
-
-def _partner_duplicate_count(leads: List[Dict[str, Any]]) -> int:
-    return sum(1 for x in list(leads or []) if int((x or {}).get("duplicate") or 0) == 1)
 
 
 def _main_buttons(buyer: Dict[str, Any] | None = None):
@@ -1767,126 +1524,6 @@ def _main_buttons(buyer: Dict[str, Any] | None = None):
         rows.append([Button.inline("📦 Excel", b"excel_menu:main")])
     rows.append([Button.inline("🔄 Обновить", b"menu:main")])
     return rows
-
-
-def _partner_excel_menu_buttons():
-    return [
-        [Button.inline("📦 Сегодня", b"excel:today"), Button.inline("📦 Вчера", b"excel:yesterday")],
-        [Button.inline("📦 7 дней", b"excel:week"), Button.inline("📦 31 день", b"excel:month")],
-        [Button.inline("📅 За период", b"excel_menu:period")],
-        [Button.inline("🔁 Дубли 31 день", b"partner_dup_excel:31d"), Button.inline("📅 Дубли за период", b"excel_menu:dup_period")],
-        [Button.inline("⬅️ Назад", b"menu:main")],
-    ]
-
-
-def _partner_excel_menu_text(user_id: int) -> str:
-    buyer = _buyer(int(user_id))
-    src = _source_name(str((buyer or {}).get("source_key") or ""))
-    return "\n".join([
-        "📦 Excel",
-        "",
-        f"Источник: {src}",
-        "",
-        "Здесь можно выгрузить Excel по вашему источнику.",
-        "Обычный Excel содержит только новые уникальные контакты.",
-        "Дубли вынесены отдельно.",
-    ]).rstrip()
-
-
-def _format_stats_light_for_buyer(user_id: int, token: str = "today") -> str:
-    buyer = _buyer(user_id)
-    if not buyer or int((buyer or {}).get("is_enabled") or 0) != 1:
-        return "Доступ не выдан или выключен. Напишите /start, чтобы отправить заявку."
-    if int((buyer or {}).get("can_view_stats") or 0) != 1:
-        return "Статистика для вашего доступа выключена администратором."
-    sk = _norm_key((buyer or {}).get("source_key") or "")
-    if not sk:
-        return "Источник для вашего доступа ещё не назначен."
-    start, end, label = _parse_date_token(token)
-    managers = _manager_rows_for_source(sk)
-    if not managers:
-        return f"Источник { _source_name(sk) } пока не привязан к менеджерам."
-    try:
-        title_label = start.strftime("%d.%m.%y") if start == end else label
-    except Exception:
-        title_label = label
-    lines = [f"📊 Статистика за {title_label}", ""]
-    total_all = 0
-    new_all = 0
-    dup_all = 0
-    for row in managers:
-        leads_all = _list_leads_for_manager(row, start, end)
-        dup = _partner_duplicate_count(leads_all)
-        leads = _partner_nonduplicate_leads(leads_all)
-        total = len(leads)
-        new = total
-        total_all += total
-        new_all += new
-        dup_all += dup
-        lines.append(f"Менеджер: {_manager_account_label(row)}")
-        lines.append(f"Всего написавших: {total}")
-        lines.append(f"Новые: {new}")
-        if dup > 0:
-            lines.append(f"🔁 Дубликаты: {dup}")
-        lines.append("")
-    lines.append("Итого:")
-    lines.append(f"Всего написавших: {total_all}")
-    lines.append(f"Новые: {new_all}")
-    if dup_all > 0:
-        lines.append(f"🔁 Дубликаты: {dup_all}")
-    return "\n".join(lines).rstrip()
-
-
-def _format_stats_pro_for_buyer(user_id: int, token: str = "today") -> str:
-    buyer = _buyer(user_id)
-    if not buyer or int((buyer or {}).get("is_enabled") or 0) != 1:
-        return "Доступ не выдан или выключен. Напишите /start, чтобы отправить заявку."
-    if int((buyer or {}).get("can_view_stats") or 0) != 1:
-        return "Статистика для вашего доступа выключена администратором."
-    sk = _norm_key((buyer or {}).get("source_key") or "")
-    if not sk:
-        return "Источник для вашего доступа ещё не назначен."
-    start, end, label = _parse_date_token(token)
-    managers = _manager_rows_for_source(sk)
-    if not managers:
-        return f"Источник { _source_name(sk) } пока не привязан к менеджерам."
-
-    by_manager: Dict[str, Dict[str, int]] = {}
-    manager_names: Dict[str, str] = {}
-    total_bucket = _bucket_empty()
-    all_unique_leads: List[Dict[str, Any]] = []
-    dup_all = 0
-
-    for row in managers:
-        mk = _norm_key((row or {}).get("manager_key") or "")
-        manager_names[mk] = _manager_account_label(row, mk)
-        b = _bucket_empty()
-        leads_all = _list_leads_for_manager(row, start, end)
-        dup_all += _partner_duplicate_count(leads_all)
-        leads = _partner_nonduplicate_leads(leads_all)
-        all_unique_leads.extend(leads)
-        for lead in leads:
-            _bucket_add(b, lead)
-            _bucket_add(total_bucket, lead)
-        by_manager[mk] = b
-
-    lines = [label, ""]
-    if dup_all > 0:
-        lines.append(f"🔁 Дубликаты: {dup_all}")
-        lines.append("")
-    for mk, b in by_manager.items():
-        lines.append(manager_names.get(mk, mk))
-        lines.extend(_format_bucket_lines(b))
-        lines.append("")
-    lines.append("ИТОГО ПО ВСЕМ МЕНЕДЖЕРАМ")
-    lines.extend(_format_bucket_lines(total_bucket))
-    reasons = _geo_reason_counts(all_unique_leads)
-    if reasons:
-        lines.append("")
-        lines.append("Причины неликвида ГЕО")
-        for reason, cnt in sorted(reasons.items(), key=lambda x: (-int(x[1]), str(x[0]))):
-            lines.append(f"{reason}: {int(cnt)}")
-    return "\n".join(lines).rstrip()
 
 
 async def _send_menu(chat_id: int, user_id: int) -> None:
@@ -2002,28 +1639,6 @@ _TPILOT_PARTNER_PREV_SEND_MENU_FOR_EDIT_HOTFIX = globals().get("_send_menu")
 _PARTNER_ACTIVE_PANEL_BY_CHAT: Dict[int, int] = {}
 
 
-def _partner_menu_payload(user_id: int) -> tuple[str, Any]:
-    buyer = _buyer(int(user_id))
-    if not buyer or int((buyer or {}).get("is_enabled") or 0) != 1:
-        return "Доступ пока не выдан. Заявка уже отправлена администратору. Ожидайте подтверждения.", None
-    _touch_buyer(int(user_id))
-    src = _source_name(str((buyer or {}).get("source_key") or ""))
-    try:
-        stats_text = _format_stats_for_buyer(int(user_id), "today")
-    except Exception as e:
-        stats_text = f"Статистика временно недоступна: {e!r}"
-    text = "\n".join([
-        "🤝 Партнёрская панель статистики",
-        "",
-        f"Ваш источник: {src}",
-        "",
-        stats_text,
-        "",
-        "Выберите действие:",
-    ]).rstrip()
-    return text, _main_buttons(buyer)
-
-
 async def _partner_delete_active_panel(chat_id: int, *, except_message_id: int = 0) -> None:
     try:
         cid = int(chat_id)
@@ -2039,61 +1654,6 @@ async def _partner_delete_active_panel(chat_id: int, *, except_message_id: int =
                 _PARTNER_ACTIVE_PANEL_BY_CHAT.pop(cid, None)
     except Exception:
         pass
-
-
-async def _send_menu(chat_id: int, user_id: int) -> None:
-    """Fresh-send Partner menu, but remove previous active Partner panel first."""
-    cid = int(chat_id)
-    await _partner_delete_active_panel(cid)
-    text, buttons = _partner_menu_payload(int(user_id))
-    msg = await client.send_message(cid, text, buttons=buttons)
-    try:
-        mid = int(getattr(msg, "id", 0) or 0)
-        if mid:
-            _PARTNER_ACTIVE_PANEL_BY_CHAT[cid] = mid
-    except Exception:
-        pass
-
-
-async def _partner_edit_or_replace_menu(event, user_id: int) -> None:
-    """Edit current callback message into Partner panel; replace only if edit fails."""
-    cid = int(getattr(event, "chat_id", 0) or 0)
-    text, buttons = _partner_menu_payload(int(user_id))
-    current_mid = 0
-    try:
-        current_mid = int(getattr(event, "message_id", 0) or 0)
-    except Exception:
-        current_mid = 0
-    if not current_mid:
-        try:
-            q = getattr(event, "query", None)
-            current_mid = int(getattr(q, "msg_id", 0) or 0)
-        except Exception:
-            current_mid = 0
-    try:
-        await event.edit(text, buttons=buttons)
-        if cid and current_mid:
-            _PARTNER_ACTIVE_PANEL_BY_CHAT[cid] = current_mid
-        return
-    except Exception as e:
-        # MessageNotModified is not a real error for this UX.
-        if "MessageNotModified" in type(e).__name__ or "not modified" in str(e).lower():
-            try:
-                await event.answer("Панель обновлена")
-            except Exception:
-                pass
-            if cid and current_mid:
-                _PARTNER_ACTIVE_PANEL_BY_CHAT[cid] = current_mid
-            return
-    try:
-        if cid and current_mid:
-            try:
-                await client.delete_messages(cid, [current_mid])
-            except Exception:
-                pass
-    finally:
-        if cid:
-            await _send_menu(cid, int(user_id))
 # --- TPILOT PARTNER PANEL EDIT-NOT-SEND HOTFIX 20260507 END ---
 
 
@@ -2137,42 +1697,6 @@ def _partner_add_update_time_to_stats_title(text: str) -> str:
             raw = "\n".join(lines)
             break
     return raw
-
-
-def _format_stats_for_buyer(user_id: int, token: str = "today") -> str:
-    prev = _TPILOT_PARTNER_PREV_FORMAT_STATS_FOR_TIME_TITLE
-    if not callable(prev):
-        return "Статистика временно недоступна."
-    result = str(prev(int(user_id), token) or "")
-    token_norm = str(token or "today").strip().lower()
-    # Main Partner panel and refresh use today. For explicit date reports we also
-    # show update time. Period labels are not touched.
-    if token_norm in ("", "today", "сегодня") or re.fullmatch(r"\d{2}\.\d{2}\.\d{2,4}", token_norm):
-        return _partner_add_update_time_to_stats_title(result)
-    return result
-
-
-def _partner_menu_payload(user_id: int):
-    """Build Partner panel text without the word 'Bot' and with today's live timestamp."""
-    buyer = _buyer(int(user_id))
-    if not buyer or int((buyer or {}).get("is_enabled") or 0) != 1:
-        return "Доступ пока не выдан. Заявка уже отправлена администратору. Ожидайте подтверждения.", None
-    _touch_buyer(int(user_id))
-    src = _source_name(str((buyer or {}).get("source_key") or ""))
-    try:
-        stats_text = _format_stats_for_buyer(int(user_id), "today")
-    except Exception as e:
-        stats_text = f"Статистика временно недоступна: {e!r}"
-    text = "\n".join([
-        _PARTNER_PANEL_TITLE,
-        "",
-        f"Ваш источник: {src}",
-        "",
-        stats_text,
-        "",
-        "Выберите действие:",
-    ]).rstrip()
-    return text, _main_buttons(buyer)
 # --- TPILOT PARTNER TODAY TIME AND TITLE HOTFIX 20260507 END ---
 
 
@@ -2722,77 +2246,6 @@ def _tp_partner_qs_age(raw: Any):
         return int(float(str(raw).strip()))
     except Exception:
         return None
-
-
-def _tp_partner_qs_bucket(lead: Dict[str, Any]) -> str:
-    bucket = _tp_partner_qs_text(lead.get("quality_bucket"))
-    if bucket:
-        return bucket
-    status = _tp_partner_qs_text(lead.get("status")).lower()
-    reason = _tp_partner_qs_text(lead.get("nonliquid_reason")).lower()
-    country = _tp_partner_qs_text(lead.get("country"))
-    age = _tp_partner_qs_age(lead.get("age"))
-    if _tp_partner_qs_int(lead.get("trash")) == 1 or status == "trash" or "trash" in reason or "send_failed" in reason or "недоступ" in reason:
-        return "trash"
-    if age is not None and age < 18:
-        return "under18"
-    if country and country != "Россия":
-        return "geo"
-    if country == "Россия" and age is not None and age >= 18:
-        return "liquid"
-    if age is None:
-        return "age_missing"
-    if not country and not _tp_partner_qs_text(lead.get("city")):
-        return "geo_missing"
-    return "na"
-
-
-def _bucket_empty() -> Dict[str, int]:  # type: ignore[override]
-    return {"otpisok": 0, "nonliquid": 0, "geo": 0, "under18": 0, "age_missing": 0, "na": 0, "trash": 0, "liquid": 0}
-
-
-def _bucket_add(b: Dict[str, int], lead: Dict[str, Any]) -> None:  # type: ignore[override]
-    b["otpisok"] += 1
-    bucket = _tp_partner_qs_bucket(lead)
-    if bucket == "liquid":
-        b["liquid"] += 1
-    elif bucket == "geo":
-        b["geo"] += 1
-    elif bucket == "under18":
-        b["under18"] += 1
-    elif bucket == "trash":
-        b["trash"] += 1
-    elif bucket == "age_missing":
-        b["age_missing"] += 1
-        b["na"] += 1
-    else:
-        b["na"] += 1
-    b["nonliquid"] = b["geo"] + b["under18"] + b["na"] + b["trash"]
-
-
-def _format_bucket_lines(b: Dict[str, int]) -> List[str]:  # type: ignore[override]
-    return [
-        f"ОТПИСОК: {b.get('otpisok', 0)}",
-        f"НЕЛИКВИД: {b.get('nonliquid', 0)}",
-        f"ГЕО: {b.get('geo', 0)}",
-        f"-18: {b.get('under18', 0)}",
-        f"НЕТ 18: {b.get('age_missing', 0)}",
-        f"NA: {b.get('na', 0)}",
-        f"TRASH: {b.get('trash', 0)}",
-        f"ЛИКВИД: {b.get('liquid', 0)}",
-    ]
-
-
-def _geo_reason_counts(leads: List[Dict[str, Any]]) -> Dict[str, int]:  # type: ignore[override]
-    out: Dict[str, int] = {}
-    for lead in leads:
-        if _tp_partner_qs_bucket(lead) != "geo":
-            continue
-        country = _tp_partner_qs_text(lead.get("country"))
-        reason = _tp_partner_qs_text(lead.get("quality_reason") or lead.get("nonliquid_reason"))
-        code = _country_code(country, reason)
-        out[code] = out.get(code, 0) + 1
-    return out
 # --- TPILOT PARTNER QUALITY STATUS ENGINE V1 20260510 END ---
 
 # --- TPILOT PARTNER REPORT CONSISTENCY HOTFIX V3 20260510 START ---
@@ -2866,88 +2319,6 @@ def _tp_pr_v3_reason_ru(reason: Any, *, bucket: str = "", country: Any = "") -> 
     if c and bucket == "geo":
         return "гео: " + c
     return raw or "_"
-
-
-def _tp_partner_qs_bucket(lead: Dict[str, Any]) -> str:  # type: ignore[override]
-    bucket = _tp_pr_v3_text((lead or {}).get("quality_bucket"))
-    if bucket == "age_missing":
-        return "under18"
-    if bucket == "geo_missing":
-        return "na"
-    if bucket in ("liquid", "geo", "under18", "na", "trash"):
-        return bucket
-    status = _tp_pr_v3_low((lead or {}).get("status"))
-    reason = _tp_pr_v3_low((lead or {}).get("quality_reason") or (lead or {}).get("nonliquid_reason"))
-    country = _tp_pr_v3_text((lead or {}).get("country"))
-    city = _tp_pr_v3_text((lead or {}).get("city"))
-    age = _tp_pr_v3_age((lead or {}).get("age"))
-    if _tp_pr_v3_int((lead or {}).get("trash")) == 1 or status == "trash" or "trash" in reason or "send_failed" in reason or "недоступ" in reason or "blocked" in reason:
-        return "trash"
-    if age is not None and age < 18:
-        return "under18"
-    if country and country != "Россия":
-        return "geo"
-    if country == "Россия" and age is not None and age >= 18:
-        return "liquid"
-    if age is None and (country or city):
-        return "under18"
-    return "na"
-
-
-def _bucket_empty() -> Dict[str, int]:  # type: ignore[override]
-    return {"otpisok": 0, "nonliquid": 0, "geo": 0, "under18": 0, "na": 0, "trash": 0, "liquid": 0}
-
-
-def _bucket_add(b: Dict[str, int], lead: Dict[str, Any]) -> None:  # type: ignore[override]
-    bucket = _tp_partner_qs_bucket(lead)
-    if bucket == "liquid":
-        b["liquid"] = int(b.get("liquid") or 0) + 1
-    elif bucket == "geo":
-        b["geo"] = int(b.get("geo") or 0) + 1
-    elif bucket == "under18":
-        b["under18"] = int(b.get("under18") or 0) + 1
-    elif bucket == "trash":
-        b["trash"] = int(b.get("trash") or 0) + 1
-    else:
-        b["na"] = int(b.get("na") or 0) + 1
-    b["nonliquid"] = int(b.get("geo") or 0) + int(b.get("under18") or 0) + int(b.get("na") or 0) + int(b.get("trash") or 0)
-    b["otpisok"] = int(b.get("liquid") or 0) + int(b.get("nonliquid") or 0)
-
-
-def _format_bucket_lines(b: Dict[str, int]) -> List[str]:  # type: ignore[override]
-    geo = int(b.get("geo") or 0)
-    under18 = int(b.get("under18") or 0)
-    na = int(b.get("na") or 0)
-    trash = int(b.get("trash") or 0)
-    liquid = int(b.get("liquid") or 0)
-    nonliquid = geo + under18 + na + trash
-    otpisok = liquid + nonliquid
-    return [
-        f"ОТПИСОК: {otpisok}",
-        f"НЕЛИКВИД: {nonliquid}",
-        f"ГЕО: {geo}",
-        f"-18: {under18}",
-        f"NA: {na}",
-        f"TRASH: {trash}",
-        f"ЛИКВИД: {liquid}",
-    ]
-
-
-def _geo_reason_counts(leads: List[Dict[str, Any]]) -> Dict[str, int]:  # type: ignore[override]
-    out: Dict[str, int] = {}
-    for lead in leads or []:
-        if _tp_partner_qs_bucket(lead) != "geo":
-            continue
-        country = _tp_pr_v3_text((lead or {}).get("country"))
-        reason = _tp_pr_v3_text((lead or {}).get("quality_reason") or (lead or {}).get("nonliquid_reason"))
-        label = _tp_pr_v3_reason_ru(reason, bucket="geo", country=country)
-        out[label] = out.get(label, 0) + 1
-    return out
-
-
-def _format_stats_light_for_buyer(user_id: int, token: str = "today") -> str:  # type: ignore[override]
-    # In this project even the short buyer report must use the same payment-safe formula.
-    return _format_stats_pro_for_buyer(user_id, token)
 # --- TPILOT PARTNER REPORT CONSISTENCY HOTFIX V3 20260510 END ---
 
 # --- TPILOT PARTNER REPORT CONSISTENCY HOTFIX V5 20260510 START ---
@@ -3171,58 +2542,6 @@ def _tp_pr_v5_append_details(lines: List[str], leads: List[Dict[str, Any]]) -> N
         for label, cnt in sorted(details["trash"].items(), key=lambda x: (-int(x[1]), str(x[0]))):
             if int(cnt) > 0:
                 lines.append(f"{label}: {int(cnt)}")
-
-
-def _format_stats_light_for_buyer(user_id: int, token: str = "today") -> str:  # type: ignore[override]
-    # In this project even the short buyer report must use the same payment-safe formula.
-    return _format_stats_pro_for_buyer(user_id, token)
-
-
-def _format_stats_pro_for_buyer(user_id: int, token: str = "today") -> str:  # type: ignore[override]
-    buyer = _buyer(user_id)
-    if not buyer or int((buyer or {}).get("is_enabled") or 0) != 1:
-        return "Доступ не выдан или выключен. Напишите /start, чтобы отправить заявку."
-    if int((buyer or {}).get("can_view_stats") or 0) != 1:
-        return "Статистика для вашего доступа выключена администратором."
-    sk = _norm_key((buyer or {}).get("source_key") or "")
-    if not sk:
-        return "Источник для вашего доступа ещё не назначен."
-    start, end, label = _parse_date_token(token)
-    managers = _manager_rows_for_source(sk)
-    if not managers:
-        return f"Источник { _source_name(sk) } пока не привязан к менеджерам."
-
-    by_manager: Dict[str, Dict[str, int]] = {}
-    manager_names: Dict[str, str] = {}
-    total_bucket = _bucket_empty()
-    all_unique_leads: List[Dict[str, Any]] = []
-    dup_all = 0
-
-    for row in managers:
-        mk = _norm_key((row or {}).get("manager_key") or "")
-        manager_names[mk] = _manager_account_label(row, mk)
-        b = _bucket_empty()
-        leads_all = _list_leads_for_manager(row, start, end)
-        dup_all += _partner_duplicate_count(leads_all)
-        leads = _partner_nonduplicate_leads(leads_all)
-        all_unique_leads.extend(leads)
-        for lead in leads:
-            _bucket_add(b, lead)
-            _bucket_add(total_bucket, lead)
-        by_manager[mk] = b
-
-    lines = [label, ""]
-    if dup_all > 0:
-        lines.append(f"🔁 Дубликаты: {dup_all}")
-        lines.append("")
-    for mk, b in by_manager.items():
-        lines.append(manager_names.get(mk, mk))
-        lines.extend(_format_bucket_lines(b))
-        lines.append("")
-    lines.append("ИТОГО ПО ВСЕМ МЕНЕДЖЕРАМ")
-    lines.extend(_format_bucket_lines(total_bucket))
-    _tp_pr_v5_append_details(lines, all_unique_leads)
-    return "\n".join(lines).rstrip()
 # --- TPILOT PARTNER REPORT CONSISTENCY HOTFIX V5 20260510 END ---
 
 
@@ -3755,30 +3074,6 @@ def _psf3_light_body(managers, start, end, drop_duplicates=False):
     return "\n".join(lines).rstrip()
 
 
-def _psf3_pro_body(managers, start, end):
-    lines = []
-    total_bucket = _psf3_bucket_empty()
-    all_countable = []
-    for row in managers:
-        leads_all = _psf3_leads_for_manager(row, start, end)
-        leads = [lead for lead in leads_all if _psf3_countable(lead)]
-        b = _psf3_bucket_empty()
-        for lead in leads:
-            _psf3_bucket_add(b, lead)
-            _psf3_bucket_add(total_bucket, lead)
-        all_countable.extend(leads)
-        lines.append(_psf3_manager_label(row))
-        lines.extend(_psf3_bucket_lines(b))
-        lines.append("")
-    lines.append("ИТОГО ПО ВСЕМ МЕНЕДЖЕРАМ")
-    lines.extend(_psf3_bucket_lines(total_bucket))
-    details = _psf3_details(all_countable)
-    if details:
-        lines.append("")
-        lines.extend(details)
-    return "\n".join(lines).rstrip()
-
-
 def _format_stats_light_for_buyer(user_id, token="today"):
     buyer, managers, start, end, err = _psf3_buyer_context(int(user_id), token)
     if err:
@@ -3786,37 +3081,6 @@ def _format_stats_light_for_buyer(user_id, token="today"):
     _s, _e, label = _parse_date_token(token)
     drop = not _buyer_show_duplicates(buyer)
     return "\n".join([_psf3_date_title(start, end, label), "", _psf3_light_body(managers, start, end, drop_duplicates=drop)]).rstrip()
-
-
-def _format_stats_pro_for_buyer(user_id, token="today"):
-    buyer, managers, start, end, err = _psf3_buyer_context(int(user_id), token)
-    if err:
-        return err
-    _s, _e, label = _parse_date_token(token)
-    return "\n".join([_psf3_date_title(start, end, label), "", _psf3_pro_body(managers, start, end)]).rstrip()
-
-
-def _format_stats_for_buyer(user_id, token="today"):
-    mode = _psf3_mode(int(user_id))
-    if mode == "light":
-        return _format_stats_light_for_buyer(int(user_id), token)
-    if mode == "both":
-        buyer, managers, start, end, err = _psf3_buyer_context(int(user_id), token)
-        if err:
-            return err
-        _s, _e, label = _parse_date_token(token)
-        return "\n".join([
-            _psf3_date_title(start, end, label),
-            "",
-            "LIGHT",
-            "",
-            _psf3_light_body(managers, start, end),
-            "",
-            "PRO",
-            "",
-            _psf3_pro_body(managers, start, end),
-        ]).rstrip()
-    return _format_stats_pro_for_buyer(int(user_id), token)
 
 
 def _partner_menu_payload(user_id):
@@ -3901,10 +3165,6 @@ def _tp_pdf_in_windows(lead, start, end, kind="day", window_cfg=None):
         if ws <= dt < we:
             return True
     return False
-
-
-def _tp_pdf_windowed_leads_for_manager(row, start, end, kind="day"):
-    return [lead for lead in _psf3_leads_for_manager(row, start, end) if _tp_pdf_in_windows(lead, start, end, kind)]
 
 
 def _tp_pdf_label(start, end, label, kind="day", *, window_cfg=None, period_mode=None):
