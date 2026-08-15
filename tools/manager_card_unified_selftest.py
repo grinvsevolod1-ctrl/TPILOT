@@ -215,6 +215,11 @@ STATUS_RESOLVER_NAMES = {
     "_pb_manager_status_resolve_live_logged", "_w1_render_reason_code",
     "_w1_result_age_seconds", "_w1_render_classification_record",
     "_W1_RENDER_REASON_BY_CATEGORY",
+    # PEERFLOOD RECOVERY 20260812 (P2/P3): the fleet-list screen now calls
+    # the badged wrapper (runtime status + separate Telegram Health badge).
+    # Pure/DB-boundary-only like the rest of this set.
+    "_pb_manager_status_resolve_live_badged", "_pb_tg_health_badge",
+    "_pb_tg_health_family_label",
 }
 
 # Real, DB-backed row-lookup helpers the card functions call -- extracted
