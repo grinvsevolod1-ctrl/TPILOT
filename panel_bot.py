@@ -1689,7 +1689,7 @@ def _danger_prompt_text(action: str, key: str) -> str:
         "Это действие защищено паролем из MANAGER_ADMIN_PASSWORD.",
         "Введите пароль одним сообщением.",
         "",
-        "Пароль не будет сохранён в wizard-состоянии. После вв��да сообщение с паролем будет удалено, если Telegram разрешит это сделать.",
+        "Пароль не будет сохранён в wizard-состоянии. После ввода сообщение с паролем будет удалено, если Telegram разрешит это сделать.",
     ]).rstrip()
 
 
@@ -1864,7 +1864,7 @@ def _calendar_menu(kind: str, target: str, iso_date: str):
         action_all = "🌙 Долёты по всем за дату"
         back_menu = b"menu:flights"
     else:
-        title = "📊 Статисти��а"
+        title = "📊 Статистика"
         action_all = "📊 Статистика по всем за дату"
         back_menu = b"menu:stats"
 
@@ -2372,7 +2372,7 @@ def _source_detail_text(row: dict) -> str:
     labels = {normalize_manager_key(r.get("manager_key") or ""): _manager_short_label(r) for r in _manager_rows()}
     managers = [m for m, s in links.items() if s == key]
     return "\n".join([
-        f"📦 Источник ��рафика: {name}",
+        f"📦 Источник трафика: {name}",
         "",
         f"Ключ: {key}",
         f"Статус: {status}",
@@ -5769,7 +5769,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
     if raw == "traffic_buyers":
         return _tp_visual_screen(["Главная", "Трафик и байеры"], "Здесь настраиваются источники, группы менеджеров и доступы байеров в Partner Bot."), _tp_visual_traffic_buyers_menu()
     if raw == "automation":
-        return _tp_visual_screen(["Главная", "Автоматизация"], "Здесь настраиваются автоот��еты, автодожимы, тексты, задержки и тихий режим.", "Анкета: 08:00–17:00\nАвтодожимы: 07:00–21:00\nТишина: 21:00–07:00"), _tp_visual_automation_menu()
+        return _tp_visual_screen(["Главная", "Автоматизация"], "Здесь настраиваются автоответы, автодожимы, тексты, задержки и тихий режим.", "Анкета: 08:00–17:00\nАвтодожимы: 07:00–21:00\nТишина: 21:00–07:00"), _tp_visual_automation_menu()
 
     simple = {
         "stats": (["Главная", "Отчёты и контроль", "Статистика"], "Статистика по менеджерам и датам."),
@@ -5835,7 +5835,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
         key = normalize_manager_key(raw.split(":", 1)[1])
         row = _manager_row_by_key(key)
         if not row:
-            return _tp_visual_screen(["Главная", "П����окси"], f"Менеджер не найден: {key}"), [[Button.inline("⬅️ Назад", b"menu:proxy")], [Button.inline("🏠 Главная", b"menu:main")]]
+            return _tp_visual_screen(["Главная", "Прокси"], f"Менеджер не найден: {key}"), [[Button.inline("⬅️ Назад", b"menu:proxy")], [Button.inline("🏠 Главная", b"menu:main")]]
         label = _manager_short_label(row)
         return _tp_visual_screen(["Главная", "Прокси", label], _proxy_detail_text(row)), _proxy_detail_buttons(key)
 
@@ -6729,7 +6729,7 @@ async def _tp_panel_v5_auth_input(event):
         user_id = int(getattr(event, "sender_id", 0) or 0)
         # TPILOT TERMINAL OK 20260809 (Ф4 bot-wide audit): terminal; the
         # fresh panel sent right after is a separate message.
-        await client.send_message(chat_id, "✅ Д��ступ подтверждён. Открываю панель.", buttons=_terminal_ok_button())
+        await client.send_message(chat_id, "✅ Доступ подтверждён. Открываю панель.", buttons=_terminal_ok_button())
         _register_panel_subscriber(chat_id, user_id)
         await _send_fresh_panel(chat_id, user_id, delete_previous=True)
         return
@@ -8029,7 +8029,7 @@ def _manager_detail_buttons(key: str):  # type: ignore[override]
         else _pb_toggle_btn("🔕 Включить тишину", f"mmt:silentcard:on:{key}", _mmt_fallback)
     )
     return [
-        [Button.inline("📋 Проверить режи��", f"cmd:/autoreply status {key}".encode())],
+        [Button.inline("📋 Проверить режим", f"cmd:/autoreply status {key}".encode())],
         [_greeting_btn],
         [_quest_btn],
         [_silent_btn],
@@ -9044,7 +9044,7 @@ def _pb_proxy_state_check_text(state: str, row: dict) -> str:
     same _pb_proxy_effective_state classification, so wording differs only
     in length, never in verdict."""
     if state == "never":
-        return "данные проверки неко��ректны" if _pb_proxy_timestamp_malformed(row) else "не выполнялась"
+        return "данные проверки некорректны" if _pb_proxy_timestamp_malformed(row) else "не выполнялась"
     return _PB_PROXY_STATE_LABELS.get(state, "❓ данные устарели")
 
 
@@ -10207,7 +10207,7 @@ def _pb_manager_full_card_sections(key: str) -> list:
     f_lines = [
         _pb_full_card_line("ID в системе", row.get("id")),
         _pb_full_card_line("Добавлен", row.get("created_at")),
-        _pb_full_card_line("О��новлён", row.get("updated_at")),
+        _pb_full_card_line("Обновлён", row.get("updated_at")),
         _pb_full_card_line("Последний вход", row.get("last_login_at")),
     ]
 
@@ -10570,7 +10570,7 @@ async def _ss_render_view(event, key) -> None:
     finally:
         con.close()
     lines = [
-        f"Сегодня нел��квидов: {expected_today}",
+        f"Сегодня неликвидов: {expected_today}",
         f"Скрины загружены: {uploaded_today}",
         f"Не хватает: {missing}",
         "",
@@ -11901,7 +11901,7 @@ _REPLACE_RESULT_MESSAGES = {
     "send_code_failed": "Не удалось отправить код. Попробуйте ещё раз.",
     "empty_code": "Введите код Telegram цифрами.",
     "no_pending_code": "Нет ожидающего кода. Начните заново.",
-    "invalid_code": "Код неверны�� или истёк. Введите код заново.",
+    "invalid_code": "Код неверный или истёк. Введите код заново.",
     "fatal_error": "Не удалось войти в Telegram-аккаунт.",
     "empty_password": "Введите пароль 2FA.",
     "no_pending_password": "Нет ожидающего запроса пароля. Начните заново.",
@@ -11946,7 +11946,7 @@ def _replace_parse_result(row: dict) -> dict:
             return data
     except Exception:
         pass
-    return {"ok": False, "code": "internal_error", "message": text or "Неизвестна�� ошибка."}
+    return {"ok": False, "code": "internal_error", "message": text or "Неизвестная ошибка."}
 
 
 def _replace_b64(text: str) -> str:
@@ -14055,7 +14055,7 @@ def _sched_pb_missing_text() -> str:
     lines = [
         _panel_header(),
         "",
-        "\U0001f4c5 Не от��ечены рабочими на завтра",
+        "\U0001f4c5 Не отмечены рабочими на завтра",
         "Дата: {}".format(tomorrow_str),
         "",
     ]
@@ -14242,7 +14242,7 @@ async def _sched_admin_callback(event):
         await _pb_safe_answer(event, )
     except Exception as exc:
         try:
-            await _pb_safe_answer(event, "Ошиб��а", alert=True)
+            await _pb_safe_answer(event, "Ошибка", alert=True)
         except Exception:
             pass
 
@@ -14653,7 +14653,7 @@ def _d2_confirm_all_buttons(count: int) -> list:
     if len(cb_today.encode("utf-8")) <= 64:
         buttons.append([Button.inline("\U0001f4c5 Сегодня ({})".format(today), cb_today.encode("utf-8"))])
     buttons.append([
-        Button.inline("⬅️ Наза��", b"menu:bizlinks_create_count_all"),
+        Button.inline("⬅️ Назад", b"menu:bizlinks_create_count_all"),
         Button.inline("\U0001f3e0 Главная", b"menu:main"),
     ])
     return buttons
@@ -16063,7 +16063,7 @@ def _tpc3c_request_text(req: dict) -> str:
         src = str(req.get("source_key") or "").strip()
         inh = req.get("inherited_at_request")
         if int(inh or 0) == 1 and src:
-            lines.append(f"Сейчас: {cur} (п�� источнику {src})")
+            lines.append(f"Сейчас: {cur} (по источнику {src})")
         else:
             lines.append(f"Сейчас: {cur}")
     if req.get("requested_by_user_id"):
@@ -17029,7 +17029,7 @@ def _tr_stats_text(period: str) -> str:
     lines = [
         "🤝 Статистика передач",
         f"Период: {label} ({_display_date(start)} — {_display_date(end)})",
-        "Период считается по дате созда��ия передачи.",
+        "Период считается по дате создания передачи.",
         "",
         f"Всего создано: {created}",
         f"Фактически написали: {confirmed}",
@@ -19223,7 +19223,7 @@ def _nm_managers_screen() -> Tuple[str, list]:
         "Внутри: единый список менеджеров с карточками (статус, скрины, доступы, замена, "
         "резерв, опасные действия), добавление, доступы ManagerBot и графики менеджеров "
         "(рабочие даты, заявки, кто работает завтра). "
-        "Автоответы и р��жимы менеджера — в карточке менеджера и в «⚙️ Автоматизация». "
+        "Автоответы и режимы менеджера — в карточке менеджера и в «⚙️ Автоматизация». "
         "Если аккаунт не работает — начните с «📡 Telegram Health» и «🌐 Прокси» в "
         "разделе «🛠 Система».",
         rows,
@@ -19431,7 +19431,7 @@ def _nm_automation_screen() -> Tuple[str, list]:
         "🤖 АВТОМАТИЗАЦИЯ",
         "Админ-бот → Новое меню → Автоматизация",
         "Внутри: автоответы, автодожимы, тексты, задержки, аварийная тишина (полный запрет "
-        "авто-сообщений), приветствия, а��тоанкета, проверка анкет, LLM-наблюдения (read-only), "
+        "авто-сообщений), приветствия, автоанкета, проверка анкет, LLM-наблюдения (read-only), "
         "глобальный переключатель LLM и автоматические статусы (оба требуют подтверждения).",
         rows,
     )
@@ -19531,7 +19531,7 @@ _NM_SEARCH_INDEX = [
      "keywords": "прокси добавить socks proxy"},
     {"label": "📦 Пул прокси", "route": "menu:ppool", "path": "Прокси → Пул",
      "keywords": "прокси пул pool ppool свободные занятые осиротевшие сторонние"},
-    {"label": "💳 Продление и баланс", "route": "prn:root", "path": "П��окси → Продление и баланс",
+    {"label": "💳 Продление и баланс", "route": "prn:root", "path": "Прокси → Продление и баланс",
      "keywords": "прокси продление баланс renewal renew деньги оплата"},
     {"label": "🔗 Бизнес-ссылки — создание", "route": "menu:nm_bizlinks_create", "path": "Бизнес-ссылки → Создание",
      "keywords": "ссылки бизнес bld создать чатлинк chatlink links"},
@@ -19594,8 +19594,8 @@ _NM_SEARCH_INDEX = [
      "keywords": "экспорт excel выгрузка дубли duplicate"},
     {"label": "📋 Список менеджеров", "route": "cmd:/manager_list", "path": "Менеджеры → Список",
      "keywords": "менеджер список manager статус"},
-    {"label": "⚙️ Админ менеджеров", "route": "menu:manager_admin", "path": "Менеджеры → ��дмин",
-     "keywords": "ме��еджер админ admin статус enable disable резерв reserve где резерв "
+    {"label": "⚙️ Админ менеджеров", "route": "menu:manager_admin", "path": "Менеджеры → Админ",
+     "keywords": "менеджер админ admin статус enable disable резерв reserve где резерв "
                  "резервный аккаунт добавить аккаунт менеджер не работает проблема с менеджером"},
     {"label": "➕ Добавить менеджера", "route": "wiz:add_manager:start", "path": "Менеджеры → Добавить",
      "keywords": "менеджер добавить manager add добавить менеджера добавить аккаунт"},
@@ -19918,7 +19918,7 @@ _NM_PREV_MAIN_MENU = globals().get("_main_menu")
 
 def _main_menu():  # type: ignore[override]
     rows = list(_NM_PREV_MAIN_MENU()) if callable(_NM_PREV_MAIN_MENU) else []
-    rows.insert(0, [Button.inline("🧭 Новое ме��ю", b"menu:nm_root")])
+    rows.insert(0, [Button.inline("🧭 Новое меню", b"menu:nm_root")])
     return rows
 
 # --- TPILOT NM NEW MENU END ---
@@ -21812,7 +21812,7 @@ def _pbuy_confirm_buttons(key: str, *, ret: str = ""):
     key = normalize_manager_key(key or "")
     cancel_cb = f"pxm:menu:{key}".encode() if ret == "proxy_card" else f"wiz:buyproxy:cancel:{key}".encode()
     return [
-        [Button.inline("✅ Подтверди��ь покупку", f"wiz:buyproxy:confirm:{key}".encode())],
+        [Button.inline("✅ Подтвердить покупку", f"wiz:buyproxy:confirm:{key}".encode())],
         [Button.inline("❌ Отмена", cancel_cb)],
     ]
 
@@ -22773,7 +22773,7 @@ async def _prenew_run_calc(chat_id: int, user_id: int, lease_id: int) -> None:
     if not data.get("ok"):
         # BL-2 fix: never show data['message'] (possibly raw provider
         # error) -- classified reason/action only, neutral fallback.
-        reason = data.get("reason") or "Не удалось ��ыполнить продление."
+        reason = data.get("reason") or "Не удалось выполнить продление."
         action = data.get("action") or "Откройте карточку прокси и проверьте состояние."
         msg = f"Причина: {reason}\nЧто делать: {action}"
         try:
@@ -23429,7 +23429,7 @@ def _proxy_success_card_text(*, manager_key: str, display_name: str, telegram_us
     Callers must source `password` from a safe local read (lease flows:
     _ppool_reveal_creds_once; manual one-line set: the operator's own
     just-parsed input) -- never from panel_commands result_text."""
-    lines = ["✅ П��окси у��тановлен", "", "Аккаунт:", f"• Ключ: {manager_key or '_'}"]
+    lines = ["✅ Прокси установлен", "", "Аккаунт:", f"• Ключ: {manager_key or '_'}"]
     name = str(display_name or "").strip()
     if name and name != manager_key:
         lines.append(f"• Имя: {name}")
@@ -24604,7 +24604,7 @@ _TDIMPORT_ERROR_RU = {
     "multiple_accounts": "В архиве несколько аккаунтов — пришлите архив с одним аккаунтом.",
     "session_corrupt": "Файл сессии повреждён.",
     "session_schema_unsupported": "Формат файла сессии не поддерживается.",
-    "tdata_conversion_failed": "Не удалось преобразовать tdata (не��звестный вариант или повреждение).",
+    "tdata_conversion_failed": "Не удалось преобразовать tdata (неизвестный вариант или повреждение).",
     "tdata_passcode_required": "Эта tdata защищена локальным паролем — такие архивы не поддерживаются.",
     "session_unauthorized": "Сессия не авторизована в Telegram.",
     "proxy_missing": "Прокси для менеджера не назначен.",
@@ -25022,7 +25022,7 @@ async def _tdimport_document_input(event):
             # A non-JSON result_text means the controller answered but with an
             # unexpected (non-JSON) payload -- typically a stale main.py whose
             # dispatcher doesn't recognise /manager_tdimport_start.
-            err = ("❗ К��нтроллер вернул неожиданный ответ (возможно, main.py устарел и не "
+            err = ("❗ Контроллер вернул неожиданный ответ (возможно, main.py устарел и не "
                    "знает команду импорта). Обновите и перезапустите контроллер.\n\n"
                    + _safe_text(result_text, 150))
         try:
