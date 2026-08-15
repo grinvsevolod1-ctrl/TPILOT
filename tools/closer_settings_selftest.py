@@ -88,16 +88,26 @@ def _extract_and_exec(path: str, names: set, extra_ns: dict) -> dict:
     return ns
 
 
-def _extract_last_and_exec(path: str, name: str, extra_ns: dict) -> dict:
+def _extract_last_and_exec(path: str, name: str, extra_ns: dict, containing: str = "") -> dict:
     """Like _extract_and_exec but grabs ONLY the LAST top-level def with
     this name (the active one in an override-stack file), skipping every
     shadowed earlier definition and any module-level assignment of the
     same name -- used for _mbstat_start_buttons so the test controls the
     injected PREV callable directly instead of chain-rebuilding through
-    unrelated dependencies."""
+    unrelated dependencies.
+
+    `containing`: when a LATER override block (e.g. W1 SAFE SELF-DIAGNOSTIC
+    20260729) re-redefines the same name with a DIFFERENT PREV variable,
+    the naive "last def" no longer references the PREV callable this test
+    injects. Passing a marker (e.g. "_CLS_PREV_START_BTNS") selects the
+    last def whose source actually contains it -- i.e. the specific
+    override under test -- keeping the test stable as more override
+    blocks are appended after it."""
     src = open(path, encoding="utf-8-sig").read()
     tree = ast.parse(src)
     matches = [n for n in tree.body if getattr(n, "name", None) == name]
+    if containing:
+        matches = [n for n in matches if containing in ast.unparse(n)]
     if not matches:
         raise AssertionError(f"no def named {name} found in {path}")
     module_src = ast.unparse(matches[-1])
@@ -331,6 +341,7 @@ async def test_1_2_menu_visibility() -> None:
         ns2 = _extract_last_and_exec(
             MANAGER_BOT_PATH, "_mbstat_start_buttons",
             {**{k: ns[k] for k in ns if not k.startswith("__")}, "_CLS_PREV_START_BTNS": (lambda uid: list(prev_rows))},
+            containing="_CLS_PREV_START_BTNS",
         )
         closer_rows = ns2["_mbstat_start_buttons"](CLOSER_UID)
         closer_data = [btn[2] for row in (closer_rows or []) for btn in row]
