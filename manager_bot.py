@@ -1804,37 +1804,6 @@ def _enabled_access_users() -> List[int]:
         con.close()
 
 
-def _fetch_unsent_events_for_user(tg_user_id: int, manager_keys: List[str]) -> List[Dict[str, Any]]:
-    if not tg_user_id or not manager_keys:
-        return []
-
-    placeholders = ",".join(["?"] * len(manager_keys))
-    params: List[Any] = [int(tg_user_id), *manager_keys]
-
-    con = _connect()
-    try:
-        rows = con.execute(
-            f"""
-            SELECT e.*
-            FROM manager_bot_events e
-            LEFT JOIN manager_bot_sent s
-              ON s.event_id = e.id
-             AND s.tg_user_id = ?
-            WHERE s.event_id IS NULL
-              AND e.manager_key IN ({placeholders})
-            ORDER BY e.id ASC
-            LIMIT 30
-            """,
-            params,
-        ).fetchall()
-        return [dict(r) for r in rows]
-    except Exception as exc:
-        log.warning("unsent events read failed uid=%s error=%r", tg_user_id, exc)
-        return []
-    finally:
-        con.close()
-
-
 def _format_lead_card(event_row: Dict[str, Any], override: Dict[str, Any] | None = None) -> str:
     payload = _decode_payload(event_row)
 
@@ -1913,25 +1882,6 @@ def _format_lead_card(event_row: Dict[str, Any], override: Dict[str, Any] | None
         lines = header_block + [""] + rest
 
     return "\n".join(lines).strip()
-
-
-def _manual_buttons(card_id: int):
-    return [
-        [
-            Button.inline("\u2705 \u041b\u0438\u043a\u0432\u0438\u0434 \u0420\u0424 18+", f"mb:s:{card_id}:liq".encode("utf-8")),
-        ],
-        [
-            Button.inline("\U0001f30d GEO", f"mb:s:{card_id}:geo".encode("utf-8")),
-            Button.inline("\U0001f51e -18", f"mb:s:{card_id}:u18".encode("utf-8")),
-        ],
-        [
-            Button.inline("\u2754 NA", f"mb:s:{card_id}:na".encode("utf-8")),
-            Button.inline("\U0001f5d1 Trash", f"mb:s:{card_id}:trash".encode("utf-8")),
-        ],
-        [
-            Button.inline("\u21a9\ufe0f \u0421\u0431\u0440\u043e\u0441", f"mb:s:{card_id}:clear".encode("utf-8")),
-        ],
-    ]
 
 
 def _upsert_card_placeholder(event_row: Dict[str, Any], tg_user_id: int) -> int:
@@ -2102,27 +2052,6 @@ def _save_card_and_sent(
         log.warning("save card/sent fully failed, no state persisted actor_ref=%s event_id=%s error_class=%s",
                     _w2_actor_ref(tg_user_id), event_id, type(exc2).__name__)
         return False
-
-
-async def _send_event_to_user(event_row: Dict[str, Any], tg_user_id: int) -> None:
-    card_id = _upsert_card_placeholder(event_row, int(tg_user_id))
-    text = _format_lead_card(event_row)
-    base_buttons = _manual_buttons(card_id) if card_id else None
-    buttons = _with_copy_button(base_buttons, _ss_username_from_event_row(event_row))
-
-    try:
-        msg = await client.send_message(int(tg_user_id), text, buttons=buttons)
-    except Exception as exc:
-        log.warning("card send with copy button failed, retry plain: %r", exc)
-        msg = await client.send_message(int(tg_user_id), text, buttons=base_buttons)
-    message_id = int(getattr(msg, "id", 0) or 0)
-
-    _save_card_and_sent(event_row, int(tg_user_id), int(tg_user_id), message_id, card_id)
-
-    log.info(
-        "lead card sent uid=%s event_id=%s manager=%s chat_id=%s msg_id=%s card_id=%s",
-        tg_user_id, event_row.get("id"), event_row.get("manager_key"), event_row.get("chat_id"), message_id, card_id,
-    )
 
 
 def _card_by_id(card_id: int, tg_user_id: int) -> Dict[str, Any]:
@@ -2753,60 +2682,6 @@ def _event_row_from_card(card: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-async def _handle_status_callback(event, data: bytes) -> None:
-    try:
-        text = data.decode("utf-8", errors="ignore")
-        parts = text.split(":")
-        if len(parts) != 4 or parts[0] != "mb" or parts[1] != "s":
-            await event.answer()
-            return
-
-        card_id = int(parts[2])
-        code = parts[3]
-        tg_user_id = int(event.sender_id or 0)
-
-        if code != "clear" and code not in STATUS_ACTIONS:
-            await event.answer("\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u0441\u0442\u0430\u0442\u0443\u0441", alert=True)
-            return
-        if not _access_allowed(tg_user_id):
-            await event.answer("\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430", alert=True)
-            return
-
-        card = _card_by_id(card_id, tg_user_id)
-        if not card:
-            await event.answer("\u041a\u0430\u0440\u0442\u043e\u0447\u043a\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430", alert=True)
-            return
-
-        wait = _check_throttle(card, 20)
-        if wait:
-            await event.answer(f"\u041f\u043e\u0434\u043e\u0436\u0434\u0438\u0442\u0435 {wait}\u0441", alert=False)
-            return
-
-        ok = _apply_manual_status(card, code, tg_user_id)
-        if not ok:
-            await event.answer("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441", alert=True)
-            return
-
-        event_row = _event_row_from_card(card)
-        override = _read_override(str(card.get("manager_key") or ""), int(card.get("chat_id") or 0))
-        new_text = _format_lead_card(event_row, override=override)
-
-        try:
-            await event.edit(new_text, buttons=_manual_buttons(card_id))
-        except Exception as exc:
-            log.warning("card edit failed card_id=%s error=%r", card_id, exc)
-
-        label = "\u0421\u0431\u0440\u043e\u0448\u0435\u043d\u043e" if code == "clear" else STATUS_ACTIONS[code]["label"]
-        await event.answer(f"\u0421\u0442\u0430\u0442\u0443\u0441 \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d: {label}", alert=False)
-        log.info("manual status set uid=%s card_id=%s code=%s", tg_user_id, card_id, code)
-    except Exception as exc:
-        log.warning("status callback failed: %r", exc)
-        try:
-            await event.answer("\u041e\u0448\u0438\u0431\u043a\u0430 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438", alert=True)
-        except Exception:
-            pass
-
-
 async def _poll_loop() -> None:
     log.info("poll loop started, interval=%s, mode=manager_bot_events+m24", MANAGER_BOT_POLL_SEC)
 
@@ -2921,25 +2796,6 @@ async def _poll_loop() -> None:
         except Exception as exc:
             log.warning("poll loop error: error_class=%s", type(exc).__name__)
             await asyncio.sleep(10)
-
-# --- TPILOT MANAGER BOT CLEAN UI M2.4 20260531 END ---
-
-
-
-# --- TPILOT MANAGER BOT UI COLLAPSE M2.7 20260601 START ---
-# Collapsed manual-status keyboard.
-# No schema changes.
-# Full keyboard callback format:
-# mb:s:<card_id>:<code>
-# Edit callback:
-# mb:e:<card_id>
-# Back callback:
-# mb:b:<card_id>
-
-def _can_set_status(tg_user_id: int, manager_key: str) -> bool:
-    # M2.7 keeps current access behavior.
-    # M2.6 permissions will replace this with can_set_status.
-    return _access_allowed(int(tg_user_id))
 
 
 def _expanded_status_buttons(card_id: int):
