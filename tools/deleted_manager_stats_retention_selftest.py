@@ -743,6 +743,15 @@ async def _empty_manager_list_rows(include_removed: bool = False) -> list:
 def run_backfill_checks() -> None:
     print("\n-- Legacy backfill: _tp_mgrbf_* for a pre-existing deleted manager (REAL execution via AST) --")
 
+    # Dates are RELATIVE to "now" so the retention window (60 days) never expires
+    # underneath the test. The original hardcoded 2026-06-01 deletion date made the
+    # enumeration checks silently start failing on 2026-07-31 (tombstone correctly
+    # filtered out as expired by manager_stats_tombstone_list_active).
+    bf_deleted_dt = (datetime.now() - timedelta(days=10)).replace(hour=9, minute=0, second=0, microsecond=0)
+    bf_deleted_suffix = bf_deleted_dt.strftime("%Y%m%d_%H%M%S")
+    bf_deleted_prefix = bf_deleted_dt.strftime("%Y-%m-%dT%H:%M:%S")
+    bf_lead_date = (bf_deleted_dt - timedelta(days=12)).strftime("%Y-%m-%d")
+
     work_dir = Path(tempfile.mkdtemp(prefix="del_mgr_backfill_selftest_"))
     try:
         central_db = str(work_dir / "central.db")
@@ -761,7 +770,7 @@ def run_backfill_checks() -> None:
         # Simulate the ALREADY-deleted manager's backup folder, created long before
         # the tombstone feature existed -- no tombstone row exists for it anywhere.
         backup_root = work_dir / "_deleted_managers_backup"
-        backup_folder = backup_root / "dariass_20260601_090000"
+        backup_folder = backup_root / f"dariass_{bf_deleted_suffix}"
         backup_folder.mkdir(parents=True)
         backup_db = backup_folder / "dariass.db"
         con = sqlite3.connect(str(backup_db))
@@ -769,7 +778,7 @@ def run_backfill_checks() -> None:
             "CREATE TABLE daily_leads(id INTEGER PRIMARY KEY, lead_date TEXT, manager_key TEXT, "
             "manager_username TEXT, chat_id INTEGER)"
         )
-        con.execute("INSERT INTO daily_leads VALUES(1,'2026-05-20','dariass','dariass_tg',111)")
+        con.execute("INSERT INTO daily_leads VALUES(1,?,'dariass','dariass_tg',111)", (bf_lead_date,))
         con.commit()
         con.close()
 
@@ -802,9 +811,9 @@ def run_backfill_checks() -> None:
               bool(tomb) and tomb.get("display_name") == "Дарья С" and tomb.get("telegram_username") == "dariass_tg"
               and tomb.get("source_key") == "src_main", repr(tomb))
         check("tombstone db_path points at the real legacy backup file", tomb.get("db_path") == str(backup_db), repr(tomb))
-        check("tombstone deleted_at was inferred from the backup folder's timestamp suffix (2026-06-01 09:00:00)",
-              str(tomb.get("deleted_at") or "").startswith("2026-06-01T09:00:00"), repr(tomb.get("deleted_at")))
-        expected_until = (datetime(2026, 6, 1, 9, 0, 0) + timedelta(days=60)).replace(microsecond=0).isoformat()
+        check("tombstone deleted_at was inferred from the backup folder's timestamp suffix",
+              str(tomb.get("deleted_at") or "").startswith(bf_deleted_prefix), repr(tomb.get("deleted_at")))
+        expected_until = (bf_deleted_dt + timedelta(days=60)).replace(microsecond=0).isoformat()
         check("retention_until = deleted_at + 60 days", tomb.get("retention_until") == expected_until,
               f"got={tomb.get('retention_until')} expected={expected_until}")
 
@@ -849,7 +858,7 @@ def run_backfill_checks() -> None:
         check("AdminBot plain (no-period) reporting enumeration does NOT include dariass after backfill "
               "(fail-closed default, period-filter correction)",
               not any(r.get("manager_key") == "dariass" for r in admin_rows_default), repr(admin_rows_default))
-        admin_rows = asyncio.run(admin_ns["_manager_rows_for_reporting_period"]("2026-05-20", "2026-05-20"))
+        admin_rows = asyncio.run(admin_ns["_manager_rows_for_reporting_period"](bf_lead_date, bf_lead_date))
         check("AdminBot period-aware reporting enumeration includes dariass after backfill "
               "for the period intersecting its real historical data",
               any(r.get("manager_key") == "dariass" for r in admin_rows), repr(admin_rows))
@@ -874,7 +883,7 @@ def run_backfill_checks() -> None:
         check("PartnerBot plain (no-period) reporting enumeration does NOT include dariass after backfill "
               "(fail-closed default, period-filter correction)",
               not any(r.get("manager_key") == "dariass" for r in partner_rows_default), repr(partner_rows_default))
-        partner_rows = partner_ns["_manager_rows_for_source"]("src_main", "2026-05-20", "2026-05-20")
+        partner_rows = partner_ns["_manager_rows_for_source"]("src_main", bf_lead_date, bf_lead_date)
         check("PartnerBot period-aware reporting enumeration for src_main includes dariass after backfill",
               any(r.get("manager_key") == "dariass" for r in partner_rows), repr(partner_rows))
     finally:
