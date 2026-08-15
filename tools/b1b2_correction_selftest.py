@@ -447,12 +447,15 @@ def test_ph_special_card_flows_unaffected():
     # default lead_card body -- confirmed statically: _upsert_card_placeholder
     # appears exactly once as a live call in the whole file (the other
     # definition-site match is the def itself, and one dead stacked def).
+    # OVERRIDE CLEANUP 20260815: the dead stacked _send_event_to_user def
+    # (which held the second, unreachable call site) was removed, so the
+    # expected count dropped 2 -> 1: only the ACTIVE call site remains.
     hits = [i for i, line in enumerate(MB_SRC.splitlines(), 1) if "_upsert_card_placeholder(" in line]
     call_sites = [i for i in hits if "def _upsert_card_placeholder" not in MB_SRC.splitlines()[i - 1]]
-    check("PH-T10. _upsert_card_placeholder has exactly 2 call sites in the whole file "
-          "(1 dead stacked _send_event_to_user + 1 active) -- duplicate_card/reserve/"
+    check("PH-T10. _upsert_card_placeholder has exactly 1 call site in the whole file "
+          "(the active _send_event_to_user body) -- duplicate_card/reserve/"
           "transfer paths never call it, so B-1's guard cannot affect them",
-          len(call_sites) == 2, call_sites)
+          len(call_sites) == 1, call_sites)
 
 
 def test_ph_red_before():

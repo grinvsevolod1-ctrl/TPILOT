@@ -418,8 +418,10 @@ def test_static_recovery_once_wrapper():
 
     # No new stacked override of any PeerFlood/health-lifecycle protected
     # name was introduced by this phase's edits.
+    # OVERRIDE CLEANUP 20260815: _send_manager_private dropped 4 -> 3 (one
+    # dead shadowed def removed; active chain unchanged).
     protected_counts = {
-        "_tp_hg_send_allowed": 1, "_send_manager_private": 4,
+        "_tp_hg_send_allowed": 1, "_send_manager_private": 3,
         "_process_profile_reminders_once": 2, "_process_post_manual_followups_once": 2,
         "_health_incident_handle": 1, "_health_incident_notify": 1,
         "_manager_recovery_classify": 1, "_manager_recovery_open_auth_incident": 1,

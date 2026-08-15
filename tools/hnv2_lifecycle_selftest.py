@@ -1045,7 +1045,9 @@ def test_static_protected_invariants():
     from collections import Counter
     defs = Counter(n.name for n in MAIN_TREE.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
     for name, expected in (
-        ("_tp_hg_send_allowed", 1), ("_send_manager_private", 4),
+        # OVERRIDE CLEANUP 20260815: _send_manager_private 4 -> 3 (one dead
+        # shadowed def removed; active chain unchanged).
+        ("_tp_hg_send_allowed", 1), ("_send_manager_private", 3),
         ("_process_profile_reminders_once", 2), ("_process_post_manual_followups_once", 2),
         ("_health_incident_handle", 1), ("_health_incident_notify", 1),
         ("_manager_recovery_classify", 1), ("_manager_recovery_open_auth_incident", 1),
