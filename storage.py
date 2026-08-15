@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import aiosqlite
 

@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -10933,7 +10934,6 @@ try:
 except Exception:
     _TP_StringSession = None
 
-globals()["shutil"] = _tp_shutil
 AUTO_OFFLINE_INACTIVITY_MINUTES = 30
 
 _TPILOT_202605_ORIG_MAIN = globals().get("main")
