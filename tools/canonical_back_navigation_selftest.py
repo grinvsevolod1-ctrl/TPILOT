@@ -291,10 +291,12 @@ EXPECTED_BACK_TARGETS = [
 # scoping would inspect the wrapper, so the canonical-parent marker is
 # checked against the named ACTIVE def line instead.
 _ACTIVE_NOT_LAST = {
-    # _followups_menu: active base = middle def (the last def is the V5
-    # wrapper capturing it via _TP_PANEL_V5_ORIG_FOLLOWUPS_MENU); the Back
-    # row lives in the base.
-    "_followups_menu": 1,   # index into _all_defs_unparsed (0-based): middle of 3
+    # _followups_menu: active base = the def directly under the V5 wrapper
+    # (the last def captures it via _TP_PANEL_V5_ORIG_FOLLOWUPS_MENU); the
+    # Back row lives in the base. NEGATIVE index (from the end) so the check
+    # stays correct regardless of how many dead earlier defs exist or get
+    # removed (OVERRIDE CLEANUP 20260815 deleted the original first def).
+    "_followups_menu": -2,  # index into _all_defs_unparsed: base under the wrapper
 }
 
 
@@ -307,7 +309,7 @@ def test_3_expected_canonical_back_targets() -> None:
         defs = _all_defs_unparsed(name)
         if name in _ACTIVE_NOT_LAST:
             idx = _ACTIVE_NOT_LAST[name]
-            scoped = [defs[idx]] if len(defs) > idx else []
+            scoped = [defs[idx]] if -len(defs) <= idx < len(defs) else []
         else:
             scoped = defs[-1:]
         if route.endswith(":"):
