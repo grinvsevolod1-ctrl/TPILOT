@@ -1746,17 +1746,6 @@ def _cmd_date(iso_date: str) -> str:
     return _display_date(iso_date)
 
 
-def _cmd_for(kind: str, target: str, iso_date: str = "") -> str:
-    kind = str(kind or "stats").strip().lower()
-    target = normalize_manager_key(target or "all") or "all"
-    date_part = (" " + _cmd_date(iso_date)) if iso_date else ""
-    if kind == "export":
-        return f"/export {target}{date_part}".strip()
-    if kind == "flights":
-        return f"/flight {target}{date_part}".strip()
-    return f"/stat det {target}{date_part}".strip()
-
-
 def _callback_data(kind: str, target: str, iso_date: str) -> bytes:
     txt = f"cal:{kind}:{normalize_manager_key(target or 'all') or 'all'}:{_clamp_iso_date(iso_date)}"
     return txt.encode("utf-8")
@@ -1784,166 +1773,6 @@ def _main_menu():
         [Button.inline("ℹ️ Помощь", b"cmd:/help"), Button.inline("📘 Инструкция", b"cmd:/instructions")],
         [Button.inline("🔄 Обновить панель", b"menu:main")],
     ]
-
-def _stats_menu():
-    today = _today_iso()
-    yesterday = _shift_iso_date(today, -1)
-    before_yesterday = _shift_iso_date(today, -2)
-    rows = [
-        [
-            Button.inline("📊 Сегодня по всем", b"cmd:/stat det all"),
-            Button.inline("📋 Обычная за сегодня", b"cmd:/stat all"),
-        ],
-        [
-            Button.inline("📅 Вчера по всем", f"cmd:{_cmd_for('stats', 'all', yesterday)}".encode()),
-            Button.inline("📅 Позавчера по всем", f"cmd:{_cmd_for('stats', 'all', before_yesterday)}".encode()),
-        ],
-        [Button.inline("📆 Выбрать дату", _callback_data("stats", "all", today)), Button.inline("📆 Период с/до", b"wiz:period:stats")],
-    ]
-    for r in _manager_rows()[:20]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        rows.append([Button.inline(f"👤 Сегодня {label}", f"cmd:{_cmd_for('stats', key)}".encode())])
-        rows.append([
-            Button.inline(f"📅 Вчера {key}", f"cmd:{_cmd_for('stats', key, yesterday)}".encode()),
-            Button.inline(f"📅 Позавчера {key}", f"cmd:{_cmd_for('stats', key, before_yesterday)}".encode()),
-        ])
-    rows.append([Button.inline("⬅️ Назад", b"menu:main")])
-    return rows
-
-
-def _flights_menu():
-    today = _today_iso()
-    yesterday = _shift_iso_date(today, -1)
-    before_yesterday = _shift_iso_date(today, -2)
-    rows = [
-        [Button.inline("🌙 Текущие долёты по всем", b"cmd:/flight all")],
-        [
-            Button.inline("📅 Вчера по всем", f"cmd:{_cmd_for('flights', 'all', yesterday)}".encode()),
-            Button.inline("📅 Позавчера по всем", f"cmd:{_cmd_for('flights', 'all', before_yesterday)}".encode()),
-        ],
-        [Button.inline("📆 Выбрать дату", _callback_data("flights", "all", today))],
-    ]
-    for r in _manager_rows()[:25]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        rows.append([Button.inline(f"👤 Текущие {label}", f"cmd:{_cmd_for('flights', key)}".encode())])
-        rows.append([
-            Button.inline(f"📅 Вчера {key}", f"cmd:{_cmd_for('flights', key, yesterday)}".encode()),
-            Button.inline(f"📅 Позавчера {key}", f"cmd:{_cmd_for('flights', key, before_yesterday)}".encode()),
-        ])
-    rows.append([Button.inline("⬅️ Назад", b"menu:main")])
-    return rows
-
-
-def _calendar_menu(kind: str, target: str, iso_date: str):
-    raw_kind = str(kind or "").lower()
-    if raw_kind == "export":
-        kind = "export"
-    elif raw_kind == "flights":
-        kind = "flights"
-    else:
-        kind = "stats"
-    target = normalize_manager_key(target or "all") or "all"
-    iso_date = _clamp_iso_date(iso_date)
-    date_label = _display_date(iso_date)
-    today = _date_obj(_today_iso())
-    d = _date_obj(iso_date)
-    min_day = today - timedelta(days=31)
-
-    if kind == "export":
-        title = "📦 Экспорт"
-        action_all = "📦 Excel по всем за дату"
-        back_menu = b"menu:export"
-    elif kind == "flights":
-        title = "🌙 Долёты"
-        action_all = "🌙 Долёты по всем за дату"
-        back_menu = b"menu:flights"
-    else:
-        title = "📊 Статистика"
-        action_all = "📊 Статистика по всем за дату"
-        back_menu = b"menu:stats"
-
-    prev_day = _shift_iso_date(iso_date, -1)
-    next_day = _shift_iso_date(iso_date, 1)
-    prev_week = _shift_iso_date(iso_date, -7)
-    next_week = _shift_iso_date(iso_date, 7)
-
-    rows = [
-        [
-            Button.inline("◀️ День назад", _callback_data(kind, target, prev_day)),
-            Button.inline("День вперёд ▶️", _callback_data(kind, target, next_day)),
-        ],
-        [
-            Button.inline("⏪ Неделя назад", _callback_data(kind, target, prev_week)),
-            Button.inline("Неделя вперёд ⏩", _callback_data(kind, target, next_week)),
-        ],
-        [Button.inline(action_all, f"cmd:{_cmd_for(kind, 'all', iso_date)}".encode())],
-    ]
-
-    for r in _manager_rows()[:25]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        rows.append([Button.inline(f"👤 {label}", f"cmd:{_cmd_for(kind, key, iso_date)}".encode())])
-
-    rows.append([Button.inline("⬅️ Назад", back_menu)])
-
-    note = ""
-    if d <= min_day:
-        note = "\\n\\nЭто минимальная доступная дата. Доступна история за 31 день."
-    elif d >= today:
-        note = "\\n\\nЭто сегодняшняя дата. Будущие даты недоступны."
-
-    text = f"{_panel_header()}\\n\\n📅 Выбор даты\\n\\nРаздел: {title}\\nДата: {date_label}{note}\\n\\nВыберите действие:"
-    return text, rows
-
-
-
-def _export_menu():
-    today = _today_iso()
-    yesterday = _shift_iso_date(today, -1)
-
-    rows = [
-        _section_button("📦 ОБЩИЕ EXCEL-ВЫГРУЗКИ"),
-        [
-            Button.inline("📦 Сегодня все", b"cmd:/export all"),
-            Button.inline("📅 Вчера все", f"cmd:/export all {_cmd_date(yesterday)}".encode()),
-        ],
-        [
-            Button.inline("📈 Неделя все", b"cmd:/export all 7d"),
-            Button.inline("🗓 Месяц все", b"cmd:/export all 31d"),
-        ],
-        [Button.inline("📆 Выбрать дату", _callback_data("export", "all", today)), Button.inline("📆 Период с/до", b"wiz:period:export")],
-    ]
-
-    managers = _manager_rows()[:25]
-    if managers:
-        rows.append(_section_button("👤 EXCEL ПО МЕНЕДЖЕРАМ"))
-    for r in managers:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        rows.append([Button.inline(f"👤 {label}", f"cmd:/export {key}".encode())])
-        rows.append([
-            Button.inline(f"📅 Вчера {key}", f"cmd:/export {key} {_cmd_date(yesterday)}".encode()),
-            Button.inline(f"📆 Дата {key}", _callback_data("export", key, today)),
-        ])
-        rows.append([
-            Button.inline(f"📈 Неделя {key}", f"cmd:/export {key} 7d".encode()),
-            Button.inline(f"🗓 Месяц {key}", f"cmd:/export {key} 31d".encode()),
-        ])
-
-    rows.append(_section_button("🛡 ЗАЩИТА"))
-    rows.append([Button.inline("ℹ️ Лимит 31 день, один Excel за раз", b"noop")])
-    rows.append([Button.inline("⬅️ Назад", b"menu:main")])
-    return rows
 
 
 def _pb_unanswered_notify_enabled() -> bool:
@@ -2031,74 +1860,6 @@ def _silent_panel_sources() -> list[dict]:
 
 def _silent_panel_groups() -> list[dict]:
     return _silent_panel_rows("manager_groups", "ORDER BY status ASC, name COLLATE NOCASE ASC, group_key ASC")
-# -------------------- silent mode panel helpers end --------------------
-
-def _profile_menu():
-    rows = [
-        _section_button("🔇 ТИХИЙ РЕЖИМ"),
-        [Button.inline("📋 Статус тихого режима", b"cmd:/silent status all")],
-        [
-            Button.inline("✅ Писать всем", b"cmd:/silent manager off all"),
-            Button.inline("🔇 Не писать всем", b"cmd:/silent manager on all"),
-        ],
-
-        _section_button("👤 МЕНЕДЖЕРЫ"),
-    ]
-
-    for r in _manager_rows_all()[:50]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        rows.append([Button.inline(f"👤 {label}", f"cmd:/silent status {key}".encode())])
-        rows.append([
-            Button.inline(f"✅ Писать {key}", f"cmd:/silent manager off {key}".encode()),
-            Button.inline(f"🔇 Не писать {key}", f"cmd:/silent manager on {key}".encode()),
-        ])
-
-    rows.append(_section_button("📦 ИСТОЧНИКИ ТРАФИКА"))
-    sources = _silent_panel_sources()
-    if sources:
-        for src in sources[:40]:
-            key = _silent_panel_key(str(src.get("source_key") or ""), "source")
-            name = str(src.get("name") or key)
-            rows.append([
-                Button.inline(f"✅ Писать {name}", f"cmd:/silent source off {key}".encode()),
-                Button.inline(f"🔇 Не писать {name}", f"cmd:/silent source on {key}".encode()),
-            ])
-    else:
-        rows.append([Button.inline("📦 Источники ещё не созданы", b"noop")])
-
-    rows.append(_section_button("👥 ГРУППЫ МЕНЕДЖЕРОВ"))
-    groups = _silent_panel_groups()
-    if groups:
-        for grp in groups[:40]:
-            key = _silent_panel_key(str(grp.get("group_key") or ""), "group")
-            name = str(grp.get("name") or key)
-            rows.append([
-                Button.inline(f"✅ Писать {name}", f"cmd:/silent group off {key}".encode()),
-                Button.inline(f"🔇 Не писать {name}", f"cmd:/silent group on {key}".encode()),
-            ])
-    else:
-        rows.append([Button.inline("👥 Группы ещё не созданы", b"noop")])
-
-    rows.append(_section_button("⚙️ СТАРАЯ АВТОАНКЕТА"))
-    rows.append([Button.inline("⚙️ Статус автоанкеты", b"cmd:/profile auto status all")])
-    rows.append([
-        Button.inline("🟢 Автоанкета всем", b"cmd:/profile auto on all"),
-        Button.inline("🔴 Ручной режим всем", b"cmd:/profile auto off all"),
-    ])
-    for r in _manager_rows_all()[:50]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        rows.append([
-            Button.inline(f"🟢 Анкета {key}", f"cmd:/profile auto on {key}".encode()),
-            Button.inline(f"🔴 Ручной {key}", f"cmd:/profile auto off {key}".encode()),
-        ])
-
-    rows.append([Button.inline("⬅️ Назад", b"menu:main")])
-    return rows
 
 def _managers_menu():
     rows = [
@@ -2334,13 +2095,6 @@ def _proxy_add_menu():
     rows.append([Button.inline("⬅️ Назад к прокси", b"menu:proxy")])
     rows.append([Button.inline("🏠 Главная панель", b"menu:main")])
     return rows
-
-
-def _followups_menu():
-    return [
-        [Button.inline("ℹ️ Команды управления", b"cmd:/followup help")],
-        [Button.inline("⬅️ Назад", b"menu:main")],
-    ]
 
 
 
@@ -2792,24 +2546,6 @@ def _funnel_menu():
         [Button.inline("ℹ️ Как работает воронка", b"cmd:/funnel help")],
         [Button.inline("⬅️ Назад", b"menu:main")],
     ]
-    return rows
-
-
-def _service_menu():
-    rows = [
-        [Button.inline("♻️ Как сбросить тестового лида", b"cmd:/testlead help")],
-        [Button.inline("📊 Статус старых чатов", b"cmd:/baseline status all")],
-        [Button.inline("📌 Текущие чаты сделать старыми", b"cmd:/baseline create all")],
-    ]
-    for r in _manager_rows()[:25]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        rows.append([Button.inline(f"📊 Старые чаты: {label}", f"cmd:/baseline status {key}".encode())])
-        rows.append([Button.inline(f"📌 Чаты сделать старыми: {label}", f"cmd:/baseline create {key}".encode())])
-    rows.append([Button.inline("ℹ️ Инструкция по старым чатам", b"cmd:/baseline help")])
-    rows.append([Button.inline("⬅️ Назад", b"menu:main")])
     return rows
 
 
@@ -5381,19 +5117,6 @@ def _tp_visual_status_icon(ok: bool, *, partial: bool = False) -> str:
     return "🟢" if bool(ok) else "🔴"
 
 
-def _tp_visual_partner_ok() -> bool:
-    try:
-        procs = _get_python_processes()
-        base_norm = _norm_path(str(BASE_DIR))
-        for p in procs:
-            cmd = _norm_path(p.get("cmd", ""))
-            if base_norm in cmd and "partner_stat_bot.py" in cmd:
-                return True
-    except Exception:
-        pass
-    return False
-
-
 def _tp_visual_health_parts() -> dict:
     h = _panel_health()
     tpilot_ok = bool(h.get("tpilot_ok"))
@@ -5508,16 +5231,6 @@ def _tp_visual_reports_menu():
     return rows
 
 
-def _tp_visual_managers_modes_menu():
-    rows = [
-        [Button.inline("🛠 Админ менеджеров", b"menu:manager_admin"), Button.inline("💬 Автоответы", b"menu:managers")],
-        [Button.inline("🌐 Proxy", b"menu:proxy"), Button.inline("🔁 Автодожимы", b"menu:followups")],
-        [Button.inline("➕ Добавить менеджера", b"wiz:add_manager:start")],
-    ]
-    rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:managers_modes", home=False))
-    return rows
-
-
 def _tp_visual_traffic_buyers_menu():
     rows = [
         [Button.inline("📦 Источники", b"menu:sources"), Button.inline("👥 Группы", b"menu:groups")],
@@ -5534,20 +5247,6 @@ def _tp_visual_automation_menu():
         [Button.inline("📋 Проверить автоответы", b"cmd:/autoreply status all")],
     ]
     rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:automation", home=False))
-    return rows
-
-
-def _tp_visual_service_menu():
-    rows = []
-    try:
-        rows.extend(_service_menu())
-    except Exception:
-        rows = []
-    rows = [r for r in rows if not any(str(getattr(b, "text", "")) in ("⬅️ Назад", "⬅️ Назад к панели") for b in (r if isinstance(r, list) else []))]
-    rows.extend([
-        [Button.inline("ℹ️ Помощь", b"cmd:/help"), Button.inline("📘 Инструкция", b"cmd:/instructions")],
-    ])
-    rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:service", home=False))
     return rows
 
 
@@ -6310,61 +6009,6 @@ def _panel_header() -> str:  # type: ignore[override]
 def _tpag_panel_v2_geo(country, region, city) -> str:
     bits = [str(x or "").strip() for x in (country, region, city) if str(x or "").strip()]
     return ", ".join(bits) if bits else "не определено"
-
-
-def _proxy_detail_text(row: dict) -> str:  # type: ignore[override]
-    row = dict(row or {})
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if callable(globals().get("_manager_short_label")) else key
-    mode = _tpag_panel_v2_mode(row)
-    if mode == "direct":
-        return "\n".join([
-            f"🔓 Proxy {label}",
-            "",
-            "Режим: без proxy",
-            "Telegram будет видеть IP сервера.",
-            f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
-        ]).rstrip()
-    host = str(row.get("proxy_host") or "").strip()
-    port = str(row.get("proxy_port") or "").strip()
-    login = str(row.get("proxy_username") or "").strip() or "_"
-    checked = str(row.get("auth_guard_checked_at") or row.get("proxy_test_at") or "").strip() or "_"
-    ok = int(row.get("auth_guard_ok") or 0) == 1
-    fresh = _tpag_panel_v2_fresh(row)
-    guard = "🟢 готов" if ok and fresh else ("🟡 устарел" if ok else "🔴 не готов")
-    err = str(row.get("auth_guard_error") or row.get("proxy_last_error") or "").strip()
-    lines = [
-        f"🌐 Proxy {label}",
-        "",
-        "Режим: через proxy",
-        f"SOCKS5: {host + ':' + port if host and port else 'не задан'}",
-        f"Login: {login}",
-        "Password: ****" if host and port else "Password: _",
-        "",
-        f"Proxy IP: {row.get('auth_proxy_ip') or 'не определено'}",
-        f"Proxy Geo: {_tpag_panel_v2_geo(row.get('auth_proxy_country'), row.get('auth_proxy_region'), row.get('auth_proxy_city'))}",
-        f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
-        f"Server Geo: {_tpag_panel_v2_geo(row.get('auth_direct_country'), row.get('auth_direct_region'), row.get('auth_direct_city'))}",
-        "",
-        f"Auth Guard: {guard}",
-        f"Проверено: {checked}",
-    ]
-    if err and not (ok and fresh):
-        lines.append(f"Причина: {err[:500]}")
-    return "\n".join(lines).rstrip()
-
-
-def _proxy_detail_buttons(key: str):  # type: ignore[override]
-    key = normalize_manager_key(key or "")
-    return [
-        [Button.inline("🔄 Проверить proxy", f"cmd:/manager_proxy_check {key}".encode())],
-        [Button.inline("✏️ Добавить или заменить proxy", f"wiz:proxy:set:{key}".encode())],
-        [Button.inline("🌐 Включить режим через proxy", f"cmd:/manager_proxy_on {key}".encode())],
-        [Button.inline("🔓 Подключить без proxy", f"wiz:proxy:direct_warn:{key}".encode())],
-        [Button.inline("🚫 Запретить вход без proxy", f"cmd:/manager_proxy_require {key}".encode())],
-        [Button.inline("⬅️ Назад", b"menu:proxy")],
-        [Button.inline("🏠 Главная", b"menu:main")],
-    ]
 # --- TPILOT PROXY AUTH GUARD PANEL V2 20260509 END ---
 
 
@@ -6833,15 +6477,6 @@ def _tp_panel_v5_insert_after_first(rows: list, extra: list) -> list:
     return [rows[0]] + list(extra or []) + rows[1:]
 
 
-def _tp_visual_automation_menu():  # type: ignore[override]
-    if callable(_TP_PANEL_V5_ORIG_AUTOMATION_MENU):
-        rows = _TP_PANEL_V5_ORIG_AUTOMATION_MENU()
-    else:
-        rows = []
-    bulk = [[Button.inline("⚙️ Массовое управление", b"noop")]] + _tp_panel_v5_bulk_rows()
-    return _tp_panel_v5_insert_after_first(rows, bulk)
-
-
 def _managers_menu():  # type: ignore[override]
     rows = _TP_PANEL_V5_ORIG_MANAGERS_MENU() if callable(_TP_PANEL_V5_ORIG_MANAGERS_MENU) else []
     bulk = [
@@ -6896,24 +6531,6 @@ async def _tp_panel_v5_bulk_callback(event):
         await _safe_event_edit(event, _safe_text(text or "✅ Готово"), buttons=_back_to_panel_buttons() + _terminal_ok_button())
         return
     await _pb_safe_answer(event, "Неверная команда", alert=True)
-# --- TPILOT PANEL AUTH + BULK AUTOMATION V5 20260509 END ---
-
-
-# --- TPILOT PANEL MENU CLEANUP V6 20260509 START ---
-# Clean duplicate menus after Panel Auth + Bulk Automation V5.
-# This block intentionally affects only visual navigation. It does not change
-# proxy guard, manager startup, bulk command execution, authorization or stats.
-
-def _tp_visual_managers_modes_menu():  # type: ignore[override]
-    rows = [
-        [Button.inline("🛠 Админ менеджеров", b"menu:manager_admin"), Button.inline("🌐 Proxy", b"menu:proxy")],
-        [Button.inline("➕ Добавить менеджера", b"wiz:add_manager:start")],
-    ]
-    try:
-        rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:managers_modes", home=False))
-    except Exception:
-        rows.extend([[Button.inline("⬅️ Назад", b"menu:main")]])
-    return rows
 
 
 def _tp_visual_automation_menu():  # type: ignore[override]
@@ -6989,24 +6606,6 @@ def _tp_v8_service_menu_rows():
         # 20260713: collapsed -- was up to ~75 inline manager-action buttons,
         # now a single button opening menu:baseline_managers on its own screen.
         rows.append([Button.inline(f"👤 По отдельному менеджеру ({len(managers)})", b"menu:baseline_managers")])
-    return rows
-
-
-def _service_menu():  # type: ignore[override]
-    rows = _tp_v8_service_menu_rows()
-    rows.append([Button.inline("⬅️ Назад", b"menu:main")])
-    return rows
-
-
-def _tp_visual_service_menu():  # type: ignore[override]
-    rows = _tp_v8_service_menu_rows()
-    rows.extend([
-        [Button.inline("ℹ️ Помощь", b"cmd:/help"), Button.inline("📘 Инструкция", b"cmd:/instructions")],
-    ])
-    try:
-        rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:service", home=False))
-    except Exception:
-        rows.append([Button.inline("⬅️ Назад", b"menu:main")])
     return rows
 
 
@@ -7714,21 +7313,6 @@ def _tp_tghealth_v22_buttons():
         rows.extend(_tp_visual_nav_rows(b"menu:managers_modes", b"menu:tghealth", home=True))
     except Exception:
         rows.append([Button.inline("⬅️ Назад", b"menu:managers_modes"), Button.inline("🏠 Главная", b"menu:main")])
-    return rows
-
-
-def _tp_visual_managers_modes_menu():  # type: ignore[override]
-    # This is the active menu reached by Главная -> Менеджеры и режимы.
-    # Keep this menu light: no DB health scan and no Telegram requests here.
-    rows = [
-        [Button.inline("🛠 Админ менеджеров", b"menu:manager_admin"), Button.inline("🌐 Proxy", b"menu:proxy")],
-        [Button.inline("🛡 Telegram Health", b"menu:tghealth"), Button.inline("🔄 Check all", b"cmd:/tghealth check all")],
-        [Button.inline("➕ Добавить менеджера", b"wiz:add_manager:start")],
-    ]
-    try:
-        rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:managers_modes", home=False))
-    except Exception:
-        rows.append([Button.inline("⬅️ Назад", b"menu:main")])
     return rows
 
 
@@ -13086,33 +12670,6 @@ def _bizlinks_menu_text() -> str:
     return "\n".join(lines).rstrip()
 
 
-def _bizlinks_menu_buttons() -> list:
-    return [
-        [
-            Button.inline("\U0001f4e6 Создать 15 ссылок", b"menu:bizlinks_batch_pick_mgr"),
-        ],
-        [
-            Button.inline("\U0001f9ea Создать тест-ссылку", b"menu:bizlinks_test_pick_mgr"),
-        ],
-        [
-            Button.inline("\U0001f4c5 Создать на завтра", b"menu:bizlinks_create_all"),
-            Button.inline("\U0001f464 Создать для менеджера", b"menu:bizlinks_pick_manager"),
-        ],
-        [
-            Button.inline("\U0001f4cb Показать ссылки на завтра", b"menu:bizlinks_show"),
-            Button.inline("\U0001f504 Повторить ошибки", b"menu:bizlinks_retry"),
-        ],
-        [
-            Button.inline("✏️ Изменить 15 текстов", b"menu:bizlinks_templates"),
-            Button.inline("\U0001f5d3 График менеджеров", b"menu:bizlinks_schedule"),
-        ],
-        [
-            Button.inline("⬅️ Назад", b"menu:main"),
-            Button.inline("\U0001f504 Обновить", b"menu:bizlinks"),
-        ],
-    ]
-
-
 def _bizlinks_templates_text() -> str:
     try:
         rows = _bsl_tmpl_list(TPILOT_DB_PATH)
@@ -13178,49 +12735,6 @@ def _bizlinks_pick_manager_buttons() -> list:
         Button.inline("\U0001f3e0 Главная", b"menu:main"),
     ])
     return buttons
-
-
-def _bizlinks_show_text(target_date: str = "") -> str:
-    if not target_date:
-        target_date = _bsl_tomorrow_kyiv()
-    try:
-        links = _bsl_links_for_date(target_date, TPILOT_DB_PATH)
-    except Exception:
-        links = []
-    lines = [
-        _panel_header(),
-        "",
-        f"\U0001f517 Бизнес-ссылки на {target_date}",
-        "",
-    ]
-    if not links:
-        lines.append(
-            "Ссылок нет. "
-            "Создайте задание "
-            "через «Создать на завтра»."
-        )
-        return "\n".join(lines).rstrip()
-    # Group by manager_key preserving order
-    mgr_links: Dict[str, list] = {}
-    for lnk in links:
-        mk = str(lnk.get("manager_key") or "")
-        if mk not in mgr_links:
-            mgr_links[mk] = []
-        mgr_links[mk].append(lnk)
-    for mk, lnks in mgr_links.items():
-        lines.append(f"@{mk}")
-        lines.append("")
-        for lnk in sorted(lnks, key=lambda x: int(x.get("slot_no") or 0)):
-            n = int(lnk.get("slot_no") or 0)
-            url = str(lnk.get("link_url") or "").strip()
-            status = str(lnk.get("status") or "pending")
-            if url:
-                lines.append(f"{n}. {url}")
-            else:
-                lines.append(f"{n}. не создано [{status}]")
-        lines.append(f"Дата: {target_date}")
-        lines.append("")
-    return "\n".join(lines).rstrip()
 
 
 def _bizlinks_schedule_text() -> str:
@@ -14374,27 +13888,6 @@ def _pb_build_label_map() -> Dict[str, str]:
     return label_map
 
 
-# M2.13D-2: Override _bizlinks_menu_buttons — remove M2.13A placeholders
-
-def _bizlinks_menu_buttons() -> list:  # type: ignore[override]
-    return [
-        [Button.inline("\U0001f4e6 Создать ссылки", b"menu:bizlinks_create_scope")],
-        [Button.inline("\U0001f9ea Создать тест-ссылку", b"menu:bizlinks_test_pick_mgr")],
-        [
-            Button.inline("\U0001f4cb Показать ссылки", b"menu:bizlinks_show"),
-            Button.inline("⚙️ Кол-во ссылок", b"menu:bizlinks_set_default_count"),
-        ],
-        [
-            Button.inline("✏️ Изменить 15 текстов", b"menu:bizlinks_templates"),
-            Button.inline("\U0001f4c5 Графики", b"menu:bizschedule"),
-        ],
-        [
-            Button.inline("⬅️ Назад", b"menu:main"),
-            Button.inline("\U0001f504 Обновить", b"menu:bizlinks"),
-        ],
-    ]
-
-
 # M2.13D-2: Override _bizlinks_show_text — clean grouped format using format_bizlinks_grouped
 
 def _bizlinks_show_text(target_date: str = "") -> str:  # type: ignore[override]
@@ -14894,30 +14387,6 @@ def _d3a_scope_text() -> str:
         + "\n\n\U0001f5d1 Удалить ссылки"
         "\n\nВыберите менеджера:"
     )
-
-
-def _d3a_scope_buttons() -> list:
-    """Per-manager buttons leading to mode picker."""
-    try:
-        mgr_rows = _manager_rows(only_active=True, only_enabled=True)
-    except Exception:
-        mgr_rows = []
-    buttons = []
-    for r in mgr_rows:
-        key = normalize_manager_key(r.get("manager_key") or "")
-        if not key:
-            continue
-        label = (_pb_bizdel_mgr_label(r) or key)[:40]
-        cb = "menu:bizdel_pick_mode:{}".format(key)
-        if len(cb.encode("utf-8")) <= 64:
-            buttons.append([Button.inline(label, cb.encode("utf-8"))])
-    if not buttons:
-        buttons.append([Button.inline(
-            "Нет активных менеджеров",
-            b"noop",
-        )])
-    buttons.append([Button.inline("⬅️ Назад", b"menu:nm_bizlinks_delete")])
-    return buttons
 
 
 def _d3a_pick_mode_text(mk: str) -> str:
