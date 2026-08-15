@@ -72,24 +72,33 @@
 
 ## 2. Что осталось доделать
 
-1. **Финальный контрольный прогон всех 40+ селфтестов** одним батчем
-   (после 8203d7a полного прогона не было — гонялись только затронутые).
-2. **Диагностика pre-existing провалов** (падают и на дереве ДО чистки —
-   проверено откатом файлов, это НЕ регрессии рефакторинга):
-   - `manager_replacement_adminbot_selftest` — SMOKE6: карточка не
-     обновляется после `__sent__` (падал до всех изменений)
-   - `manager_delete_safety_selftest`, `manager_relogin_selftest`,
-     `menu_parity_selftest` — статус «pre-existing» подтверждён сравнением,
-     причины не разбирались
-3. **Этап 3 плана: замена 213 × `datetime.utcnow()`** (deprecated в 3.12) на
-   `datetime.now(timezone.utc).replace(tzinfo=None)` — naive-семантика
-   сохраняется 1:1. Файлы: см. `grep -rn "utcnow()" --include="*.py"`.
-   План: v0_plans/bold-design.md.
-4. **Push + PR** ветки codebase-audit → main (не делалось, ждёт команды владельца).
+ОБНОВЛЕНО 2026-08-15 (позднее): пункты 1–3 ВЫПОЛНЕНЫ.
+
+1. ~~Финальный контрольный прогон~~ — ВЫПОЛНЕНО: полный batch-прогон,
+   36+ PASS; бывшие «pre-existing» провалы manager_relogin / menu_parity /
+   manager_replacement_adminbot теперь PASS (падали из-за грязного дерева
+   во время экспериментов, не багов).
+2. ~~Диагностика pre-existing провалов~~ — ВЫПОЛНЕНО:
+   - manager_delete_safety: причина — pre-git backup-файл, теперь SKIP (bcd32bb)
+   - auto_status_disable: стаб _DummyDatetime не знал .now() после
+     utcnow-миграции — дополнен (bcd32bb)
+   - bizlink_readiness_integration: проходит с таймаутом 500с (медленный
+     тест, ~5-6 мин; timeout 150 в batch-прогонах даёт ложный FAIL(124))
+3. ~~Замена datetime.utcnow()~~ — ВЫПОЛНЕНО (cf66a21): весь продуктовый код
+   (main, storage, panel_bot, manager_bot, partner_stat_bot, panel_bridge,
+   profile_dialog, preflight_check, refresh_manager_profiles,
+   repair_reparse...) → `datetime.now(__import__("datetime").timezone.utc)
+   .replace(tzinfo=None)`. Самодостаточная __import__-форма ОБЯЗАТЕЛЬНА:
+   селфтесты extract+exec функции в изолированных namespace, где новые
+   module-level имена дают NameError (проверено: alias _TZ_UTC сломал 13
+   тестов). В tools/*.py utcnow оставлен намеренно (тестовый код, только
+   DeprecationWarning).
+4. **Push + PR** ветки codebase-audit → main (ждёт команды владельца).
 5. **Новый AGENTS.md** — владелец хочет написать новые правила проекта с нуля
    после завершения работ (git-workflow вместо .bak-файлов).
 6. Опционально: разбиение main.py (~26k строк после чистки) на модули —
    владелец выбрал «чистка без разбиения», разбиение отложено.
+7. Опционально: миграция utcnow в tools/*.py (только предупреждения).
 
 ---
 
