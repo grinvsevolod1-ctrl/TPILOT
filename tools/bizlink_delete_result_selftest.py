@@ -1174,8 +1174,14 @@ async def run_d3a_dispatch_checks():
 def run_scope_guard_checks():
     backup_glob = str(BASE_DIR.parent / "ALM_TPilot_AUDIT" / "*" / "BIZLINK_DELETE_RESULT_FIX" / "BACKUP" / "main.py.bak_bizlink_delete_result_*")
     candidates = sorted(glob.glob(backup_glob))
-    check("scope-guard: pre-edit external backup exists", bool(candidates), backup_glob)
+    # GIT MIGRATION 20260815: the pre-edit backup was a one-time artifact of
+    # the pre-git file-backup workflow and never entered version control.
+    # When it is absent (any machine other than the original dev PC), the
+    # byte-identity scope guard is SKIPPED -- git history itself is now the
+    # authoritative byte-identity record. When the backup IS present, the
+    # full guard still runs unchanged.
     if not candidates:
+        print(f"[SKIP] scope-guard: pre-edit external backup not present (pre-git artifact)  {backup_glob}")
         return
     backup_src = open(candidates[0], encoding="utf-8-sig").read()
 

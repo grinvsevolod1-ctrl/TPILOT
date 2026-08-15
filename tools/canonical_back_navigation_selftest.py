@@ -880,8 +880,12 @@ def test_11_n541_schedule_navigation() -> None:
     # state: the strongest possible proof that N5.4.1 reused it verbatim
     # and did not touch/duplicate month navigation, date toggling or the
     # save path.
-    check("11. [N5.4.1] pre-N5.4 backup exists for byte-identity comparison",
-          _N541_PRE_BACKUP.exists(), str(_N541_PRE_BACKUP))
+    # GIT MIGRATION 20260815: the pre-N5.4 backup was a one-time artifact of
+    # the pre-git file-backup workflow and never entered version control.
+    # When absent, the byte-identity comparison is SKIPPED (git history is
+    # now the authoritative record); when present, it still runs unchanged.
+    if not _N541_PRE_BACKUP.exists():
+        print(f"[SKIP] 11. [N5.4.1] pre-N5.4 backup not present (pre-git artifact)  {_N541_PRE_BACKUP}")
     if _N541_PRE_BACKUP.exists():
         pre_src = _N541_PRE_BACKUP.read_text(encoding="utf-8-sig")
         pre_tree = ast.parse(pre_src)
