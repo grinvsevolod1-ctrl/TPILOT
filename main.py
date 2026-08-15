@@ -1530,148 +1530,6 @@ async def _collect_day_leads(lead_date: str, target_key: str = "all") -> List[Di
     return result
 
 
-# -------------------- stats / export --------------------
-def _format_lead_event(row: Dict[str, Any], duplicate: bool, manager_label: str) -> str:
-    icon = "🔁 Дубликат" if duplicate else "🆕 Новый лид"
-    dt = _utc_iso_to_kyiv_dt(str(row.get("first_seen_utc") or ""))
-    status_raw = str(row.get("status") or "").strip().lower()
-    if status_raw == "liquid":
-        status_disp = "ликвид"
-    elif status_raw == "nonliquid":
-        status_disp = "неликвид"
-    else:
-        status_disp = ""
-
-    lines: List[str] = [icon, ""]
-    if manager_label:
-        lines.append(f"Аккаунт: {manager_label}")
-    lines.append(f"Время: {dt.strftime('%d.%m.%y %H:%M')}")
-    lines.append(f"ID: {int(row.get('chat_id') or 0)}")
-
-    username = str(row.get("username") or "").strip()
-    if username:
-        lines.append("Telegram: " + (username if username.startswith("@") else "@" + username))
-
-    full_name = str(row.get("full_name") or "").strip()
-    if full_name:
-        lines.append(f"Имя: {full_name}")
-
-    phone = str(row.get("phone") or "").strip()
-    if phone:
-        lines.append(f"Телефон: {phone}")
-
-    lines.append(f"Дубликат: {'да' if duplicate else 'нет'}")
-
-    profile_lines: List[str] = []
-    if row.get("age") is not None and str(row.get("age") or "").strip() != "":
-        profile_lines.append(f"Возраст: {row.get('age')}")
-    for label, key in (("Страна", "country"), ("Регион", "region"), ("Город", "city")):
-        value = str(row.get(key) or "").strip()
-        if value:
-            profile_lines.append(f"{label}: {value}")
-    if status_disp:
-        profile_lines.append(f"Статус: {status_disp}")
-    reason = str(row.get("nonliquid_reason") or "").strip()
-    if reason:
-        profile_lines.append(f"Причина: {reason}")
-    note = str(row.get("geo_note") or "").strip()
-    if note:
-        profile_lines.append(f"Пометка: {note}")
-
-    # Important: do not show an empty profile block in STATISTICS.
-    # If the lead has not answered city/age yet, the new-lead event stays compact.
-    if profile_lines:
-        lines.extend(["", "📋 Анкета"])
-        lines.extend(profile_lines)
-    return chr(10).join(lines).rstrip()
-
-
-def _lead_status_counts(lead: Dict[str, Any]) -> Tuple[str, str]:
-    status = str(lead.get("status") or "").strip()
-    reason = str(lead.get("nonliquid_reason") or "").strip()
-    if status == "liquid":
-        return "liquid", ""
-    if status == "nonliquid":
-        return "nonliquid", reason or "не указано"
-    return "unknown", ""
-
-
-def _stats_from_leads(leads: List[Dict[str, Any]], manager_rows: List[Dict[str, Any]], target_key: str = "all") -> Dict[str, Any]:
-    target_key = registry_normalize_manager_key(target_key or "all")
-    buckets: Dict[str, Dict[str, Any]] = {}
-    for mgr in manager_rows:
-        key = registry_normalize_manager_key(mgr.get("manager_key") or "")
-        if not key:
-            continue
-        if target_key != "all" and key != target_key:
-            continue
-        buckets[key] = {
-            "key": key,
-            "label": _manager_label_from_row(mgr),
-            "total": 0,
-            "new": 0,
-            "duplicates": 0,
-            "profile_done": 0,
-            "liquid": 0,
-            "nonliquid": 0,
-            "unknown": 0,
-            "missing_age": 0,
-            "missing_city": 0,
-            "missing_country": 0,
-            "reasons": {},
-        }
-    for lead in leads:
-        key = registry_normalize_manager_key(lead.get("manager_key") or "")
-        if not key:
-            continue
-        if target_key != "all" and key != target_key:
-            continue
-        if key not in buckets:
-            buckets[key] = {"key": key, "label": key, "total": 0, "new": 0, "duplicates": 0, "profile_done": 0, "liquid": 0, "nonliquid": 0, "unknown": 0, "missing_age": 0, "missing_city": 0, "missing_country": 0, "reasons": {}}
-        b = buckets[key]
-        b["total"] += 1
-        if int(lead.get("duplicate") or 0) == 1:
-            b["duplicates"] += 1
-        else:
-            b["new"] += 1
-        if int(lead.get("profile_done") or 0) == 1:
-            b["profile_done"] += 1
-        status_bucket, reason = _lead_status_counts(lead)
-        b[status_bucket] += 1
-        if reason:
-            b["reasons"][reason] = int(b["reasons"].get(reason, 0)) + 1
-        if lead.get("age") is None or str(lead.get("age") or "").strip() == "":
-            b["missing_age"] += 1
-        if not str(lead.get("city") or "").strip():
-            b["missing_city"] += 1
-        if not str(lead.get("country") or "").strip():
-            b["missing_country"] += 1
-
-    total = sum(int(b["total"]) for b in buckets.values())
-    new = sum(int(b["new"]) for b in buckets.values())
-    dup = sum(int(b["duplicates"]) for b in buckets.values())
-    profile_done = sum(int(b["profile_done"]) for b in buckets.values())
-    liquid = sum(int(b["liquid"]) for b in buckets.values())
-    nonliquid = sum(int(b["nonliquid"]) for b in buckets.values())
-    unknown = sum(int(b["unknown"]) for b in buckets.values())
-    missing_age = sum(int(b["missing_age"]) for b in buckets.values())
-    missing_city = sum(int(b["missing_city"]) for b in buckets.values())
-    missing_country = sum(int(b["missing_country"]) for b in buckets.values())
-    reasons: Dict[str, int] = {}
-    for b in buckets.values():
-        for k, v in (b.get("reasons") or {}).items():
-            reasons[k] = reasons.get(k, 0) + int(v or 0)
-    return {"buckets": list(buckets.values()), "total": total, "new": new, "duplicates": dup, "profile_done": profile_done, "liquid": liquid, "nonliquid": nonliquid, "unknown": unknown, "missing_age": missing_age, "missing_city": missing_city, "missing_country": missing_country, "reasons": reasons}
-
-
-def _append_reason_lines(lines: List[str], reasons: Dict[str, int]) -> None:
-    if not reasons:
-        return
-    lines.append("Причины неликвида:")
-    for reason, cnt in sorted(reasons.items(), key=lambda x: (-int(x[1]), str(x[0]))):
-        lines.append(f"{reason}: {int(cnt)}")
-
-
 async def _build_stat_text(target_key: str = "all", lead_date: Optional[str] = None) -> str:
     lead_date = lead_date or _kyiv_now().date().isoformat()
     rows = await _manager_rows_for_reporting()
@@ -2211,43 +2069,6 @@ async def _list_daily_leads_for_db_range(db_path: str, start_utc_iso: str, end_u
         if start_local <= dt_local < end_local:
             out.append(row)
     return out
-
-def _empty_det_bucket(label: str = "") -> Dict[str, Any]:
-    return {"label": label, "otpisok": 0, "nonliquid": 0, "geo": 0, "under18": 0, "na": 0, "trash": 0, "liquid": 0}
-
-
-def _det_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:
-    bucket["otpisok"] += 1
-    status = str(lead.get("status") or "").strip().lower()
-    country = str(lead.get("country") or "").strip()
-    age = lead.get("age")
-    try:
-        age_i = int(age) if age is not None and str(age).strip() != "" else None
-    except Exception:
-        age_i = None
-    if int(lead.get("trash") or 0) == 1:
-        bucket["trash"] += 1
-    elif age_i is not None and age_i < 18:
-        bucket["under18"] += 1
-    elif country and country != "Россия":
-        bucket["geo"] += 1
-    elif status == "liquid" and country == "Россия" and age_i is not None and age_i >= 18:
-        bucket["liquid"] += 1
-    elif status == "unknown" or int(lead.get("profile_question_sent") or 0) == 1:
-        bucket["na"] += 1
-    bucket["nonliquid"] = int(bucket["geo"] + bucket["under18"] + bucket["na"] + bucket["trash"])
-
-
-def _format_det_bucket(bucket: Dict[str, Any]) -> List[str]:
-    return [
-        f"ОТПИСОК: {int(bucket.get('otpisok') or 0)}",
-        f"НЕЛИКВИД: {int(bucket.get('nonliquid') or 0)}",
-        f"ГЕО: {int(bucket.get('geo') or 0)}",
-        f"-18: {int(bucket.get('under18') or 0)}",
-        f"NA: {int(bucket.get('na') or 0)}",
-        f"TRASH: {int(bucket.get('trash') or 0)}",
-        f"ЛИКВИД: {int(bucket.get('liquid') or 0)}",
-    ]
 
 def _is_reminder_work_time(now: Optional[datetime] = None) -> bool:
     dt = now or _kyiv_now()
@@ -4194,16 +4015,6 @@ async def _post_followup_mark_trash(db_path: str, chat_id: int, reason: str = "t
         await db.commit()
 
 
-def _post_followup_slot_now(now_local: Optional[datetime] = None) -> str:
-    dt = now_local or _kyiv_now()
-    h = int(dt.hour)
-    if POST_MANUAL_FOLLOWUP_MORNING_START_HOUR <= h < POST_MANUAL_FOLLOWUP_MORNING_END_HOUR:
-        return "morning"
-    if POST_MANUAL_FOLLOWUP_EVENING_START_HOUR <= h < POST_MANUAL_FOLLOWUP_EVENING_END_HOUR:
-        return "evening"
-    return ""
-
-
 def _post_followup_due_minute(chat_id: int, date_key: str, slot: str) -> int:
     raw = f"{int(chat_id or 0)}:{date_key}:{slot}:tpilot"
     return sum((i + 1) * ord(ch) for i, ch in enumerate(raw)) % 60
@@ -4216,47 +4027,6 @@ def _post_followup_days_since(first_date: str, today: str) -> int:
         return max(0, (d1 - d0).days)
     except Exception:
         return 0
-
-
-async def _fetch_post_followup_candidates(db_path: str, *, slot: str, today_local: str, limit: int = 100) -> List[Dict[str, Any]]:
-    if not db_path or not os.path.exists(db_path):
-        return []
-    await _ensure_post_followup_table(db_path)
-    await _ensure_daily_leads_table(db_path)
-    slot_col = "morning_sent_date" if slot == "morning" else "evening_sent_date"
-    now_utc = datetime.utcnow().replace(microsecond=0)
-    cutoff_utc = (now_utc - timedelta(minutes=int(POST_MANUAL_FOLLOWUP_MIN_SILENCE_MINUTES or 60))).isoformat()
-    sql = f"""
-        SELECT s.*,
-               d.status AS lead_status,
-               d.profile_done AS lead_profile_done,
-               d.profile_final_sent AS lead_profile_final_sent,
-               d.username AS lead_username,
-               d.full_name AS lead_full_name
-        FROM post_manual_followup_state s
-        LEFT JOIN daily_leads d ON d.id = (
-            SELECT id FROM daily_leads dd
-            WHERE dd.chat_id=s.chat_id
-            ORDER BY dd.first_seen_utc DESC, dd.id DESC
-            LIMIT 1
-        )
-        WHERE COALESCE(s.active,0)=1
-          AND COALESCE(s.disabled,0)=0
-          AND COALESCE(s.trash,0)=0
-          AND COALESCE(s.sent_count,0) < ?
-          AND COALESCE(s.{slot_col},'') <> ?
-          AND COALESCE(s.last_manager_out_utc,'') <> ''
-          AND s.last_manager_out_utc <= ?
-          AND (COALESCE(s.last_client_in_utc,'')='' OR s.last_client_in_utc < s.last_manager_out_utc)
-          AND COALESCE(d.status,'') <> 'trash'
-          AND (COALESCE(d.profile_done,0)=1 OR COALESCE(d.profile_final_sent,0)=1 OR COALESCE(d.status,'') IN ('liquid','nonliquid'))
-        ORDER BY s.last_manager_out_utc ASC
-        LIMIT ?
-    """
-    async with aiosqlite.connect(db_path) as db:
-        db.row_factory = aiosqlite.Row
-        cur = await db.execute(sql, (int(POST_MANUAL_FOLLOWUP_MAX_TOTAL or 6), str(today_local), cutoff_utc, int(limit)))
-        return [dict(r) for r in await cur.fetchall()]
 
 
 _POST_FOLLOWUP_SLOT_COLUMNS = {"morning": "morning_sent_date", "day": "day_sent_date", "evening": "evening_sent_date"}
@@ -4328,10 +4098,6 @@ async def _set_post_followup_disabled(db_path: str, chat_id: int, disabled: bool
             (1 if disabled else 0, str(reason or "manual"), now if disabled else "", str(user_id or ""), clear_flag, clear_flag, clear_flag, clear_flag, now, int(chat_id)),
         )
         await db.commit()
-
-
-def _is_post_followup_disable_word(raw: str) -> bool:
-    return str(raw or "").strip().lower() in {"off", "disable", "stop", "выкл", "выключить", "0"}
 
 
 def _is_post_followup_enable_word(raw: str) -> bool:
@@ -6601,406 +6367,6 @@ async def _build_det_stat_text(target_key: str = "all", kind: str = "day", ref: 
 
 
 
-
-# ---- RESTORED CORE ADMIN BLOCK START 20260506 ----
-# -------------------- PanelBot manager/proxy wizard commands --------------------
-async def _panel_manager_add_command(args: str, *, requested_by: int = 0) -> str:
-    key_raw = str(args or "").strip()
-    ok, err, key = validate_manager_key(key_raw)
-    if not ok:
-        return err or "Ключ менеджера указан неверно."
-    if await _manager_exists(key):
-        return f"Менеджер уже существует: {key}"
-    paths = ensure_manager_dirs(str(BASE_DIR), key)
-    await manager_add(
-        manager_key=key,
-        display_name=key,
-        phone="",
-        status="new",
-        session_path=paths["session_path"],
-        db_path=paths["db_path"],
-        workdir=paths["root"],
-        log_path=paths["log_path"],
-        is_enabled=1,
-        owner_user_id=int(requested_by or 0) or None,
-    )
-    expires_at = _future_iso(MANAGER_ONBOARD_TIMEOUT_SEC)
-    await manager_save_onboarding(
-        int(requested_by or 0),
-        manager_key=key,
-        step="await_phone",
-        phone="",
-        phone_code_hash="",
-        tmp_session_path=paths["session_path"],
-        expires_at=expires_at,
-        next_code_allowed_at="",
-        last_code_sent_at="",
-        last_send_error="",
-    )
-    _manager_runtime_onboarding_set(
-        int(requested_by or 0),
-        manager_key=key,
-        step="await_phone",
-        phone="",
-        phone_code_hash="",
-        tmp_session_path=paths["session_path"],
-        expires_at=expires_at,
-        next_code_allowed_at="",
-        last_code_sent_at="",
-        last_send_error="",
-    )
-    return "\n".join([
-        f"✅ Менеджер создан: {key}",
-        "Теперь введите номер телефона менеджера одним сообщением.",
-        "Пример +79991234567",
-    ])
-
-
-async def _panel_manager_onboarding(int_user_id: int) -> Tuple[Optional[dict], str]:
-    user_id = int(int_user_id or 0)
-    await manager_clear_expired_onboarding()
-    onboarding = _manager_merge_onboarding_runtime(user_id, await manager_get_onboarding(user_id))
-    if not onboarding:
-        return None, "Нет активного добавления менеджера. Сначала нажмите Добавить менеджера."
-    if str(onboarding.get("expires_at") or "") and str(onboarding.get("expires_at")) < _now_utc_iso():
-        key_exp = registry_normalize_manager_key(onboarding.get("manager_key") or "")
-        _manager_runtime_onboarding_clear(user_id)
-        await manager_delete_onboarding(user_id)
-        return None, f"Время добавления истекло. Начните заново для {key_exp or 'менеджера'}."
-    return onboarding, ""
-
-
-async def _panel_manager_phone_command(args: str, *, requested_by: int = 0) -> str:
-    phone = str(args or "").strip()
-    if not phone:
-        return "Введите номер телефона менеджера. Пример +79991234567"
-    onboarding, err = await _panel_manager_onboarding(int(requested_by or 0))
-    if not onboarding:
-        return err
-    manager_key = registry_normalize_manager_key(onboarding.get("manager_key") or "")
-    paths = _manager_runtime_paths_for_key(manager_key)
-    next_code_allowed_at = str(onboarding.get("next_code_allowed_at") or "")
-    if next_code_allowed_at and next_code_allowed_at > _now_utc_iso():
-        return _manager_phone_wait_message(onboarding, manager_key)
-
-    temp_client = None
-    try:
-        temp_client = await _build_manager_session_client(manager_key, paths["session_path"])
-        await temp_client.connect()
-        sent = await temp_client.send_code_request(phone)
-        cooldown_sec = MANAGER_PHONE_COOLDOWN_SEC
-        phone_code_hash = str(getattr(sent, "phone_code_hash", "") or "")
-        expires_at = _future_iso_max(MANAGER_ONBOARD_TIMEOUT_SEC, cooldown_sec + 300)
-        next_code_allowed_at = _future_iso(cooldown_sec)
-        last_code_sent_at = _now_utc_iso()
-        await manager_set_fields(
-            manager_key,
-            phone=phone,
-            status="auth_pending",
-            is_enabled=1,
-            manual_stopped=0,
-            owner_user_id=int(requested_by or 0) or None,
-            session_path=paths["session_path"],
-            db_path=paths["db_path"],
-            workdir=paths["root"],
-            log_path=paths["log_path"],
-            last_error="",
-        )
-        await manager_save_onboarding(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_code",
-            phone=phone,
-            phone_code_hash=phone_code_hash,
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at=next_code_allowed_at,
-            last_code_sent_at=last_code_sent_at,
-            last_send_error="",
-        )
-        _manager_runtime_onboarding_set(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_code",
-            phone=phone,
-            phone_code_hash=phone_code_hash,
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at=next_code_allowed_at,
-            last_code_sent_at=last_code_sent_at,
-            last_send_error="",
-        )
-        return "✅ Код отправлен. Теперь введите код Telegram одним сообщением."
-    except Exception as e:
-        wait_sec = _manager_extract_wait_seconds(e, MANAGER_PHONE_COOLDOWN_SEC) if _manager_is_rate_limit_error(e) else 0
-        if wait_sec > 0:
-            expires_at = _future_iso_max(MANAGER_ONBOARD_TIMEOUT_SEC, wait_sec + 300)
-            next_code_allowed_at = _future_iso(wait_sec)
-            await manager_set_fields(manager_key, status="auth_pending", last_error=repr(e))
-            await manager_save_onboarding(
-                int(requested_by or 0),
-                manager_key=manager_key,
-                step="await_phone",
-                phone=phone,
-                phone_code_hash="",
-                tmp_session_path=paths["session_path"],
-                expires_at=expires_at,
-                next_code_allowed_at=next_code_allowed_at,
-                last_send_error=repr(e),
-            )
-            _manager_runtime_onboarding_set(
-                int(requested_by or 0),
-                manager_key=manager_key,
-                step="await_phone",
-                phone=phone,
-                phone_code_hash="",
-                tmp_session_path=paths["session_path"],
-                expires_at=expires_at,
-                next_code_allowed_at=next_code_allowed_at,
-                last_send_error=repr(e),
-            )
-            return f"Telegram временно ограничил запросы кода. Повторно можно после {_iso_to_local_hhmm(next_code_allowed_at)}."
-        expires_at = _future_iso(MANAGER_ONBOARD_TIMEOUT_SEC)
-        await manager_set_fields(manager_key, status="error", last_error=repr(e))
-        await manager_save_onboarding(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_phone",
-            phone=phone,
-            phone_code_hash="",
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            last_send_error=repr(e),
-        )
-        _manager_runtime_onboarding_set(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_phone",
-            phone=phone,
-            phone_code_hash="",
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at="",
-            last_send_error=repr(e),
-        )
-        return f"Не удалось отправить код: {e!r}"
-    finally:
-        if temp_client is not None:
-            try:
-                await temp_client.disconnect()
-            except Exception:
-                pass
-
-
-async def _panel_manager_code_command(args: str, *, requested_by: int = 0) -> str:
-    code = re.sub(r"\D+", "", str(args or "").strip())
-    if not code:
-        return "Введите код Telegram цифрами."
-    onboarding, err = await _panel_manager_onboarding(int(requested_by or 0))
-    if not onboarding:
-        return err
-    manager_key = registry_normalize_manager_key(onboarding.get("manager_key") or "")
-    paths = _manager_runtime_paths_for_key(manager_key)
-    phone_for_code = str(onboarding.get("phone") or "").strip()
-    phone_code_hash = str(onboarding.get("phone_code_hash") or "").strip()
-    runtime_onboarding = _manager_runtime_onboarding_get(int(requested_by or 0))
-    if not phone_code_hash and runtime_onboarding.get("phone_code_hash"):
-        phone_code_hash = str(runtime_onboarding.get("phone_code_hash") or "").strip()
-    if not phone_for_code and runtime_onboarding.get("phone"):
-        phone_for_code = str(runtime_onboarding.get("phone") or "").strip()
-    if not phone_for_code or not phone_code_hash:
-        expires_at = _future_iso(MANAGER_ONBOARD_TIMEOUT_SEC)
-        await manager_save_onboarding(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_phone",
-            phone=phone_for_code,
-            phone_code_hash="",
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at="",
-            last_send_error="missing_phone_or_hash",
-        )
-        _manager_runtime_onboarding_set(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_phone",
-            phone=phone_for_code,
-            phone_code_hash="",
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at="",
-            last_send_error="missing_phone_or_hash",
-        )
-        return "Не найден активный запрос кода. Введите номер телефона ещё раз."
-
-    temp_client = None
-    try:
-        temp_client = await _build_manager_session_client(manager_key, paths["session_path"])
-        await temp_client.connect()
-        await temp_client.sign_in(phone=phone_for_code, code=code, phone_code_hash=phone_code_hash)
-        me = await temp_client.get_me()
-        try:
-            await temp_client.disconnect()
-        except Exception:
-            pass
-        return await _manager_finalize_login(int(requested_by or 0), manager_key, phone_for_code, me)
-    except SessionPasswordNeededError:
-        expires_at = _future_iso(MANAGER_ONBOARD_TIMEOUT_SEC)
-        phone_keep = str(onboarding.get("phone") or phone_for_code or "")
-        hash_keep = str(onboarding.get("phone_code_hash") or phone_code_hash or "")
-        next_code_allowed_at = str(onboarding.get("next_code_allowed_at") or runtime_onboarding.get("next_code_allowed_at") or "")
-        last_code_sent_at = str(onboarding.get("last_code_sent_at") or runtime_onboarding.get("last_code_sent_at") or "")
-        await manager_save_onboarding(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_password",
-            phone=phone_keep,
-            phone_code_hash=hash_keep,
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at=next_code_allowed_at,
-            last_code_sent_at=last_code_sent_at,
-        )
-        _manager_runtime_onboarding_set(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_password",
-            phone=phone_keep,
-            phone_code_hash=hash_keep,
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at=next_code_allowed_at,
-            last_code_sent_at=last_code_sent_at,
-        )
-        return "Нужен пароль 2FA. Введите пароль одним сообщением."
-    except (PhoneCodeInvalidError, PhoneCodeExpiredError):
-        phone_keep = str(onboarding.get("phone") or phone_for_code or "")
-        expires_at = _future_iso(MANAGER_ONBOARD_TIMEOUT_SEC)
-        await manager_save_onboarding(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_phone",
-            phone=phone_keep,
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at="",
-            last_send_error="phone_code_invalid",
-        )
-        _manager_runtime_onboarding_set(
-            int(requested_by or 0),
-            manager_key=manager_key,
-            step="await_phone",
-            phone=phone_keep,
-            phone_code_hash="",
-            tmp_session_path=paths["session_path"],
-            expires_at=expires_at,
-            next_code_allowed_at="",
-            last_send_error="phone_code_invalid",
-        )
-        return "Код неверный или истёк. Введите номер телефона ещё раз, чтобы запросить новый код."
-    except Exception as e:
-        await manager_set_fields(manager_key, status="error", last_error=repr(e))
-        return f"Ошибка входа по коду: {e!r}"
-    finally:
-        if temp_client is not None:
-            try:
-                await temp_client.disconnect()
-            except Exception:
-                pass
-
-
-async def _panel_manager_pass_command(args: str, *, requested_by: int = 0) -> str:
-    password = str(args or "").strip()
-    if not password:
-        return "Введите пароль 2FA одним сообщением."
-    onboarding, err = await _panel_manager_onboarding(int(requested_by or 0))
-    if not onboarding:
-        return err
-    manager_key = registry_normalize_manager_key(onboarding.get("manager_key") or "")
-    paths = _manager_runtime_paths_for_key(manager_key)
-    temp_client = None
-    try:
-        temp_client = await _build_manager_session_client(manager_key, paths["session_path"])
-        await temp_client.connect()
-        await temp_client.sign_in(password=password)
-        me = await temp_client.get_me()
-        try:
-            await temp_client.disconnect()
-        except Exception:
-            pass
-        return await _manager_finalize_login(int(requested_by or 0), manager_key, str(onboarding.get("phone") or ""), me)
-    except PasswordHashInvalidError:
-        return "Неверный пароль 2FA. Введите пароль ещё раз."
-    except Exception as e:
-        await manager_set_fields(manager_key, status="error", last_error=repr(e))
-        return f"Ошибка входа по 2FA: {e!r}"
-    finally:
-        if temp_client is not None:
-            try:
-                await temp_client.disconnect()
-            except Exception:
-                pass
-
-
-async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
-    action = str(action or "").strip().lower()
-    parts = str(args or "").strip().split()
-    if action in ("info", "on", "off"):
-        key = registry_normalize_manager_key(parts[0] if parts else "")
-        if not key:
-            return f"Формат: /manager_proxy_{action} <manager_key>"
-        row = await manager_get(key)
-        if not row or str(row.get("status") or "") == "archived":
-            return f"Менеджер не найден: {key}"
-        if action == "info":
-            return _manager_proxy_info_text(row)
-        if action == "off":
-            await manager_set_fields(key, proxy_enabled=0, proxy_updated_at=_now_utc_iso())
-            return f"✅ Proxy выключен для {key}. Чтобы применить, перезапустите менеджера."
-        if action == "on":
-            if not str(row.get("proxy_host") or "").strip() or not _proxy_port_int(row.get("proxy_port")):
-                return f"Для {key} ещё не задан proxy. Сначала задайте SOCKS5 host и port."
-            await manager_set_fields(key, proxy_enabled=1, proxy_updated_at=_now_utc_iso())
-            return f"✅ Proxy включён для {key}. Чтобы применить, перезапустите менеджера."
-    if action == "set":
-        key = registry_normalize_manager_key(parts[0] if len(parts) >= 1 else "")
-        ptype = _proxy_type_norm(parts[1] if len(parts) >= 2 else "")
-        host = str(parts[2] if len(parts) >= 3 else "").strip()
-        port = _proxy_port_int(parts[3] if len(parts) >= 4 else "")
-        username = str(parts[4] if len(parts) >= 5 else "").strip()
-        password = str(parts[5] if len(parts) >= 6 else "").strip()
-        if username == "-":
-            username = ""
-        if password == "-":
-            password = ""
-        if not key or ptype != "socks5" or not host or not port:
-            return "Формат: /manager_proxy_set <key> SOCKS5 <host> <port> [login] [password]"
-        row = await manager_get(key)
-        if not row or str(row.get("status") or "") == "archived":
-            return f"Менеджер не найден: {key}"
-        await manager_set_fields(
-            key,
-            proxy_type="socks5",
-            proxy_host=host,
-            proxy_port=int(port),
-            proxy_username=username,
-            proxy_password=password,
-            proxy_enabled=1,
-            proxy_updated_at=_now_utc_iso(),
-        )
-        return "\n".join([
-            f"✅ SOCKS5 proxy сохранён и включён для {key}",
-            f"Host: {host}",
-            f"Port: {int(port)}",
-            f"Login: {_proxy_login_display(username)}",
-            f"Password: {_mask_secret(password)}",
-            "Чтобы применить, перезапустите менеджера.",
-        ])
-    return "Команда proxy не распознана."
-
-
-
 # -------------------- guarded manager admin helpers --------------------
 SYSTEM_MANAGER_KEYS = {"tpilot", "panelbot", "panel_bot", "watchdog", "soft_watchdog", "partnerbot", "partner_stat_bot", "lead_stat_bot"}
 
@@ -8660,46 +8026,6 @@ def _quality_bucket_empty(label: str = "") -> Dict[str, Any]:
         "geo": 0,
         "under18": 0,
     }
-
-
-def _quality_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:
-    bucket["total"] += 1
-    if int(lead.get("duplicate") or 0) == 1:
-        bucket["duplicates"] += 1
-    else:
-        bucket["new"] += 1
-    if int(lead.get("profile_done") or 0) == 1:
-        bucket["profile_done"] += 1
-    status = str(lead.get("status") or "").strip().lower()
-    reason = str(lead.get("nonliquid_reason") or "").strip().lower()
-    country = str(lead.get("country") or "").strip()
-    age_raw = lead.get("age")
-    try:
-        age_i = int(age_raw) if age_raw is not None and str(age_raw).strip() != "" else None
-    except Exception:
-        age_i = None
-    if int(lead.get("trash") or 0) == 1 or reason in ("trash", "send_failed"):
-        bucket["trash"] += 1
-    elif age_i is not None and age_i < 18:
-        bucket["under18"] += 1
-    elif country and country != "Россия":
-        bucket["geo"] += 1
-    if status == "liquid":
-        bucket["liquid"] += 1
-    elif status == "nonliquid":
-        bucket["nonliquid"] += 1
-    else:
-        bucket["na"] += 1
-    rm = _lead_response_minutes(lead)
-    if rm is None:
-        bucket["not_answered"] += 1
-    else:
-        bucket["answered"] += 1
-        bucket["response_minutes"].append(int(rm))
-        if int(rm) <= 15:
-            bucket["sla_ok"] += 1
-        else:
-            bucket["sla_late"] += 1
 
 
 def _avg_int(values: List[int]) -> int:
@@ -10542,59 +9868,6 @@ async def _format_autoreply_panel_status(target: str = "all") -> str:
     if not any_row:
         lines.append("Менеджеры не найдены.")
     return "\n".join(lines).rstrip()
-
-
-async def _handle_autoreply_panel_command(args: str, *, user_id: int = 0) -> str:
-    parts = [p for p in str(args or "").split() if p.strip()]
-    action = (parts[0].lower() if parts else "status")
-    target = registry_normalize_manager_key(parts[1] if len(parts) > 1 else "all") or "all"
-
-    aliases = {
-        "status": "status",
-        "check": "status",
-        "state": "status",
-        "auto": "auto",
-        "schedule": "auto",
-        "graph": "auto",
-        "on": "auto",
-        "now": "now",
-        "worknow": "now",
-        "anketa": "now",
-        "silent": "silent",
-        "mute": "silent",
-        "off": "silent",
-    }
-    action = aliases.get(action, "")
-    if action not in ("status", "auto", "now", "silent"):
-        return "Формат: /autoreply status|auto|now|silent <manager_key|all>"
-
-    rows = await manager_list_rows(include_removed=False)
-    keys = [registry_normalize_manager_key(r.get("manager_key") or "") for r in rows if registry_normalize_manager_key(r.get("manager_key") or "")]
-    if target != "all" and target not in keys:
-        return f"Менеджер не найден: {target}"
-
-    if action == "status":
-        return await _format_autoreply_panel_status(target)
-
-    changed = []
-    for key in keys:
-        if target != "all" and key != target:
-            continue
-        if action == "auto":
-            await _set_profile_auto_enabled(key, True, user_id=user_id)
-            await _set_manager_work_status(key, "online", user_id=user_id, source="panel_autoreply_auto")
-            changed.append(key)
-        elif action == "now":
-            await _set_profile_auto_enabled(key, True, user_id=user_id)
-            await _set_manager_work_status(key, "worknow", user_id=user_id, source="panel_autoreply_now")
-            changed.append(key)
-        elif action == "silent":
-            await _set_profile_auto_enabled(key, False, user_id=user_id)
-            changed.append(key)
-
-    if not changed:
-        return "Менеджеры не найдены."
-    return await _format_autoreply_panel_status(target)
 # -------------------- PanelBot autoreply mode command end --------------------
 
 async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0) -> Dict[str, Any]:
@@ -13391,68 +12664,6 @@ def _tpag_geo_line(prefix: str, geo: Dict[str, str]) -> str:
     return f"{prefix}: " + (", ".join(bits) if bits else "не определено")
 
 
-async def _tpag_run_guard(key: str, *, source: str = "manual", force: bool = False) -> Tuple[bool, str]:
-    await _tpag_ensure_schema()
-    key = registry_normalize_manager_key(key or "")
-    row = await _tpag_registry_get(key)
-    if not row:
-        return False, f"Менеджер не найден: {key}"
-    mode = _tpag_mode(row)
-    if mode == "direct":
-        try:
-            direct = _tpag_direct_geo()
-        except Exception:
-            direct = {}
-        await _tpag_save_guard(key, True, source, direct=direct, proxy={}, error="")
-        ip = direct.get("ip") or "не определено"
-        return True, "\n".join([
-            "🔓 Режим без proxy разрешён",
-            f"Менеджер: {key}",
-            "Telegram будет видеть IP сервера.",
-            f"Server IP: {ip}",
-        ])
-    if not force and _tpag_fresh(row):
-        return True, _manager_proxy_info_text(row)
-    host = str(row.get("proxy_host") or "").strip()
-    port = _proxy_port_int(row.get("proxy_port"))
-    username = str(row.get("proxy_username") or "").strip()
-    password = str(row.get("proxy_password") or "").strip()
-    if not host or not port:
-        err = "proxy не задан"
-        await _tpag_save_guard(key, False, source, error=err)
-        return False, f"⛔ Авторизация заблокирована. {err}."
-    direct_geo: Dict[str, str] = {}
-    proxy_geo: Dict[str, str] = {}
-    try:
-        tcp_msg = _tpag_tcp_check(host, int(port))
-        direct_geo = _tpag_direct_geo()
-        proxy_geo = _tpag_proxy_geo_via_socks(host, int(port), username, password)
-        if proxy_geo.get("ip") and direct_geo.get("ip") and proxy_geo.get("ip") == direct_geo.get("ip"):
-            raise RuntimeError("Proxy не используется, внешний IP совпал с IP сервера")
-        tg_msg = await _tpag_telethon_check(row)
-        await _tpag_save_guard(key, True, source, direct=direct_geo, proxy=proxy_geo, error="")
-        return True, "\n".join([
-            "🟢 Auth Guard готов",
-            f"Менеджер: {key}",
-            f"SOCKS5: {host}:{port}",
-            f"Proxy IP: {proxy_geo.get('ip') or 'не определено'}",
-            _tpag_geo_line("Proxy Geo", proxy_geo),
-            f"Server IP: {direct_geo.get('ip') or 'не определено'}",
-            _tpag_geo_line("Server Geo", direct_geo),
-            tcp_msg,
-            tg_msg,
-        ])
-    except Exception as e:
-        err = str(e)[:800]
-        await _tpag_save_guard(key, False, source, direct=direct_geo, proxy=proxy_geo, error=err)
-        return False, "\n".join([
-            "⛔ Авторизация заблокирована. Proxy Guard не пройден.",
-            f"Менеджер: {key}",
-            f"SOCKS5: {host}:{port}",
-            f"Причина: {err}",
-        ])
-
-
 def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[override]
     row = dict(row or {})
     key = registry_normalize_manager_key(row.get("manager_key") or "")
@@ -13659,36 +12870,6 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
     return {"ok": False, "error_text": f"Команда не поддерживается в панели: {cmd or text}"}
 
 
-async def _tpag_monitor_once() -> None:
-    await _tpag_ensure_schema()
-    try:
-        async with aiosqlite.connect(TPILOT_DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            cur = await db.execute("SELECT * FROM managers WHERE COALESCE(status,'')='active' AND COALESCE(is_enabled,1)=1 AND COALESCE(manual_stopped,0)=0")
-            rows = [dict(r) for r in await cur.fetchall()]
-    except Exception:
-        rows = []
-    for row in rows:
-        key = registry_normalize_manager_key(row.get("manager_key") or "")
-        if not key or _tpag_mode(row) != "proxy":
-            continue
-        prev_ok = int(row.get("auth_guard_ok") or 0) == 1
-        prev_notified = int(row.get("auth_guard_notified_bad") or 0) == 1
-        ok, text = await _tpag_run_guard(key, source="monitor", force=True)
-        if not ok and prev_ok and not prev_notified:
-            await _tpag_insert_notification("🔴 Proxy перестал работать", text)
-            try:
-                await _tpag_registry_set_fields(key, auth_guard_notified_bad=1)
-            except Exception:
-                pass
-        elif ok and prev_notified:
-            await _tpag_insert_notification("🟢 Proxy снова работает", text)
-            try:
-                await _tpag_registry_set_fields(key, auth_guard_notified_bad=0)
-            except Exception:
-                pass
-
-
 async def _tpag_monitor_loop() -> None:
     while True:
         try:
@@ -13879,122 +13060,6 @@ def _tpag_v4_latency_lines(row: Dict[str, Any]) -> list[str]:
         f"IP-check через proxy: {http_ms} ms" if http_ms > 0 else "IP-check через proxy: не определено",
         f"Telegram/Telethon: {tg_ms} ms" if tg_ms > 0 else "Telegram/Telethon: не определено",
     ]
-
-
-def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[override]
-    row = dict(row or {})
-    key = registry_normalize_manager_key(row.get("manager_key") or "")
-    mode = _tpag_mode(row)
-    if mode == "direct":
-        return "\n".join([
-            "🔓 Proxy",
-            f"Менеджер: {key}",
-            "Режим: без proxy",
-            "Telegram будет видеть IP сервера.",
-            f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
-        ]).rstrip()
-    host = str(row.get("proxy_host") or "").strip()
-    port = str(row.get("proxy_port") or "").strip()
-    ok = int(row.get("auth_guard_ok") or 0) == 1
-    fresh = _tpag_fresh(row)
-    guard = "🟢 готов" if ok and fresh else ("🟡 устарел" if ok else "🔴 не готов")
-    lines = [
-        "🌐 Proxy",
-        f"Менеджер: {key}",
-        "Режим: через proxy",
-        f"SOCKS5: {host + ':' + port if host and port else 'не задан'}",
-        f"Login: {str(row.get('proxy_username') or '').strip() or '_'}",
-        "Password: ****" if host and port else "Password: _",
-        "",
-        f"Proxy IP: {row.get('auth_proxy_ip') or 'не определено'}",
-        _tpag_geo_line("Proxy Geo", {"country": row.get("auth_proxy_country"), "region": row.get("auth_proxy_region"), "city": row.get("auth_proxy_city")}),
-        f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
-        _tpag_geo_line("Server Geo", {"country": row.get("auth_direct_country"), "region": row.get("auth_direct_region"), "city": row.get("auth_direct_city")}),
-        "",
-        f"Auth Guard: {guard}",
-        f"Проверено: {row.get('auth_guard_checked_at') or '_'}",
-    ]
-    lines.extend(_tpag_v4_latency_lines(row))
-    err = str(row.get("auth_guard_error") or "").strip()
-    if err and not (ok and fresh):
-        lines.append(f"Причина: {err[:500]}")
-    return "\n".join(lines).rstrip()
-
-
-async def _tpag_run_guard(key: str, *, source: str = "manual", force: bool = False) -> Tuple[bool, str]:  # type: ignore[override]
-    await _tpag_ensure_schema()
-    key = registry_normalize_manager_key(key or "")
-    row = await _tpag_v4_registry_get(key)
-    if not row:
-        return False, f"Менеджер не найден: {key}"
-    mode = _tpag_mode(row)
-    if mode == "direct":
-        try:
-            direct = _tpag_direct_geo()
-        except Exception:
-            direct = {}
-        await _tpag_v4_save_guard(key, True, source, direct=direct, proxy={}, error="")
-        ip = direct.get("ip") or "не определено"
-        return True, "\n".join([
-            "🔓 Режим без proxy разрешён",
-            f"Менеджер: {key}",
-            "Telegram будет видеть IP сервера.",
-            f"Server IP: {ip}",
-        ])
-    if not force and _tpag_fresh(row):
-        return True, _manager_proxy_info_text(row)
-    host = str(row.get("proxy_host") or "").strip()
-    port = _proxy_port_int(row.get("proxy_port"))
-    username = str(row.get("proxy_username") or "").strip()
-    password = str(row.get("proxy_password") or "").strip()
-    if not host or not port:
-        err = "proxy не задан"
-        await _tpag_v4_save_guard(key, False, source, error=err)
-        return False, f"⛔ Авторизация заблокирована. {err}."
-    direct_geo: Dict[str, str] = {}
-    proxy_geo: Dict[str, str] = {}
-    tcp_ms = 0
-    http_ms = 0
-    tg_ms = 0
-    try:
-        tcp_msg, tcp_ms = _tpag_v4_tcp_check(host, int(port))
-        direct_geo = _tpag_direct_geo()
-        proxy_geo, http_ms = _tpag_v4_proxy_geo_via_socks(host, int(port), username, password)
-        if proxy_geo.get("ip") and direct_geo.get("ip") and proxy_geo.get("ip") == direct_geo.get("ip"):
-            raise RuntimeError("Proxy не используется, внешний IP совпал с IP сервера")
-        tg_msg, tg_ms = await _tpag_v4_telethon_check(row)
-        await _tpag_v4_save_guard(
-            key, True, source,
-            direct=direct_geo, proxy=proxy_geo, error="",
-            tcp_ms=tcp_ms, proxy_http_ms=http_ms, telethon_ms=tg_ms,
-        )
-        return True, "\n".join([
-            "🟢 Auth Guard готов",
-            f"Менеджер: {key}",
-            f"SOCKS5: {host}:{port}",
-            f"Proxy IP: {proxy_geo.get('ip') or 'не определено'}",
-            _tpag_geo_line("Proxy Geo", proxy_geo),
-            f"Server IP: {direct_geo.get('ip') or 'не определено'}",
-            _tpag_geo_line("Server Geo", direct_geo),
-            "",
-            "Скорость proxy:",
-            tcp_msg,
-            f"IP-check через proxy OK, {http_ms} ms",
-            tg_msg,
-        ])
-    except Exception as e:
-        err = str(e)[:800]
-        await _tpag_v4_save_guard(
-            key, False, source,
-            direct=direct_geo, proxy=proxy_geo, error=err,
-            tcp_ms=tcp_ms, proxy_http_ms=http_ms, telethon_ms=tg_ms,
-        )
-        return False, "\n".join([
-            "⛔ Авторизация заблокирована. Proxy Guard не пройден.",
-            f"Менеджер: {key}",
-            f"SOCKS5: {host}:{port}",
-            f"Причина: {err}",
-        ])
 # --- TPILOT PROXY GUARD UI LATENCY V4 20260509 END ---
 
 
@@ -14278,40 +13343,6 @@ async def _tp_ci_ensure_inbound_events_table(db_path: str) -> None:
         await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS inbound_events_event_key_idx ON inbound_events(event_key);")
         await db.execute("CREATE INDEX IF NOT EXISTS inbound_events_chat_idx ON inbound_events(chat_id, message_date_utc);")
         await db.execute("CREATE INDEX IF NOT EXISTS inbound_events_processed_idx ON inbound_events(processed, id);")
-        await db.commit()
-
-
-async def _tp_ci_ensure_daily_identity_columns(db_path: str) -> None:
-    if callable(_TP_CI_ORIG_ENSURE_DAILY_LEADS_TABLE):
-        await _TP_CI_ORIG_ENSURE_DAILY_LEADS_TABLE(db_path)
-    if not db_path:
-        return
-    await _tp_ci_ensure_inbound_events_table(db_path)
-    async with aiosqlite.connect(str(db_path)) as db:
-        await db.execute("PRAGMA journal_mode=WAL;")
-        await db.execute("PRAGMA busy_timeout=30000;")
-        cols = await _table_columns(db, "daily_leads")
-        migrations = [
-            ("contact_kind", "ALTER TABLE daily_leads ADD COLUMN contact_kind TEXT NOT NULL DEFAULT 'new'"),
-            ("lead_countable", "ALTER TABLE daily_leads ADD COLUMN lead_countable INTEGER NOT NULL DEFAULT 1"),
-            ("known_contact_id", "ALTER TABLE daily_leads ADD COLUMN known_contact_id INTEGER NOT NULL DEFAULT 0"),
-            ("event_key", "ALTER TABLE daily_leads ADD COLUMN event_key TEXT NOT NULL DEFAULT ''"),
-            ("dedupe_reason", "ALTER TABLE daily_leads ADD COLUMN dedupe_reason TEXT NOT NULL DEFAULT ''"),
-            ("baseline_old", "ALTER TABLE daily_leads ADD COLUMN baseline_old INTEGER NOT NULL DEFAULT 0"),
-            ("returning_flag", "ALTER TABLE daily_leads ADD COLUMN returning_flag INTEGER NOT NULL DEFAULT 0"),
-            ("first_seen_global_at", "ALTER TABLE daily_leads ADD COLUMN first_seen_global_at TEXT NOT NULL DEFAULT ''"),
-            ("first_seen_global_manager_key", "ALTER TABLE daily_leads ADD COLUMN first_seen_global_manager_key TEXT NOT NULL DEFAULT ''"),
-        ]
-        for col, ddl in migrations:
-            if col not in cols:
-                try:
-                    await db.execute(ddl)
-                except Exception:
-                    pass
-        await db.execute("CREATE INDEX IF NOT EXISTS daily_leads_countable_idx ON daily_leads(lead_date, lead_countable, manager_key);")
-        await db.execute("CREATE INDEX IF NOT EXISTS daily_leads_kind_idx ON daily_leads(lead_date, contact_kind, manager_key);")
-        await db.execute("CREATE INDEX IF NOT EXISTS daily_leads_event_key_idx ON daily_leads(event_key);")
-        await db.execute("CREATE INDEX IF NOT EXISTS daily_leads_known_contact_idx ON daily_leads(known_contact_id);")
         await db.commit()
 
 
@@ -14682,36 +13713,6 @@ def _tp_ci_build_pseudo_lead(*, manager_key: str, chat_id: int, username: str, f
         "_existing_same_manager_chat": 1,
         "_contact_identity_skip_stat": 1,
     }
-
-
-async def _tp_ci_set_daily_identity(db_path: str, row_id: int, *, contact_kind: str, lead_countable: int, known_contact_id: int = 0, event_key: str = "", dedupe_reason: str = "", baseline_old: int = 0, returning: int = 0, first_seen_global_at: str = "", first_seen_global_manager_key: str = "", duplicate: Optional[int] = None, ai_stat_sent: Optional[int] = None) -> None:
-    if int(row_id or 0) <= 0:
-        return
-    await _tp_ci_ensure_daily_identity_columns(db_path)
-    fields = {
-        "contact_kind": str(contact_kind or "unknown"),
-        "lead_countable": int(lead_countable or 0),
-        "known_contact_id": int(known_contact_id or 0),
-        "event_key": str(event_key or ""),
-        "dedupe_reason": str(dedupe_reason or ""),
-        "baseline_old": int(baseline_old or 0),
-        "returning_flag": int(returning or 0),
-        "first_seen_global_at": str(first_seen_global_at or ""),
-        "first_seen_global_manager_key": _tp_ci_norm_key(first_seen_global_manager_key or ""),
-        "updated_at": _tp_ci_now_iso(),
-    }
-    if duplicate is not None:
-        fields["duplicate"] = int(duplicate or 0)
-        fields["duplicate_checked"] = 1
-    if ai_stat_sent is not None:
-        fields["ai_stat_sent"] = int(ai_stat_sent or 0)
-    keys = list(fields.keys())
-    vals = [fields[k] for k in keys]
-    sql = "UPDATE daily_leads SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE id=?"
-    vals.append(int(row_id))
-    async with aiosqlite.connect(str(db_path)) as db:
-        await db.execute(sql, tuple(vals))
-        await db.commit()
 
 
 async def _mirror_noncountable_partner_event(pseudo_lead: Dict[str, Any]) -> None:
@@ -15899,87 +14900,6 @@ def _tp_qs_row_bucket(lead: Dict[str, Any]) -> Dict[str, Any]:
     return {"status": status, "bucket": bucket, "reason": _tp_qs_text(dec.get("reason") or ""), "confidence": _tp_qs_text(dec.get("confidence") or "")}
 
 
-def _lead_status_counts(lead: Dict[str, Any]) -> Tuple[str, str]:  # type: ignore[override]
-    q = _tp_qs_row_bucket(lead)
-    bucket = q.get("bucket") or "na"
-    reason = q.get("reason") or ""
-    if bucket == "liquid":
-        return "liquid", ""
-    if bucket in ("geo", "under18", "trash"):
-        return "nonliquid", reason or bucket
-    return "unknown", reason or bucket
-
-
-def _det_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
-    bucket["otpisok"] = int(bucket.get("otpisok") or 0) + 1
-    q = _tp_qs_row_bucket(lead)
-    b = q.get("bucket") or "na"
-    if b == "liquid":
-        bucket["liquid"] = int(bucket.get("liquid") or 0) + 1
-    elif b == "geo":
-        bucket["geo"] = int(bucket.get("geo") or 0) + 1
-    elif b == "under18":
-        bucket["under18"] = int(bucket.get("under18") or 0) + 1
-    elif b == "trash":
-        bucket["trash"] = int(bucket.get("trash") or 0) + 1
-    elif b == "age_missing":
-        bucket["age_missing"] = int(bucket.get("age_missing") or 0) + 1
-        bucket["na"] = int(bucket.get("na") or 0) + 1
-    else:
-        bucket["na"] = int(bucket.get("na") or 0) + 1
-    bucket["nonliquid"] = int(bucket.get("geo") or 0) + int(bucket.get("under18") or 0) + int(bucket.get("na") or 0) + int(bucket.get("trash") or 0)
-
-
-def _format_det_bucket(bucket: Dict[str, Any]) -> List[str]:  # type: ignore[override]
-    return [
-        f"ОТПИСОК: {int(bucket.get('otpisok') or 0)}",
-        f"НЕЛИКВИД: {int(bucket.get('nonliquid') or 0)}",
-        f"ГЕО: {int(bucket.get('geo') or 0)}",
-        f"-18: {int(bucket.get('under18') or 0)}",
-        f"НЕТ 18: {int(bucket.get('age_missing') or 0)}",
-        f"NA: {int(bucket.get('na') or 0)}",
-        f"TRASH: {int(bucket.get('trash') or 0)}",
-        f"ЛИКВИД: {int(bucket.get('liquid') or 0)}",
-    ]
-
-
-def _quality_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
-    bucket["total"] = int(bucket.get("total") or 0) + 1
-    if int(lead.get("lead_countable", 1) or 0) == 1 and str(lead.get("contact_kind") or "new") == "new":
-        bucket["new"] = int(bucket.get("new") or 0) + 1
-    else:
-        bucket["duplicates"] = int(bucket.get("duplicates") or 0) + 1
-    if int(lead.get("profile_done") or 0) == 1:
-        bucket["profile_done"] = int(bucket.get("profile_done") or 0) + 1
-    q = _tp_qs_row_bucket(lead)
-    b = q.get("bucket") or "na"
-    if b == "liquid":
-        bucket["liquid"] = int(bucket.get("liquid") or 0) + 1
-    elif b == "geo":
-        bucket["geo"] = int(bucket.get("geo") or 0) + 1
-        bucket["nonliquid"] = int(bucket.get("nonliquid") or 0) + 1
-    elif b == "under18":
-        bucket["under18"] = int(bucket.get("under18") or 0) + 1
-        bucket["nonliquid"] = int(bucket.get("nonliquid") or 0) + 1
-    elif b == "trash":
-        bucket["trash"] = int(bucket.get("trash") or 0) + 1
-        bucket["nonliquid"] = int(bucket.get("nonliquid") or 0) + 1
-    else:
-        bucket["na"] = int(bucket.get("na") or 0) + 1
-        if b == "age_missing":
-            bucket["age_missing"] = int(bucket.get("age_missing") or 0) + 1
-    rm = _lead_response_minutes(lead) if callable(globals().get("_lead_response_minutes")) else None
-    if rm is None:
-        bucket["not_answered"] = int(bucket.get("not_answered") or 0) + 1
-    else:
-        bucket["answered"] = int(bucket.get("answered") or 0) + 1
-        bucket.setdefault("response_minutes", []).append(int(rm))
-        if int(rm) <= 15:
-            bucket["sla_ok"] = int(bucket.get("sla_ok") or 0) + 1
-        else:
-            bucket["sla_late"] = int(bucket.get("sla_late") or 0) + 1
-
-
 async def _tp_qs_repair_db(db_path: str, *, date_filter: str = "") -> int:
     if not db_path or not os.path.exists(db_path):
         return 0
@@ -16070,18 +14990,6 @@ async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:
             await _update_daily_lead_fields(DB_PATH, lead_date=str(row.get("lead_date") or today), manager_key=str(row.get("manager_key") or MANAGER_RUNTIME_KEY), chat_id=chat_id, profile_raw_text=raw_text[:4000])
     except Exception as e:
         print(f"quality capture raw profile text error: {e!r}")
-
-
-def _tp_qs_bucket_label(bucket: str) -> str:
-    return {
-        "liquid": "ЛИКВИД",
-        "geo": "ГЕО",
-        "under18": "-18",
-        "age_missing": "НЕТ 18",
-        "geo_missing": "ГЕО не определено",
-        "trash": "TRASH",
-        "na": "NA",
-    }.get(str(bucket or ""), str(bucket or "NA"))
 
 
 async def _tp_qs_find_lead_rows(chat_id: int) -> List[Dict[str, Any]]:
@@ -16463,25 +15371,6 @@ def _tp_report_v3_empty_bucket(label: str = "") -> Dict[str, Any]:
     }
 
 
-def _empty_det_bucket(label: str = "") -> Dict[str, Any]:  # type: ignore[override]
-    return _tp_report_v3_empty_bucket(label)
-
-
-def _tp_qs_bucket_label(bucket: str) -> str:  # type: ignore[override]
-    b = str(bucket or "").strip()
-    if b == "age_missing":
-        b = "under18"
-    if b == "geo_missing":
-        b = "na"
-    return {
-        "liquid": "ЛИКВИД",
-        "geo": "ГЕО",
-        "under18": "-18",
-        "trash": "TRASH",
-        "na": "NA",
-    }.get(b, b or "NA")
-
-
 def _tp_qs_row_bucket(lead: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
     orig = globals().get("_TP_REPORT_V3_ORIG_TP_QS_ROW_BUCKET")
     if callable(orig):
@@ -16536,42 +15425,6 @@ def _tp_report_v3_bucket_add(b: Dict[str, Any], lead: Dict[str, Any]) -> None:
     _tp_report_v3_add_reason(b, lead)
 
 
-def _lead_status_counts(lead: Dict[str, Any]) -> Tuple[str, str]:  # type: ignore[override]
-    bucket = _tp_report_v3_bucket(lead)
-    if bucket == "liquid":
-        return "liquid", ""
-    return "nonliquid", _tp_report_v3_lead_reason(lead)
-
-
-def _det_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
-    _tp_report_v3_bucket_add(bucket, lead)
-
-
-def _quality_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
-    _tp_report_v3_bucket_add(bucket, lead)
-
-
-def _format_det_bucket(bucket: Dict[str, Any]) -> List[str]:  # type: ignore[override]
-    geo = int(bucket.get("geo") or 0)
-    under18 = int(bucket.get("under18") or 0)
-    na = int(bucket.get("na") or 0)
-    trash = int(bucket.get("trash") or 0)
-    liquid = int(bucket.get("liquid") or 0)
-    nonliquid = geo + under18 + na + trash
-    otpisok = liquid + nonliquid
-    bucket["nonliquid"] = nonliquid
-    bucket["otpisok"] = otpisok
-    return [
-        f"ОТПИСОК: {otpisok}",
-        f"НЕЛИКВИД: {nonliquid}",
-        f"ГЕО: {geo}",
-        f"-18: {under18}",
-        f"NA: {na}",
-        f"TRASH: {trash}",
-        f"ЛИКВИД: {liquid}",
-    ]
-
-
 def _tp_report_v3_bucket_lines(bucket: Dict[str, Any]) -> List[str]:
     return _format_det_bucket(bucket)
 
@@ -16608,18 +15461,6 @@ def _tp_report_v3_stats_from_leads(leads: List[Dict[str, Any]], manager_rows: Li
     total_bucket["nonliquid"] = int(total_bucket.get("geo") or 0) + int(total_bucket.get("under18") or 0) + int(total_bucket.get("na") or 0) + int(total_bucket.get("trash") or 0)
     total_bucket["otpisok"] = int(total_bucket.get("liquid") or 0) + int(total_bucket.get("nonliquid") or 0)
     return {"buckets": list(buckets.values()), **total_bucket}
-
-
-def _stats_from_leads(leads: List[Dict[str, Any]], manager_rows: List[Dict[str, Any]], target_key: str = "all") -> Dict[str, Any]:  # type: ignore[override]
-    return _tp_report_v3_stats_from_leads(leads, manager_rows, target_key=target_key)
-
-
-def _append_reason_lines(lines: List[str], reasons: Dict[str, int]) -> None:  # type: ignore[override]
-    if not reasons:
-        return
-    lines.append("Детализация статусов:")
-    for reason, cnt in sorted(reasons.items(), key=lambda x: (-int(x[1]), str(x[0]))):
-        lines.append(f"{_tp_report_v3_reason_ru(reason)}: {int(cnt)}")
 
 
 async def _build_stat_text(target_key: str = "all", lead_date: Optional[str] = None) -> str:  # type: ignore[override]
@@ -20357,35 +19198,6 @@ def _tp_gq_validate_schedule(day_start: str, day_end: str, night_start: str, nig
     return True, "", {"day_start": ds, "day_end": de, "night_start": ns, "night_end": ne, "covered": _tp_gq_covered_minutes(ds, de, ns, ne)}
 
 
-async def _tp_gq_ensure_central_tables() -> None:
-    parent = os.path.dirname(TPILOT_DB_PATH)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    async with aiosqlite.connect(TPILOT_DB_PATH) as db:
-        await db.execute("PRAGMA journal_mode=WAL;")
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS manager_client_auto_settings(
-                manager_key TEXT PRIMARY KEY,
-                greeting_enabled INTEGER NOT NULL DEFAULT 1,
-                questionnaire_enabled INTEGER NOT NULL DEFAULT 0,
-                updated_at TEXT NOT NULL DEFAULT '',
-                updated_by_user_id INTEGER
-            );
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS manager_client_message_schedule(
-                manager_key TEXT PRIMARY KEY,
-                day_start TEXT NOT NULL DEFAULT '08:00',
-                day_end TEXT NOT NULL DEFAULT '17:00',
-                night_start TEXT NOT NULL DEFAULT '17:00',
-                night_end TEXT NOT NULL DEFAULT '08:00',
-                updated_at TEXT NOT NULL DEFAULT '',
-                updated_by_user_id INTEGER
-            );
-        """)
-        await db.commit()
-
-
 async def _tp_gq_ensure_manager_tables(db_path: str) -> None:
     if not db_path:
         return
@@ -20404,93 +19216,6 @@ async def _tp_gq_ensure_manager_tables(db_path: str) -> None:
             );
         """)
         await db.commit()
-
-
-async def _tp_gq_get_settings(manager_key: str) -> Dict[str, Any]:
-    key = _tp_gq_norm_key(manager_key)
-    if not key:
-        return {"greeting_enabled": 1, "questionnaire_enabled": 0}
-    await _tp_gq_ensure_central_tables()
-    async with aiosqlite.connect(TPILOT_DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cur = await db.execute("SELECT * FROM manager_client_auto_settings WHERE manager_key=?", (key,))
-        row = await cur.fetchone()
-        if not row:
-            return {"manager_key": key, "greeting_enabled": 1, "questionnaire_enabled": 0, "updated_at": ""}
-        d = dict(row)
-        if int(d.get("greeting_enabled") or 0) != 1:
-            d["questionnaire_enabled"] = 0
-        return d
-
-
-async def _tp_gq_set_greeting_enabled(manager_key: str, enabled: bool, *, user_id: int = 0) -> None:
-    key = _tp_gq_norm_key(manager_key)
-    if not key:
-        return
-    await _tp_gq_ensure_central_tables()
-    now = _tp_gq_now_iso()
-    async with aiosqlite.connect(TPILOT_DB_PATH) as db:
-        if enabled:
-            await db.execute("""
-                INSERT INTO manager_client_auto_settings(manager_key, greeting_enabled, questionnaire_enabled, updated_at, updated_by_user_id)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(manager_key) DO UPDATE SET
-                    greeting_enabled=1,
-                    updated_at=excluded.updated_at,
-                    updated_by_user_id=excluded.updated_by_user_id
-            """, (key, 1, 1, now, int(user_id or 0) or None))
-        else:
-            await db.execute("""
-                INSERT INTO manager_client_auto_settings(manager_key, greeting_enabled, questionnaire_enabled, updated_at, updated_by_user_id)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(manager_key) DO UPDATE SET
-                    greeting_enabled=0,
-                    questionnaire_enabled=0,
-                    updated_at=excluded.updated_at,
-                    updated_by_user_id=excluded.updated_by_user_id
-            """, (key, 0, 0, now, int(user_id or 0) or None))
-        await db.commit()
-    # Compatibility: old auto flag follows questionnaire state, so old wrappers do not wake up unexpectedly.
-    try:
-        st = await _tp_gq_get_settings(key)
-        if callable(globals().get("_set_profile_auto_enabled")):
-            await _set_profile_auto_enabled(key, bool(int(st.get("questionnaire_enabled") or 0)), user_id=user_id)
-    except Exception:
-        pass
-
-
-async def _tp_gq_set_questionnaire_enabled(manager_key: str, enabled: bool, *, user_id: int = 0) -> None:
-    key = _tp_gq_norm_key(manager_key)
-    if not key:
-        return
-    await _tp_gq_ensure_central_tables()
-    now = _tp_gq_now_iso()
-    async with aiosqlite.connect(TPILOT_DB_PATH) as db:
-        if enabled:
-            await db.execute("""
-                INSERT INTO manager_client_auto_settings(manager_key, greeting_enabled, questionnaire_enabled, updated_at, updated_by_user_id)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(manager_key) DO UPDATE SET
-                    greeting_enabled=1,
-                    questionnaire_enabled=1,
-                    updated_at=excluded.updated_at,
-                    updated_by_user_id=excluded.updated_by_user_id
-            """, (key, 1, 1, now, int(user_id or 0) or None))
-        else:
-            await db.execute("""
-                INSERT INTO manager_client_auto_settings(manager_key, greeting_enabled, questionnaire_enabled, updated_at, updated_by_user_id)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(manager_key) DO UPDATE SET
-                    questionnaire_enabled=0,
-                    updated_at=excluded.updated_at,
-                    updated_by_user_id=excluded.updated_by_user_id
-            """, (key, 1, 0, now, int(user_id or 0) or None))
-        await db.commit()
-    try:
-        if callable(globals().get("_set_profile_auto_enabled")):
-            await _set_profile_auto_enabled(key, bool(enabled), user_id=user_id)
-    except Exception:
-        pass
 
 
 async def _tp_gq_get_schedule(manager_key: str) -> Dict[str, Any]:
@@ -20840,73 +19565,6 @@ async def _tp_gq_send_questionnaire_followup(lead_row: Dict[str, Any], state: Di
         return
 
 
-async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, Any], work: Dict[str, Any]) -> None:  # type: ignore[override]
-    chat_id = int((lead_row or {}).get("chat_id") or 0)
-    if chat_id <= 0:
-        return
-    manager_key = _tp_gq_norm_key((lead_row or {}).get("manager_key") or MANAGER_RUNTIME_KEY)
-    if not manager_key:
-        return
-    settings = await _tp_gq_get_settings(manager_key)
-    schedule = await _tp_gq_get_schedule(manager_key)
-    now_local = _kyiv_now()
-    window, window_label, night_key = _tp_gq_window_now(schedule, now_local)
-    status = str((work or {}).get("status") or "online").strip().lower()
-    try:
-        await _update_daily_lead_fields(DB_PATH, lead_date=str((lead_row or {}).get("lead_date") or now_local.date().isoformat()), manager_key=manager_key, chat_id=chat_id, manager_work_status=f"{status}|{window}")
-    except Exception:
-        pass
-
-    if int(settings.get("greeting_enabled") or 0) != 1:
-        return
-
-    existing_same = int((lead_row or {}).get("_existing_same_manager_chat") or 0) == 1
-    question_sent = _tp_gq_question_sent(lead_row, state)
-    questionnaire_on = int(settings.get("questionnaire_enabled") or 0) == 1
-
-    # Старые клиенты: днём молчим, ночью один раз за ночь отдельный автоответчик.
-    # Исключение: текущий дневной активный лид, которому уже отправили приветствие сегодня, может продолжить автоанкету.
-    current_day_active = existing_same and window == "day" and _tp_gq_lead_date_is_today(lead_row, now_local) and question_sent
-    if existing_same and not current_day_active:
-        if window != "night" or not night_key:
-            return
-        already_standard_night = str((state or {}).get("offline_notice_period_key") or (lead_row or {}).get("offline_notice_period_key") or "") == str(night_key)
-        if already_standard_night:
-            return
-        if await _tp_gq_old_autoresponder_sent(DB_PATH, manager_key, chat_id, night_key):
-            return
-        text = _tp_gq_content_text(TP_GQ_OLD_CLIENT_AUTORESPONDER_KEY, TP_GQ_OLD_CLIENT_AUTORESPONDER_DEFAULT)
-        if await _send_manager_private(chat_id, text, human_delay=True, after_first_delay=True):
-            await _tp_gq_mark_old_autoresponder_sent(DB_PATH, manager_key, chat_id, night_key)
-        return
-
-    if window == "gap":
-        return
-    if window == "overlap":
-        return
-
-    if window == "night":
-        if not night_key:
-            night_key = _tp_gq_night_key(manager_key, schedule, now_local)
-        if str((state or {}).get("offline_notice_period_key") or (lead_row or {}).get("offline_notice_period_key") or "") != str(night_key):
-            text = _tp_gq_content_text("offline_notice", str(globals().get("OFFLINE_NOTICE_TEXT") or ""))
-            if await _send_manager_private(chat_id, text, human_delay=True):
-                await _set_daily_offline_sent(lead_row, night_key)
-        return
-
-    # Дневное окно.
-    if int((state or {}).get("manager_replied") or 0) == 1 and not current_day_active:
-        return
-    if not question_sent and not existing_same:
-        text = _tp_gq_content_text("profile_question", str(globals().get("PROFILE_QUESTION_TEXT") or ""))
-        if await _send_manager_private(chat_id, text, human_delay=True):
-            await _set_daily_question_sent(lead_row)
-        return
-
-    if questionnaire_on and question_sent:
-        await _tp_gq_send_questionnaire_followup(lead_row, state, chat_id)
-
-
 async def _tp_gq_manager_keys(target: str) -> Tuple[List[str], str]:
     target = _tp_gq_norm_key(target or "all") or "all"
     rows = await manager_list_rows(include_removed=False)
@@ -20966,40 +19624,6 @@ async def _tp_gq_format_status(target: str = "all") -> str:
     return "\n".join(lines).rstrip()
 
 
-async def _tp_gq_handle_greeting_command(args: str, *, user_id: int = 0) -> str:
-    parts = [p for p in str(args or "").split() if p.strip()]
-    action = (parts[0].lower() if parts else "status")
-    target = parts[1] if len(parts) >= 2 else "all"
-    if action in ("status", "st", "state", "проверить"):
-        return await _tp_gq_format_status(target)
-    if action not in ("on", "off", "вкл", "выкл"):
-        return "Формат: /greeting status|on|off <manager|all>"
-    enabled = action in ("on", "вкл")
-    keys, err = await _tp_gq_manager_keys(target)
-    if err:
-        return err
-    for key in keys:
-        await _tp_gq_set_greeting_enabled(key, enabled, user_id=user_id)
-    return await _tp_gq_format_status(target)
-
-
-async def _tp_gq_handle_questionnaire_command(args: str, *, user_id: int = 0) -> str:
-    parts = [p for p in str(args or "").split() if p.strip()]
-    action = (parts[0].lower() if parts else "status")
-    target = parts[1] if len(parts) >= 2 else "all"
-    if action in ("status", "st", "state", "проверить"):
-        return await _tp_gq_format_status(target)
-    if action not in ("on", "off", "вкл", "выкл"):
-        return "Формат: /questionnaire status|on|off <manager|all>"
-    enabled = action in ("on", "вкл")
-    keys, err = await _tp_gq_manager_keys(target)
-    if err:
-        return err
-    for key in keys:
-        await _tp_gq_set_questionnaire_enabled(key, enabled, user_id=user_id)
-    return await _tp_gq_format_status(target)
-
-
 async def _tp_gq_handle_schedule_command(args: str, *, user_id: int = 0) -> str:
     parts = [p for p in str(args or "").split() if p.strip()]
     action = (parts[0].lower() if parts else "status")
@@ -21025,48 +19649,6 @@ async def _tp_gq_handle_schedule_command(args: str, *, user_id: int = 0) -> str:
             return "⚠️ График задаётся по одному менеджеру."
         return await _tp_gq_set_schedule(keys[0], parts[2], parts[3], parts[4], parts[5], user_id=user_id)
     return "Формат: /autoschedule status|set|reset <manager|all>"
-
-
-async def _handle_autoreply_panel_command(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
-    parts = [p for p in str(args or "").split() if p.strip()]
-    action = (parts[0].lower() if parts else "status")
-    target = parts[1] if len(parts) >= 2 else "all"
-    if action in ("status", "st", "state"):
-        return await _tp_gq_format_status(target)
-    if action in ("auto", "on", "now"):
-        keys, err = await _tp_gq_manager_keys(target)
-        if err:
-            return err
-        for key in keys:
-            await _tp_gq_set_greeting_enabled(key, True, user_id=user_id)
-            await _tp_gq_set_questionnaire_enabled(key, True, user_id=user_id)
-            try:
-                await _set_manager_work_status(key, "online", user_id=user_id, source="panel_greeting_questionnaire")
-            except Exception:
-                pass
-        return await _tp_gq_format_status(target)
-    if action in ("silent", "off"):
-        keys, err = await _tp_gq_manager_keys(target)
-        if err:
-            return err
-        for key in keys:
-            await _tp_gq_set_greeting_enabled(key, False, user_id=user_id)
-        return await _tp_gq_format_status(target)
-    return "Формат: /autoreply status|auto|silent <manager|all>"
-
-
-async def _handle_profile_auto_command(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
-    # Compatibility for old /profile auto on|off commands: it now controls only 📋 Автоанкету.
-    parts = [p for p in str(args or "").split() if p.strip()]
-    if parts and parts[0].lower() in ("auto", "анкета"):
-        sub = " ".join(parts[1:])
-        return await _tp_gq_handle_questionnaire_command(sub, user_id=user_id)
-    try:
-        if callable(globals().get("_tpe_handle_profile_command")):
-            return await _tpe_handle_profile_command(args, user_id=user_id)
-    except Exception:
-        pass
-    return await _tp_gq_handle_questionnaire_command(args, user_id=user_id)
 
 
 async def _handle_ai_stat_command(event):  # type: ignore[override]
@@ -22120,38 +20702,6 @@ async def _tp_hg_set_from_exception(manager_key: str, exc: Any, *, source: str) 
     )
 
 
-async def _tp_hg_run_self_check(*, source: str = "periodic_self_check") -> Dict[str, Any]:
-    if not MANAGER_RUNTIME_KEY:
-        return {"ok": False, "status": TP_HG_STATUS_UNKNOWN, "text": "manager runtime key is empty"}
-    key = _tp_hg_norm_key(MANAGER_RUNTIME_KEY)
-    try:
-        if not client.is_connected():
-            try:
-                await client.connect()
-            except Exception:
-                pass
-        me = await client.get_me()
-        if not me:
-            raise RuntimeError("get_me returned empty result")
-        # Light account check. Do not send test messages and do not scan dialogs.
-        try:
-            await client.get_dialogs(limit=1)
-        except Exception as e:
-            # Dialog check failures are useful, but usually softer than get_me/session failures.
-            classified = _tp_hg_classify_exception(e, source=f"{source}_get_dialogs")
-            st = str(classified.get("status") or TP_HG_STATUS_WARNING)
-            if st == TP_HG_STATUS_BLOCKED:
-                row = await _tp_hg_set_from_exception(key, e, source=f"{source}_get_dialogs")
-                return {"ok": False, "status": row.get("health_status"), "text": str(row.get("error_text") or repr(e))}
-            row = await _tp_hg_update_status(key, status=TP_HG_STATUS_WARNING, error_class=str(classified.get("error_class") or "DialogCheckError"), error_text=str(classified.get("error_text") or repr(e)), error_source=f"{source}_get_dialogs", action_required="Лёгкая проверка диалогов дала ошибку. Наблюдать, уведомление не отправляется.")
-            return {"ok": True, "status": row.get("health_status"), "text": str(row.get("error_text") or "warning")}
-        row = await _tp_hg_update_status(key, status=TP_HG_STATUS_OK, error_source=source)
-        return {"ok": True, "status": TP_HG_STATUS_OK, "text": "OK", "row": row}
-    except Exception as e:
-        row = await _tp_hg_set_from_exception(key, e, source=f"{source}_get_me")
-        return {"ok": False, "status": row.get("health_status"), "text": str(row.get("error_text") or repr(e)), "row": row}
-
-
 async def _tp_hg_periodic_self_check_loop() -> None:
     if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY:
         return
@@ -22167,41 +20717,6 @@ async def _tp_hg_periodic_self_check_loop() -> None:
             except Exception:
                 pass
         await asyncio.sleep(max(60, int(TP_HG_CHECK_INTERVAL_SEC or 1200)))
-
-
-async def _send_manager_private(chat_id: int, text: str, *, human_delay: bool = False, after_first_delay: bool = False) -> bool:  # type: ignore[override]
-    """Send client message and classify Telegram account restrictions on failure."""
-    try:
-        if human_delay:
-            await _human_send_delay(int(chat_id), str(text or ""), after_first=bool(after_first_delay))
-        msg = await client.send_message(int(chat_id), str(text or ""))
-        mid = int(getattr(msg, "id", 0) or 0)
-        if mid:
-            try:
-                _remember_program_sent(int(chat_id), mid)
-            except Exception:
-                pass
-        # Successful real send means the account is not currently blocked/limited for this action.
-        if MANAGER_RUNTIME_KEY:
-            try:
-                await _tp_hg_update_status(MANAGER_RUNTIME_KEY, status=TP_HG_STATUS_OK, error_source="client_send_success")
-            except Exception:
-                pass
-        return True
-    except Exception as e:
-        try:
-            print(f"manager private send error: {e!r}")
-        except Exception:
-            pass
-        if MANAGER_RUNTIME_KEY:
-            try:
-                await _tp_hg_set_from_exception(MANAGER_RUNTIME_KEY, e, source="client_auto_send")
-            except Exception as he:
-                try:
-                    print(f"telegram health send classification error: {he!r}")
-                except Exception:
-                    pass
-        return False
 
 
 async def _tp_hg_list_rows(target: str = "all") -> List[Dict[str, Any]]:
@@ -22292,33 +20807,6 @@ async def _tp_hg_reset(target: str) -> str:
     return f"✅ Telegram Health сброшен для {key}. Следующая проверка обновит статус."
 
 
-async def _tp_hg_queue_check_for_manager(key: str, *, user_id: int = 0, timeout_sec: int = 45) -> Tuple[bool, str]:
-    key = _tp_hg_norm_key(key)
-    if not key:
-        return False, "manager_key пустой"
-    try:
-        from storage import manager_queue_get, manager_queue_put
-    except Exception as e:
-        return False, f"Ошибка очереди менеджера: {e!r}"
-    nonce = await manager_queue_put(
-        target_key=key,
-        command="tghealth_check",
-        created_by=str(user_id or "tghealth"),
-        expires_at=_future_iso(int(timeout_sec) + 30),
-        db_path=TPILOT_DB_PATH,
-    )
-    deadline = time.monotonic() + max(10, int(timeout_sec or 45))
-    while time.monotonic() < deadline:
-        row = await manager_queue_get(nonce, db_path=TPILOT_DB_PATH)
-        status = str((row or {}).get("status") or "")
-        if status in ("done", "error", "timeout"):
-            if status == "done" and int((row or {}).get("result_ok") or 0) == 1:
-                return True, str((row or {}).get("result_text") or f"✅ {key}: проверка выполнена")
-            return False, str((row or {}).get("error_text") or (row or {}).get("result_text") or f"{key}: ошибка проверки")
-        await asyncio.sleep(0.7)
-    return False, f"{key}: manager-процесс не ответил за {timeout_sec} сек. Проверьте, что он запущен."
-
-
 async def _tp_hg_check_command(target: str, *, user_id: int = 0) -> str:
     key = _tp_hg_norm_key(target or "all")
     if key == "all":
@@ -22340,76 +20828,6 @@ async def _tp_hg_check_command(target: str, *, user_id: int = 0) -> str:
     ok, text = await _tp_hg_queue_check_for_manager(key, user_id=user_id, timeout_sec=45)
     status_text = await _tp_hg_format_status(key)
     return (f"{'✅' if ok else '⚠️'} {text}\n\n" + status_text).rstrip()
-
-
-async def _tp_hg_handle_command(args: str = "", *, user_id: int = 0) -> str:
-    parts = [p for p in str(args or "").split() if p.strip()]
-    if not parts or parts[0].lower() in {"status", "show", "статус"}:
-        target = parts[1] if len(parts) >= 2 else "all"
-        return await _tp_hg_format_status(target)
-    action = parts[0].lower()
-    if action in {"all", "все"}:
-        return await _tp_hg_format_status("all")
-    if action in {"check", "проверить"}:
-        target = parts[1] if len(parts) >= 2 else "all"
-        return await _tp_hg_check_command(target, user_id=user_id)
-    if action in {"reset", "clear", "сброс"}:
-        target = parts[1] if len(parts) >= 2 else ""
-        return await _tp_hg_reset(target)
-    if action in {"help", "?"}:
-        return "\n".join([
-            "🛡 Telegram Health Guard",
-            "",
-            "/tghealth all - статусы всех аккаунтов",
-            "/tghealth <manager_key> - статус одного аккаунта",
-            "/tghealth check <manager_key> - запросить лёгкую проверку аккаунта",
-            "/tghealth check all - запросить проверку всех запущенных менеджеров",
-            "/tghealth reset <manager_key> - сбросить ошибку до UNKNOWN",
-            "",
-            "Уведомления отправляются только по 🟠 LIMITED и 🔴 BLOCKED.",
-            "Плановая проверка каждые 20 минут, без тестовых сообщений.",
-        ]).rstrip()
-    return await _tp_hg_format_status(action)
-
-
-async def _manager_command_loop() -> None:  # type: ignore[override]
-    """Compatibility manager command loop with Telegram Health command support."""
-    if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY:
-        return
-    try:
-        from storage import manager_queue_finish, manager_queue_take_next
-    except Exception as e:
-        print(f"manager command queue import error: {e!r}")
-        return
-    while True:
-        try:
-            row = await manager_queue_take_next(MANAGER_RUNTIME_KEY, stale_after_sec=120, db_path=TPILOT_DB_PATH)
-            if not row:
-                await asyncio.sleep(1.0)
-                continue
-            nonce = str(row.get("nonce") or "")
-            command = str(row.get("command") or "").strip().lower()
-            try:
-                if command == "baseline_create" and callable(globals().get("_manager_create_baseline_snapshot")):
-                    res = await _manager_create_baseline_snapshot()
-                    ok = bool(res.get("ok"))
-                    text = f"✅ {MANAGER_RUNTIME_KEY}: текущих чатов помечено старыми: {int(res.get('count') or 0)}" if ok else f"⚠️ {MANAGER_RUNTIME_KEY}: не удалось зафиксировать старые чаты: {res.get('error') or 'error'}"
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=ok, result_text=text, result_json=str(res), db_path=TPILOT_DB_PATH)
-                elif command == "tghealth_check":
-                    res = await _tp_hg_run_self_check(source="manual_queue_check")
-                    st = str(res.get("status") or TP_HG_STATUS_UNKNOWN)
-                    ok = st in {TP_HG_STATUS_OK, TP_HG_STATUS_WARNING}
-                    text = f"{_tp_hg_status_label(st)} {MANAGER_RUNTIME_KEY}: {res.get('text') or _tp_hg_status_ru(st)}"
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=True, result_text=text, result_json=str(res), db_path=TPILOT_DB_PATH)
-                else:
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=False, error_text=f"unknown manager command: {command}", db_path=TPILOT_DB_PATH)
-            except Exception as e:
-                await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=False, error_text=repr(e), db_path=TPILOT_DB_PATH)
-        except asyncio.CancelledError:
-            return
-        except Exception as e:
-            print(f"manager_command_loop error: {e!r}")
-            await asyncio.sleep(2.0)
 
 
 async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
@@ -22526,164 +20944,6 @@ def _tp_hg_me_health_problem(me: Any, *, source: str = "get_me") -> Optional[Dic
     except Exception:
         pass
     return None
-
-
-async def _tp_hg_run_self_check(*, source: str = "periodic_self_check") -> Dict[str, Any]:  # type: ignore[override]
-    """Lightweight manager self-check.
-
-    No test messages, no mass dialog scans, no auto-stop.
-    """
-    if not MANAGER_RUNTIME_KEY:
-        return {"ok": False, "status": TP_HG_STATUS_UNKNOWN, "text": "manager runtime key is empty"}
-    key = _tp_hg_norm_key(MANAGER_RUNTIME_KEY)
-    try:
-        if not client.is_connected():
-            try:
-                await client.connect()
-            except Exception:
-                pass
-        me = await client.get_me()
-        if not me:
-            raise RuntimeError("get_me returned empty result")
-
-        problem = _tp_hg_me_health_problem(me, source=f"{source}_get_me")
-        if problem:
-            row = await _tp_hg_update_status(
-                key,
-                status=str(problem.get("status") or TP_HG_STATUS_WARNING),
-                error_class=str(problem.get("error_class") or "AccountFlag"),
-                error_text=str(problem.get("error_text") or ""),
-                error_source=str(problem.get("error_source") or f"{source}_get_me"),
-                action_required=str(problem.get("action_required") or "Проверить аккаунт вручную."),
-            )
-            return {"ok": False, "status": row.get("health_status"), "text": str(row.get("error_text") or "account flag problem"), "row": row}
-
-        try:
-            await client.get_dialogs(limit=1)
-        except Exception as e:
-            classified = _tp_hg_classify_exception(e, source=f"{source}_get_dialogs")
-            st = str(classified.get("status") or TP_HG_STATUS_WARNING)
-            if st in {TP_HG_STATUS_BLOCKED, TP_HG_STATUS_LIMITED}:
-                row = await _tp_hg_set_from_exception(key, e, source=f"{source}_get_dialogs")
-                return {"ok": False, "status": row.get("health_status"), "text": str(row.get("error_text") or repr(e)), "row": row}
-            row = await _tp_hg_update_status(
-                key,
-                status=TP_HG_STATUS_WARNING,
-                error_class=str(classified.get("error_class") or "DialogCheckError"),
-                error_text=str(classified.get("error_text") or repr(e)),
-                error_source=f"{source}_get_dialogs",
-                action_required="Лёгкая проверка диалогов дала ошибку. Наблюдать, уведомление не отправляется.",
-            )
-            return {"ok": True, "status": row.get("health_status"), "text": str(row.get("error_text") or "warning"), "row": row}
-
-        row = await _tp_hg_update_status(key, status=TP_HG_STATUS_OK, error_source=source)
-        return {"ok": True, "status": TP_HG_STATUS_OK, "text": "OK", "row": row}
-    except Exception as e:
-        row = await _tp_hg_set_from_exception(key, e, source=f"{source}_get_me")
-        return {"ok": False, "status": row.get("health_status"), "text": str(row.get("error_text") or repr(e)), "row": row}
-
-
-async def _tp_hg_queue_check_for_manager(key: str, *, user_id: int = 0, timeout_sec: int = 45) -> Tuple[bool, str]:  # type: ignore[override]
-    """Globally unique nonce to prevent /tghealth check all collisions."""
-    key = _tp_hg_norm_key(key)
-    if not key:
-        return False, "manager_key пустой"
-    try:
-        from storage import manager_queue_get, manager_queue_put
-    except Exception as e:
-        return False, f"Ошибка очереди менеджера: {e!r}"
-
-    nonce = f"tghealth:{key}:{int(time.time() * 1000)}:{_tp_hg_uuid.uuid4().hex}"
-    try:
-        await manager_queue_put(
-            target_key=key,
-            command="tghealth_check",
-            created_by=str(user_id or "tghealth"),
-            nonce=nonce,
-            expires_at=_future_iso(int(timeout_sec) + 30),
-            db_path=TPILOT_DB_PATH,
-        )
-    except Exception as e:
-        return False, f"{key}: не удалось поставить проверку в очередь: {e!r}"
-
-    deadline = time.monotonic() + max(10, int(timeout_sec or 45))
-    while time.monotonic() < deadline:
-        row = await manager_queue_get(nonce, db_path=TPILOT_DB_PATH)
-        status = str((row or {}).get("status") or "")
-        if status in ("done", "error", "timeout"):
-            if status == "done" and int((row or {}).get("result_ok") or 0) == 1:
-                return True, str((row or {}).get("result_text") or f"🟢 OK {key}: OK")
-            return False, str((row or {}).get("error_text") or (row or {}).get("result_text") or f"{key}: ошибка проверки")
-        await asyncio.sleep(0.7)
-    return False, f"{key}: manager-процесс не ответил за {timeout_sec} сек. Проверьте, что он запущен."
-
-
-async def _tp_hg_mark(target: str, status: str, reason: str = "") -> str:
-    key = _tp_hg_norm_key(target or "")
-    st = str(status or "").strip().lower()
-    if not key or st not in {TP_HG_STATUS_LIMITED, TP_HG_STATUS_BLOCKED}:
-        return "Формат: /tghealth mark <manager_key> limited|blocked причина"
-    reason_s = str(reason or "").strip() or "ручная отметка администратора"
-    err_cls = "ManualLimited" if st == TP_HG_STATUS_LIMITED else "ManualBlocked"
-    action = "Проверить аккаунт вручную. Решение об остановке менеджера принимает администратор."
-    row = await _tp_hg_update_status(
-        key,
-        status=st,
-        error_class=err_cls,
-        error_text=reason_s[:2000],
-        error_source="manual_mark",
-        action_required=action,
-    )
-    return "\n".join([
-        "✅ Telegram Health обновлён вручную",
-        "",
-        f"Менеджер: {key}",
-        f"Статус: {_tp_hg_status_label(str(row.get('health_status') or st))}",
-        f"Причина: {reason_s}",
-        "",
-        "Уведомление отправляется только по 🟠 LIMITED и 🔴 BLOCKED.",
-    ]).rstrip()
-
-
-async def _tp_hg_handle_command(args: str = "", *, user_id: int = 0) -> str:  # type: ignore[override]
-    parts = [p for p in str(args or "").split() if p.strip()]
-    if not parts or parts[0].lower() in {"status", "show", "статус"}:
-        target = parts[1] if len(parts) >= 2 else "all"
-        return await _tp_hg_format_status(target)
-    action = parts[0].lower()
-    if action in {"all", "все"}:
-        return await _tp_hg_format_status("all")
-    if action in {"check", "проверить"}:
-        target = parts[1] if len(parts) >= 2 else "all"
-        text = await _tp_hg_check_command(target, user_id=user_id)
-        text += "\n\nВажно: Telegram не всегда отдаёт UI-заморозку через API. Если аккаунт визуально заморожен, но get_me/get_dialogs проходят, статус может стать LIMITED/BLOCKED только после реальной ошибки отправки или ручной отметки."
-        return text.rstrip()
-    if action in {"mark", "set", "пометить"}:
-        target = parts[1] if len(parts) >= 2 else ""
-        st = parts[2].lower() if len(parts) >= 3 else ""
-        reason = " ".join(parts[3:]).strip()
-        return await _tp_hg_mark(target, st, reason)
-    if action in {"reset", "clear", "сброс"}:
-        target = parts[1] if len(parts) >= 2 else ""
-        return await _tp_hg_reset(target)
-    if action in {"help", "?"}:
-        return "\n".join([
-            "🛡 Telegram Health Guard",
-            "",
-            "/tghealth all - статусы всех аккаунтов",
-            "/tghealth <manager_key> - статус одного аккаунта",
-            "/tghealth check <manager_key> - лёгкая проверка аккаунта",
-            "/tghealth check all - проверка всех запущенных менеджеров",
-            "/tghealth mark <manager_key> blocked причина - вручную пометить BLOCKED",
-            "/tghealth mark <manager_key> limited причина - вручную пометить LIMITED",
-            "/tghealth reset <manager_key> - сбросить ошибку до UNKNOWN",
-            "",
-            "Уведомления отправляются только по 🟠 LIMITED и 🔴 BLOCKED.",
-            "Плановая проверка каждые 20 минут, без тестовых сообщений.",
-            "Автостоп менеджера не выполняется.",
-            "Telegram не всегда отдаёт UI-заморозку через API. Для таких случаев используйте manual mark.",
-        ]).rstrip()
-    return await _tp_hg_format_status(action)
 
 # --- TPILOT TELEGRAM HEALTH GUARD V1.2 HOTFIX 20260514 END ---
 
@@ -23382,51 +21642,6 @@ async def _tp_hg_handle_command(args: str = "", *, user_id: int = 0) -> str:  # 
             "Автостоп менеджера не выполняется.",
         ]).rstrip()
     return await _tp_hg_format_status(action)
-
-
-async def _manager_command_loop() -> None:  # type: ignore[override]
-    """Manager command loop with Telegram Health light/deep commands."""
-    if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY:
-        return
-    try:
-        from storage import manager_queue_finish, manager_queue_take_next
-    except Exception as e:
-        print(f"manager command queue import error: {e!r}")
-        return
-    while True:
-        try:
-            row = await manager_queue_take_next(MANAGER_RUNTIME_KEY, stale_after_sec=120, db_path=TPILOT_DB_PATH)
-            if not row:
-                await asyncio.sleep(1.0)
-                continue
-            nonce = str(row.get("nonce") or "")
-            command = str(row.get("command") or "").strip().lower()
-            try:
-                if command == "baseline_create" and callable(globals().get("_manager_create_baseline_snapshot")):
-                    res = await _manager_create_baseline_snapshot()
-                    ok = bool(res.get("ok"))
-                    text = f"✅ {MANAGER_RUNTIME_KEY}: текущих чатов помечено старыми: {int(res.get('count') or 0)}" if ok else f"⚠️ {MANAGER_RUNTIME_KEY}: не удалось зафиксировать старые чаты: {res.get('error') or 'error'}"
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=ok, result_text=text, result_json=str(res), db_path=TPILOT_DB_PATH)
-                elif command == "tghealth_check":
-                    res = await _tp_hg_run_self_check(source="manual_queue_check")
-                    st = str(res.get("status") or TP_HG_STATUS_UNKNOWN)
-                    text = f"{_tp_hg_status_label(st)} {MANAGER_RUNTIME_KEY}: {res.get('text') or _tp_hg_status_ru(st)}"
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=True, result_text=text, result_json=str(res), db_path=TPILOT_DB_PATH)
-                elif command == "tghealth_deepcheck":
-                    res = await _tp_hg_run_deep_self_check(source="manual_queue_deepcheck")
-                    st = str(res.get("status") or TP_HG_STATUS_UNKNOWN)
-                    ok = st in {TP_HG_STATUS_OK, TP_HG_STATUS_WARNING}
-                    text = f"{_tp_hg_status_label(st)} {MANAGER_RUNTIME_KEY}: {res.get('text') or _tp_hg_status_ru(st)}"
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=ok, result_text=text, result_json=str(res), db_path=TPILOT_DB_PATH)
-                else:
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=False, error_text=f"unknown manager command: {command}", db_path=TPILOT_DB_PATH)
-            except Exception as e:
-                await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=False, error_text=repr(e), db_path=TPILOT_DB_PATH)
-        except asyncio.CancelledError:
-            return
-        except Exception as e:
-            print(f"manager_command_loop error: {e!r}")
-            await asyncio.sleep(2.0)
 
 
 async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
