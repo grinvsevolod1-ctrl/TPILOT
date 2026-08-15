@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +13,7 @@ api_hash = (env.get("API_HASH") or "").strip()
 db_path = root / "db" / "data_tpilot.db"
 
 def now_iso():
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
 
 async def refresh_one(key):
     session_path = root / "runtime" / "managers" / key / f"{key}.session"

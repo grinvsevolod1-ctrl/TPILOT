@@ -1256,7 +1256,7 @@ async def run_deep_verification(
         return blob
 
     # --- enqueue one bizlink_list_telegram command per relevant manager ---
-    expires_at = (datetime.utcnow() + timedelta(minutes=18)).replace(microsecond=0).isoformat()
+    expires_at = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(minutes=18)).replace(microsecond=0).isoformat()
     nonces: Dict[str, str] = {}
     for mk in relevant.keys():
         try:

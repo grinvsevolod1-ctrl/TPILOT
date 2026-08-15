@@ -21,7 +21,7 @@ CITY_LIMIT_NOTE = "город уточняли 2 раза, клиент не у�
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
 
 
 def _norm(text: Any) -> str:

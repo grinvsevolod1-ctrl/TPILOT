@@ -48,7 +48,7 @@ client = TelegramClient(PARTNER_SESSION_FILE, API_ID, API_HASH)
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
 
 
 def _kyiv_now() -> datetime:
@@ -2108,10 +2108,10 @@ def _pse_record_failure(uid: int, event_id: int, exc: BaseException) -> None:
         if dead:
             next_attempt_at = ""
         elif classification.get("cooldown_seconds"):
-            next_attempt_at = (datetime.utcnow() + timedelta(
+            next_attempt_at = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(
                 seconds=max(1, int(classification["cooldown_seconds"])))).replace(microsecond=0).isoformat()
         else:
-            next_attempt_at = (datetime.utcnow() + timedelta(
+            next_attempt_at = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(
                 seconds=_pse_backoff_seconds_with_jitter(attempts))).replace(microsecond=0).isoformat()
         err_cls = type(exc).__name__[:120]
         con.execute(
@@ -6509,7 +6509,7 @@ def _arn_safe_display(display_name) -> str:
 
 def _arn_utc_iso_to_kyiv_hm(iso_utc: str) -> str:
     """Converts a UTC ISO string in storage.py's own _now_iso() format
-    (datetime.utcnow().replace(microsecond=0).isoformat(), naive, no tz
+    (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(), naive, no tz
     suffix) to a Kyiv HH:MM display string. Never raises."""
     raw = str(iso_utc or "").strip()
     if not raw:
@@ -6951,7 +6951,7 @@ def _rsvan_now_iso() -> str:
     comparison (updated_at>?/updated_at>=?) correct without a per-row
     normalize-in-Python step for the common case; malformed/foreign-format
     rows are still caught defensively below (see _rsvan_parse_utc)."""
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
 
 
 def _rsvan_parse_utc(raw) -> Optional[datetime]:
@@ -7120,7 +7120,7 @@ def _rsvan_done_events_for_source(source_key: str, *, baseline_ts: str,
     sk = _norm_key(source_key)
     if not sk or not baseline_ts:
         return []
-    cutoff_iso = (datetime.utcnow().replace(microsecond=0) - timedelta(hours=int(freshness_hours))).isoformat()
+    cutoff_iso = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - timedelta(hours=int(freshness_hours))).isoformat()
     try:
         storage.ensure_reserve_tables(TPILOT_DB_PATH)
         con = sqlite3.connect(TPILOT_DB_PATH)
