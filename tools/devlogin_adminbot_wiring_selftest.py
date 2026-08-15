@@ -133,18 +133,26 @@ def main():
     pin_src = _src_without_docstring(last_def(panel_tree, "_devlogin_pin_input"))
     check("O: PIN input handler deletes the typed message (event.delete())",
           "await event.delete()" in pin_src, detail=pin_src[:300])
+    # HARDENING 20260815: the plain `raw != pin_value` comparison was replaced
+    # by the constant-time wrapper `not _ppool_pin_matches(raw, pin_value)`
+    # (hmac.compare_digest inside). The wiring guarantees checked here are
+    # unchanged -- only the comparison expression differs, so this test
+    # accepts either form and anchors ordering on whichever is present.
+    _pin_cmp = ("not _ppool_pin_matches(raw, pin_value)"
+                if "_ppool_pin_matches(raw, pin_value)" in pin_src
+                else "raw != pin_value")
     check("O: PIN comparison is against the existing env-sourced PIN value, "
           "never a value written to durable/wizard state",
-          "_ppool_pin_env_value()" in pin_src and "raw != pin_value" in pin_src)
+          "_ppool_pin_env_value()" in pin_src and _pin_cmp in pin_src)
     check("O: the typed PIN (`raw`) is never passed to _wizard_set/manager_queue_put/"
           "submit_and_wait (never persisted anywhere)",
-          "_wizard_set(" not in pin_src.split("raw != pin_value")[0].split("pin_value = ")[-1]
-          or "raw)" not in pin_src, detail="")
+          "_wizard_set(" not in pin_src.split(_pin_cmp)[0].split("pin_value = ")[-1]
+          or "raw)" not in pin_src.replace("_ppool_pin_matches(raw, pin_value)", ""), detail="")
     check("O: _wizard_clear happens before any PIN comparison (state removed regardless of outcome)",
           pin_src.index("_wizard_clear(") < pin_src.index("pin_value = _ppool_pin_env_value()"))
 
     # --- P: phone/proxy reveal occurs only AFTER correct PIN -------------
-    idx_wrong_pin_check = pin_src.index("raw != pin_value")
+    idx_wrong_pin_check = pin_src.index(_pin_cmp)
     idx_phone_check = pin_src.index("'phone'") if "'phone'" in pin_src else pin_src.index('"phone"')
     idx_submit_start = pin_src.index('manager_devlogin_start')
     check("P: manager phone/proxy checks happen AFTER the PIN comparison (not before)",
