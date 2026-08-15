@@ -264,7 +264,7 @@ def make_health_db(*, health_status: str = "ok", age_sec: Optional[int] = 60,
             if age_sec is None:
                 last = ""
             else:
-                last = (datetime.utcnow() - timedelta(seconds=int(age_sec))
+                last = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=int(age_sec))
                         ).replace(microsecond=0).isoformat()
             con.execute(
                 "INSERT INTO manager_telegram_health(manager_key, health_status, last_check_at)"
@@ -296,7 +296,7 @@ def build_env(*, db_path: str, process_running: bool = True,
         queue = FakeQueue(ping_result={
             "ok": True, "connected": True, "authorized": True,
             "tg_user_id": 777001, "worker_key": "dwanders0",
-            "checked_at": datetime.utcnow().replace(microsecond=0).isoformat(),
+            "checked_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(),
         })
     install_fake_storage(queue)
 
@@ -499,7 +499,7 @@ def run_invariant_checks() -> None:
     db = make_health_db()
     q = FakeQueue(ping_result={"connected": False, "authorized": False, "tg_user_id": 0,
                                "worker_key": "dwanders0",
-                               "checked_at": datetime.utcnow().isoformat(),
+                               "checked_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat(),
                                "error": "not connected"})
     ns = load_readiness(build_env(db_path=db, queue=q))
     res = asyncio.run(ns["_manager_runtime_ready_once"]("dwanders0"))
@@ -510,7 +510,7 @@ def run_invariant_checks() -> None:
     db = make_health_db()
     q = FakeQueue(ping_result={"connected": True, "authorized": False, "tg_user_id": 0,
                                "worker_key": "dwanders0",
-                               "checked_at": datetime.utcnow().isoformat()})
+                               "checked_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()})
     ns = load_readiness(build_env(db_path=db, queue=q))
     res = asyncio.run(ns["_manager_runtime_ready_once"]("dwanders0"))
     check("A7 ping authorized=false -> session_unauthorized",
@@ -520,7 +520,7 @@ def run_invariant_checks() -> None:
     db = make_health_db()
     q = FakeQueue(ping_result={"connected": True, "authorized": True, "tg_user_id": 999999,
                                "worker_key": "dwanders0",
-                               "checked_at": datetime.utcnow().isoformat()})
+                               "checked_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()})
     ns = load_readiness(build_env(db_path=db, queue=q))
     res = asyncio.run(ns["_manager_runtime_ready_once"]("dwanders0"))
     check("A8 tg_user_id mismatch -> telegram_identity_mismatch",
@@ -530,7 +530,7 @@ def run_invariant_checks() -> None:
     db = make_health_db()
     q = FakeQueue(ping_result={"connected": True, "authorized": True, "tg_user_id": 777001,
                                "worker_key": "someone_else",
-                               "checked_at": datetime.utcnow().isoformat()})
+                               "checked_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()})
     ns = load_readiness(build_env(db_path=db, queue=q))
     res = asyncio.run(ns["_manager_runtime_ready_once"]("dwanders0"))
     check("A9 foreign worker_key -> runtime_not_ready/ping",
@@ -585,7 +585,7 @@ def run_invariant_checks() -> None:
     db = make_health_db()
     q = FakeQueue(ping_result={"connected": True, "authorized": True, "tg_user_id": 777001,
                                "worker_key": "dwanders0",
-                               "checked_at": datetime.utcnow().isoformat()})
+                               "checked_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()})
     ns = load_readiness(build_env(db_path=db, queue=q))
     asyncio.run(ns["_manager_runtime_ready_once"]("dwanders0"))
     check("D2 readiness enqueues exactly one runtime_ping for its own key",

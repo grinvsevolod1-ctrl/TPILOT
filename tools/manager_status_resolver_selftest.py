@@ -175,11 +175,11 @@ def _row(**over):
 # auth_guard_last_ok_at / auth_guard_last_bad_at, gated by
 # _PB_PROXY_GUARD_FRESH_SEC == 600s).
 def _fresh_ts(seconds_ago: int = 30) -> str:
-    return (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
 
 
 def _stale_ts(seconds_ago: int = 3600) -> str:
-    return (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
 
 
 # ======================================================================
@@ -804,12 +804,12 @@ def test_9b_effective_state_and_ttl_contract(ns) -> None:
 
     # --- owner scenario 8: future timestamp beyond the 60s clock-skew
     # tolerance -> treated as invalid/stale, never a false-healthy.
-    future_far = (datetime.utcnow() + timedelta(seconds=3600)).replace(microsecond=0).isoformat()
+    future_far = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=3600)).replace(microsecond=0).isoformat()
     row = _row(proxy_required=1, proxy_enabled=1, auth_guard_state="ok", auth_guard_last_ok_at=future_far)
     check("9b.8 far-future timestamp (1h ahead) -> effective 'stale', not fabricated 'healthy'",
           effective(row) == "stale", effective(row))
     # ...but a small forward skew WITHIN the 60s tolerance is still trusted.
-    future_near = (datetime.utcnow() + timedelta(seconds=30)).replace(microsecond=0).isoformat()
+    future_near = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=30)).replace(microsecond=0).isoformat()
     row = _row(proxy_required=1, proxy_enabled=1, auth_guard_state="ok", auth_guard_last_ok_at=future_near)
     check("9b.8 near-future timestamp (30s ahead, within 60s skew tolerance) -> effective 'healthy'",
           effective(row) == "healthy", effective(row))
@@ -896,7 +896,7 @@ def test_9b_effective_state_and_ttl_contract(ns) -> None:
     fresh_sec = ns["_PB_PROXY_GUARD_FRESH_SEC"]
     check("9b.[TTL] _PB_PROXY_GUARD_FRESH_SEC is the owner-mandated 15 minutes (900s)",
           fresh_sec == 900, fresh_sec)
-    now = datetime.utcnow().replace(microsecond=0)
+    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
     just_inside = now - timedelta(seconds=fresh_sec - 1)
     just_outside = now - timedelta(seconds=fresh_sec + 1)
     check("9b.[TTL boundary] a timestamp 1s inside the 900s window is fresh",

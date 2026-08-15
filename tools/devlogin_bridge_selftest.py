@@ -119,7 +119,7 @@ def main():
         "_devlogin_json": json, "_devlogin_struct": struct,
         "_devlogin_storage": storage,
         "_devlogin_parse_code": __import__("login_code_parser").parse_login_code,
-        "_now_utc_iso": lambda: datetime.utcnow().replace(microsecond=0).isoformat(),
+        "_now_utc_iso": lambda: datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(),
         "Dict": dict, "Any": object, "Optional": type(None),
         "print": print,
         "DEVLOGIN_BRIDGE_IO_TIMEOUT_SEC": 2.0,
@@ -164,8 +164,8 @@ def main():
         return json.loads(body.decode("utf-8"))
 
     def make_request(request_id, manager_key, token_hash, message_id, expires_in=180):
-        started_at = datetime.utcnow().isoformat()
-        expires_at = (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat()
+        started_at = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()
+        expires_at = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=expires_in)).isoformat()
         storage.devlogin_create(request_id, manager_key, requested_by_user_id=1,
                                 token_hash=token_hash, started_at=started_at,
                                 expires_at=expires_at, db_path=db)

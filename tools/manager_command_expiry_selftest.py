@@ -97,7 +97,7 @@ def _iso(dt: datetime) -> str:
 
 
 def _now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
 
 def _seed_replacement_row(db_path: str, *, operation_id: str, old_manager_key: str, status: str,

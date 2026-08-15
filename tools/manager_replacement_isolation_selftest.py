@@ -721,7 +721,7 @@ def _seed_replacement_row(db_path: str, *, operation_id: str, old_manager_key: s
     manager_replacements row with a given status/stage, not a fully-valid
     operation."""
     storage.ensure_replacement_tables(db_path)
-    now = datetime.utcnow().replace(microsecond=0).isoformat()
+    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute(

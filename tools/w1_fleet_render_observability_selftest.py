@@ -136,7 +136,7 @@ def test_reason_codes_distinguish_bypass_not_running_stale_never():
     ns = build_namespace()
     resolve = ns["_pb_manager_status_resolve"]
     build_record = ns["_w1_render_classification_record"]
-    now = datetime.utcnow().replace(microsecond=0)
+    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
     fresh = (now).isoformat()
     stale = (now - timedelta(seconds=ns["_PB_PROXY_GUARD_FRESH_SEC"] + 120)).isoformat()
 
@@ -166,7 +166,7 @@ def test_all_healthy_fleet_has_zero_unknown():
     ns = build_namespace()
     resolve = ns["_pb_manager_status_resolve"]
     build_record = ns["_w1_render_classification_record"]
-    now_iso = datetime.utcnow().replace(microsecond=0).isoformat()
+    now_iso = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
     fleet = [_row(manager_key=f"mgr_{i:02d}", auth_guard_state="ok", auth_guard_last_ok_at=now_iso)
              for i in range(16)]
     codes = []
@@ -189,7 +189,7 @@ def test_fully_stale_fleet_is_uniform_never_selective():
     ns = build_namespace()
     resolve = ns["_pb_manager_status_resolve"]
     build_record = ns["_w1_render_classification_record"]
-    stale_iso = (datetime.utcnow() - timedelta(seconds=ns["_PB_PROXY_GUARD_FRESH_SEC"] + 300)).isoformat()
+    stale_iso = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=ns["_PB_PROXY_GUARD_FRESH_SEC"] + 300)).isoformat()
     fleet = [_row(manager_key=f"mgr_{i:02d}", auth_guard_state="ok", auth_guard_last_ok_at=stale_iso)
              for i in range(11)]
     codes = set()

@@ -166,7 +166,7 @@ def make_db(*, health_age_sec: Optional[int] = 60,
         con.execute("CREATE TABLE manager_telegram_health("
                     "manager_key TEXT PRIMARY KEY, health_status TEXT, last_check_at TEXT)")
         last = "" if health_age_sec is None else (
-            datetime.utcnow() - timedelta(seconds=int(health_age_sec))
+            datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=int(health_age_sec))
         ).replace(microsecond=0).isoformat()
         con.execute("INSERT INTO manager_telegram_health VALUES (?,?,?)",
                     (key, health_status, last))
@@ -293,7 +293,7 @@ def run_checks() -> None:
 
     # The incident, reproduced: live runtime, stale background heartbeat.
     q = FakeQueue(ping_result=dict(HEALTHY_PING,
-                                   checked_at=datetime.utcnow().isoformat()))
+                                   checked_at=datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()))
     ns = load_gate(build_gate(db_path=make_db(health_age_sec=1140), queue=q))
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -350,16 +350,16 @@ def run_checks() -> None:
     # no batch command.
     q = FakeQueue(ping_result=None)
     ns = load_gate(build_gate(db_path=make_db(), queue=q))
-    started = datetime.utcnow()
+    started = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
     ok, text = run_gate(ns)
-    elapsed = (datetime.utcnow() - started).total_seconds()
+    elapsed = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - started).total_seconds()
     check("N6 an unanswered ping fails bounded and enqueues no batch command",
           (not ok) and "bizlink_create_n" not in q.commands and elapsed < 120,
           f"ok={ok} elapsed={elapsed:.1f}s commands={q.commands}")
 
     # Ordering: whatever else happens, the ping is enqueued before the batch.
     q = FakeQueue(ping_result=dict(HEALTHY_PING,
-                                   checked_at=datetime.utcnow().isoformat()))
+                                   checked_at=datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()))
     ns = load_gate(build_gate(db_path=make_db(), queue=q))
     with contextlib.redirect_stdout(io.StringIO()):
         ok, text = run_gate(ns)

@@ -654,8 +654,8 @@ def test_11_proxy_link_only() -> None:
 # ======================================================================
 
 def test_11b_proxy_badge_agrees_with_shared_resolver() -> None:
-    fresh = (datetime.utcnow() - timedelta(seconds=30)).replace(microsecond=0).isoformat()
-    stale = (datetime.utcnow() - timedelta(hours=2)).replace(microsecond=0).isoformat()
+    fresh = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=30)).replace(microsecond=0).isoformat()
+    stale = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(hours=2)).replace(microsecond=0).isoformat()
     cases = [
         ("bypass1", {"proxy_required": 0, "proxy_enabled": 0}),
         ("healthy1", {"proxy_required": 1, "proxy_enabled": 1, "proxy_host": "1.2.3.4", "proxy_port": "1080",

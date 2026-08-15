@@ -311,7 +311,7 @@ def _iso(dt: datetime) -> str:
 
 
 def utc_now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
 
 def seed_reserve_event(db_path: str, *, source_key: str, primary_key: str, reserve_key: str,
@@ -1324,7 +1324,7 @@ async def test_w27_w29_freshness_cutoff_boundary():
 
         # Compute the cutoff the SAME way the real function does, so the
         # boundary events land deterministically on either side of it.
-        cutoff_ref = datetime.utcnow().replace(microsecond=0) - timedelta(hours=72)
+        cutoff_ref = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - timedelta(hours=72)
         just_older_eid = seed_reserve_event(db_path, source_key="srcw27", primary_key="pOlder", reserve_key="rOlder",
                                              status="done", updated_at=_iso(cutoff_ref - timedelta(seconds=5)))
         just_newer_eid = seed_reserve_event(db_path, source_key="srcw27", primary_key="pNewer", reserve_key="rNewer",

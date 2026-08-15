@@ -138,7 +138,7 @@ def _row(**kw):
         "manual_stopped": 0, "proxy_required": 1, "proxy_enabled": 1,
         "proxy_bypass_allowed": 0, "proxy_host": "10.0.0.1", "proxy_port": "1080",
         "auth_guard_state": "ok",
-        "auth_guard_last_ok_at": datetime.utcnow().replace(microsecond=0).isoformat(),
+        "auth_guard_last_ok_at": datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(),
     }
     base.update(kw)
     return base

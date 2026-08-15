@@ -274,7 +274,7 @@ def _incident_row(db_path: str, key: str, sig: str) -> Optional[dict]:
 
 
 def _backdate_last_notified(db_path: str, key: str, sig: str, seconds_ago: int) -> None:
-    ts = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute("UPDATE health_incidents SET last_notified_at=? WHERE manager_key=? AND signature=?", (ts, key, sig))
@@ -284,7 +284,7 @@ def _backdate_last_notified(db_path: str, key: str, sig: str, seconds_ago: int) 
 
 
 def _backdate_confirm_due(db_path: str, key: str, sig: str, seconds_ago: int) -> None:
-    ts = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute("UPDATE health_incidents SET confirm_due_at=? WHERE manager_key=? AND signature=?", (ts, key, sig))
@@ -399,7 +399,7 @@ def test_scenario_9_recovery_exempt_from_quota():
         stable_sec = ns["_hnv2_stable_sec_for_family"]("session_unauthorized")
         con = sqlite3.connect(db_path)
         try:
-            past = (datetime.utcnow() - timedelta(seconds=stable_sec + 30)).replace(microsecond=0).isoformat()
+            past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stable_sec + 30)).replace(microsecond=0).isoformat()
             con.execute("UPDATE health_incidents SET recovery_pending_since=? WHERE manager_key=? AND signature=?", (past, key, sig))
             con.commit()
         finally:
@@ -799,7 +799,7 @@ def test_ownership_positive_worker_crash_full_cycle():
         # One tick short of the window: must NOT resolve yet.
         con = sqlite3.connect(db_path)
         try:
-            almost = (datetime.utcnow() - timedelta(seconds=stable_sec - 5)).replace(microsecond=0).isoformat()
+            almost = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stable_sec - 5)).replace(microsecond=0).isoformat()
             con.execute("UPDATE health_incidents SET recovery_pending_since=? WHERE manager_key=? AND signature=?", (almost, key, sig))
             con.commit()
         finally:
@@ -810,7 +810,7 @@ def test_ownership_positive_worker_crash_full_cycle():
 
         con = sqlite3.connect(db_path)
         try:
-            past = (datetime.utcnow() - timedelta(seconds=stable_sec + 5)).replace(microsecond=0).isoformat()
+            past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stable_sec + 5)).replace(microsecond=0).isoformat()
             con.execute("UPDATE health_incidents SET recovery_pending_since=? WHERE manager_key=? AND signature=?", (past, key, sig))
             con.commit()
         finally:
@@ -850,7 +850,7 @@ def test_ownership_positive_account_blocked_via_tp_hg_evidence():
         stable_sec = ns["HNV2_STABLE_SEC"]
         con = sqlite3.connect(db_path)
         try:
-            past = (datetime.utcnow() - timedelta(seconds=stable_sec + 5)).replace(microsecond=0).isoformat()
+            past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stable_sec + 5)).replace(microsecond=0).isoformat()
             con.execute("UPDATE health_incidents SET recovery_pending_since=? WHERE manager_key=? AND signature=?", (past, key, sig))
             con.commit()
         finally:
@@ -892,7 +892,7 @@ def test_ownership_positive_sqlite_lock_long_stability_window():
 
         con = sqlite3.connect(db_path)
         try:
-            almost = (datetime.utcnow() - timedelta(seconds=stable_sec - 10)).replace(microsecond=0).isoformat()
+            almost = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stable_sec - 10)).replace(microsecond=0).isoformat()
             con.execute("UPDATE health_incidents SET recovery_pending_since=? WHERE manager_key=? AND signature=?", (almost, key, sig))
             con.commit()
         finally:
@@ -903,7 +903,7 @@ def test_ownership_positive_sqlite_lock_long_stability_window():
 
         con = sqlite3.connect(db_path)
         try:
-            past = (datetime.utcnow() - timedelta(seconds=stable_sec + 10)).replace(microsecond=0).isoformat()
+            past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stable_sec + 10)).replace(microsecond=0).isoformat()
             con.execute("UPDATE health_incidents SET recovery_pending_since=? WHERE manager_key=? AND signature=?", (past, key, sig))
             con.commit()
         finally:

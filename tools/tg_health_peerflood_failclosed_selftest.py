@@ -127,7 +127,7 @@ async def runtime_gate(source: str, tree: ast.Module) -> None:
         "error_class": "FloodWaitError",
         "error_source": "client_auto_send",
         "cooldown_until": (
-            dt.datetime.utcnow().replace(microsecond=0)
+            dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).replace(microsecond=0)
             + dt.timedelta(minutes=30)
         ).isoformat(),
     })
@@ -136,7 +136,7 @@ async def runtime_gate(source: str, tree: ast.Module) -> None:
     )
 
     current["cooldown_until"] = (
-        dt.datetime.utcnow().replace(microsecond=0)
+        dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).replace(microsecond=0)
         - dt.timedelta(minutes=1)
     ).isoformat()
     assert await gate("darias", new_dialog=False) == (

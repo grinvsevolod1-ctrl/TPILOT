@@ -94,7 +94,7 @@ PANEL_REAL_NAMES = {
     "_HNV2_UNSAFE_ACTION_PREFIXES", "_HNV2_SAFE_DIAG_FALLBACK",
     # RR-1 (W3.2 2026-08-07): _hnv2_health_notification_buttons' FloodWait
     # cooldown check now reuses the approved _utc_now_iso() wrapper instead
-    # of a local datetime.utcnow() -- a real, load-bearing dependency for
+    # of a local datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) -- a real, load-bearing dependency for
     # this function, same as every other helper in this set.
     "_utc_now_iso",
     # R1B/F-16/F-32 (2026-08-12, large reliability batch): every
@@ -372,8 +372,8 @@ def test_n8_floodwait_cooldown_buttons():
     # End-to-end through the body parser: cooldown_until in the future vs
     # in the past, via the fresh _pb_tg_health_row read the builder does.
     from datetime import datetime, timedelta, timezone as _tz
-    future = (datetime.utcnow() + timedelta(minutes=30)).replace(microsecond=0).isoformat()
-    past = (datetime.utcnow() - timedelta(minutes=5)).replace(microsecond=0).isoformat()
+    future = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(minutes=30)).replace(microsecond=0).isoformat()
+    past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)).replace(microsecond=0).isoformat()
 
     ns_future = build_panel_ns({1: {"id": 1, "manager_key": "mgr_fw", "status": "active"}})
     ns_future["_pb_tg_health_row"] = lambda k: {"cooldown_until": future}

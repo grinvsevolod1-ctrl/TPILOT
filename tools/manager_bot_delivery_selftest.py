@@ -540,7 +540,7 @@ def test_8_retry_respects_backoff_window() -> None:
               len(selected) == 0, selected)
 
         # Move next_attempt_at into the past to simulate "backoff elapsed".
-        past = (datetime.utcnow() - timedelta(seconds=5)).replace(microsecond=0).isoformat()
+        past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=5)).replace(microsecond=0).isoformat()
         con = sqlite3.connect(db_path)
         con.execute("UPDATE manager_bot_sent SET next_attempt_at=? WHERE tg_user_id=444 AND event_id=4", (past,))
         con.commit()
@@ -600,7 +600,7 @@ def test_9_quarantine_after_max_attempts() -> None:
         # guarantee, not just "not yet due".
         con = sqlite3.connect(db_path)
         con.execute("UPDATE manager_bot_sent SET next_attempt_at=? WHERE tg_user_id=555 AND event_id=5",
-                    ((datetime.utcnow() - timedelta(days=1)).replace(microsecond=0).isoformat(),))
+                    ((datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(days=1)).replace(microsecond=0).isoformat(),))
         con.commit()
         con.close()
         selected = ns["_fetch_unsent_events_for_user"](555, ["mgr1"])

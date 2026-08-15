@@ -215,7 +215,7 @@ def _panel_notifications_bodies(db_path: str) -> list:
 
 
 def _backdate_last_notified(db_path: str, manager_key: str, signature: str, seconds_ago: int) -> None:
-    ts = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute(

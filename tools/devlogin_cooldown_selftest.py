@@ -66,8 +66,8 @@ def main():
     def start(rid, mk, cooldown_sec=30, expires_in=180):
         return storage.devlogin_create_with_cooldown(
             rid, mk, requested_by_user_id=1, token_hash=_mk_hash(rid),
-            started_at=datetime.utcnow().isoformat(),
-            expires_at=(datetime.utcnow() + timedelta(seconds=expires_in)).isoformat(),
+            started_at=datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat(),
+            expires_at=(datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=expires_in)).isoformat(),
             cooldown_sec=cooldown_sec, db_path=db,
         )
 
@@ -93,7 +93,7 @@ def main():
     # === immediate second request rejected (right after a terminal row) ======
     r1 = start("dl_cd1", "MgrCD1")
     check("first request for a fresh manager succeeds", r1.get("ok") is True, detail=str(r1))
-    force_terminal("dl_cd1", "MgrCD1", "consumed", datetime.utcnow().isoformat())
+    force_terminal("dl_cd1", "MgrCD1", "consumed", datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat())
     r2 = start("dl_cd1b", "MgrCD1")
     check("immediate second request (same manager, just-terminated) is REJECTED",
           r2.get("ok") is False and r2.get("reason") == "cooldown", detail=str(r2))
@@ -102,14 +102,14 @@ def main():
           detail=str(r2.get("retry_after_sec")))
 
     # === request accepted after 30 seconds ====================================
-    old_terminal_ts = (datetime.utcnow() - timedelta(seconds=31)).isoformat()
+    old_terminal_ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=31)).isoformat()
     force_terminal("dl_cd1", "MgrCD1", "consumed", old_terminal_ts)
     r3 = start("dl_cd1c", "MgrCD1")
     check("request accepted once the cooldown window (30s) has fully elapsed",
           r3.get("ok") is True, detail=str(r3))
 
     # === separate managers do not block each other ===========================
-    force_terminal("dl_cd1c", "MgrCD1", "consumed", datetime.utcnow().isoformat())
+    force_terminal("dl_cd1c", "MgrCD1", "consumed", datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat())
     r4 = start("dl_cd2", "MgrCD2")  # a DIFFERENT manager, no prior history at all
     check("a different manager is completely unaffected by MgrCD1's cooldown",
           r4.get("ok") is True, detail=str(r4))
@@ -121,7 +121,7 @@ def main():
         rid_b = f"dl_{status}_b"
         ra = start(rid_a, mk)
         check(f"cooldown/{status}: setup request succeeds", ra.get("ok") is True)
-        force_terminal(rid_a, mk, status, datetime.utcnow().isoformat())
+        force_terminal(rid_a, mk, status, datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat())
         rb = start(rid_b, mk)
         check(f"cooldown/{status}: an immediate re-request after a '{status}' row is REJECTED",
               rb.get("ok") is False and rb.get("reason") == "cooldown", detail=str(rb))
@@ -134,7 +134,7 @@ def main():
         ra = start(rid_a, mk)
         check(f"active/{status}: setup request succeeds", ra.get("ok") is True)
         if status != "waiting":
-            force_terminal(rid_a, mk, status, datetime.utcnow().isoformat())
+            force_terminal(rid_a, mk, status, datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat())
         rb = start(rid_b, mk)
         check(f"active/{status}: a concurrent request is rejected as 'active', NOT 'cooldown'",
               rb.get("ok") is False and rb.get("reason") == "active", detail=str(rb))
@@ -164,7 +164,7 @@ def main():
     mk_restart = "MgrCDRestart"
     r5 = start("dl_restart_a", mk_restart)
     check("restart test: setup request succeeds", r5.get("ok") is True)
-    stamp = (datetime.utcnow() - timedelta(seconds=5)).isoformat()
+    stamp = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=5)).isoformat()
     force_terminal("dl_restart_a", mk_restart, "consumed", stamp)
     # Simulate a fresh process: brand-new connection to the SAME db_path (no
     # in-memory state carried over -- storage.devlogin_create_with_cooldown

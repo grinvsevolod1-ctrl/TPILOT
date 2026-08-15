@@ -47,7 +47,7 @@ import storage  # noqa: E402
 
 
 def _timestamp() -> str:
-    return datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).strftime("%Y%m%d_%H%M%S")
 
 
 def run(db_path: str, dry_run: bool) -> int:

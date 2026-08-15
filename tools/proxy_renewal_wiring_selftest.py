@@ -592,7 +592,7 @@ def run_balance_alert_checks(main_tree) -> None:
     below $20, at most once per 24h while still below, reset on recovery,
     balance-read failure never raises/blocks. REAL storage (temp DB) +
     REAL _renewal_balance_alert_tick, with _renewal_balance/_now_utc_iso/
-    datetime.utcnow() faked for deterministic control."""
+    datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) faked for deterministic control."""
     print("\n-- low-balance AdminBot alert (REAL execution, temp DB) --")
 
     work = Path(tempfile.mkdtemp(prefix="proxy_balance_alert_"))

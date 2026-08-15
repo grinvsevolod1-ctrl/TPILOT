@@ -89,10 +89,10 @@ def main():
 
     def fake_future_iso(seconds):
         from datetime import timedelta
-        return (datetime.utcnow() + timedelta(seconds=int(seconds))).isoformat()
+        return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=int(seconds))).isoformat()
 
     def fake_now_iso():
-        return datetime.utcnow().replace(microsecond=0).isoformat()
+        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
 
     def fake_repl3_json_result(payload):
         import json

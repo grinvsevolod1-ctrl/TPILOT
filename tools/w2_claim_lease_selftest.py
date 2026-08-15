@@ -190,7 +190,7 @@ def _row(db, uid, eid):
 
 
 def _force_expire(db, uid, eid, seconds_ago=1):
-    past = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    past = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db)
     con.execute("UPDATE manager_bot_sent SET lease_expires_at=? WHERE tg_user_id=? AND event_id=?", (past, uid, eid))
     con.commit()

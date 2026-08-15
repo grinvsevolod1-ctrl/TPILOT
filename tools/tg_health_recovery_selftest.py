@@ -262,7 +262,7 @@ async def _stub_human_send_delay(chat_id: int, text: str, *, after_first: bool =
 
 
 def _stub_kyiv_now():
-    return datetime.utcnow()
+    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
 
 def _stub_norm_key(raw: Any) -> str:
@@ -408,7 +408,7 @@ def _raw_health_row(db_path: str, manager_key: str) -> Optional[dict]:
 
 
 def _raw_backdate_cooldown_expired(db_path: str, manager_key: str) -> None:
-    ts = (datetime.utcnow() - timedelta(seconds=60)).replace(microsecond=0).isoformat()
+    ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=60)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute("UPDATE manager_telegram_health SET cooldown_until=? WHERE manager_key=?", (ts, manager_key))
@@ -418,7 +418,7 @@ def _raw_backdate_cooldown_expired(db_path: str, manager_key: str) -> None:
 
 
 def _raw_backdate_incident_notified(db_path: str, manager_key: str, signature: str, seconds_ago: int) -> None:
-    ts = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute(
@@ -436,7 +436,7 @@ def _raw_backdate_incident_resolved(db_path: str, manager_key: str, signature: s
     (health_incident_upsert_open, storage.py) -- proves M2's original
     never-permanently-orphaned guarantee still holds once the anti-flap
     window has genuinely elapsed."""
-    ts = (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    ts = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
     con = sqlite3.connect(db_path)
     try:
         con.execute(

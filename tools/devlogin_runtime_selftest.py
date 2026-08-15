@@ -135,7 +135,7 @@ def main():
     check("DEVLOGIN_CATCHUP_LIMIT == 5 (bounded catch-up)", const_vals.get("DEVLOGIN_CATCHUP_LIMIT") == 5)
 
     def _now_utc_iso():
-        return datetime.utcnow().replace(microsecond=0).isoformat()
+        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
 
     ns_base = {
         "datetime": datetime, "timedelta": timedelta, "timezone": timezone,
@@ -172,12 +172,12 @@ def main():
         return _loop.run_until_complete(coro)
 
     now_iso = _now_utc_iso()
-    now_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+    now_dt = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(tzinfo=timezone.utc)
 
     # === A/B: only sender 777000, non-private, outgoing rejected ==========
     storage.devlogin_create("dl_a1", "TestMgrA", requested_by_user_id=1,
                             token_hash="0" * 64, started_at=now_iso,
-                            expires_at=(datetime.utcnow() + timedelta(seconds=180)).isoformat(),
+                            expires_at=(datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=180)).isoformat(),
                             db_path=db)
     ns = build_ns(False, "testmgra")
 
@@ -213,7 +213,7 @@ def main():
     # === D: duplicate message_id ignored (even if resubmitted) =============
     storage.devlogin_create("dl_d1", "TestMgrD", requested_by_user_id=1,
                             token_hash="1" * 64, started_at=now_iso,
-                            expires_at=(datetime.utcnow() + timedelta(seconds=180)).isoformat(),
+                            expires_at=(datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=180)).isoformat(),
                             db_path=db)
     ns_d = build_ns(False, "testmgrd")
     ev_dup = FakeEvent(FakeMessage(id=777, text="Код: 66666.", date=now_dt))
@@ -237,7 +237,7 @@ def main():
 
     storage.devlogin_create("dl_e2", "TestMgrE2", requested_by_user_id=1,
                             token_hash="3" * 64, started_at=now_iso,
-                            expires_at=(datetime.utcnow() + timedelta(seconds=180)).isoformat(),
+                            expires_at=(datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=180)).isoformat(),
                             db_path=db)
     storage.devlogin_cancel("dl_e2", db_path=db)
     ns_e2 = build_ns(False, "testmgre2")
@@ -248,7 +248,7 @@ def main():
     # === controller mode / no runtime key never captures ====================
     storage.devlogin_create("dl_cm1", "TestMgrCM", requested_by_user_id=1,
                             token_hash="4" * 64, started_at=now_iso,
-                            expires_at=(datetime.utcnow() + timedelta(seconds=180)).isoformat(),
+                            expires_at=(datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=180)).isoformat(),
                             db_path=db)
     ns_cm = build_ns(True, "testmgrcm")  # CONTROLLER_MODE=True
     ev_cm = FakeEvent(FakeMessage(id=10, text="Код: 99999.", date=now_dt))
@@ -261,7 +261,7 @@ def main():
     # === F: bounded catch-up scan, limit=5, only newer-than-started_at ======
     storage.devlogin_create("dl_f1", "TestMgrF", requested_by_user_id=1,
                             token_hash="5" * 64, started_at=now_iso,
-                            expires_at=(datetime.utcnow() + timedelta(seconds=180)).isoformat(),
+                            expires_at=(datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=180)).isoformat(),
                             db_path=db)
     # 5 old (pre-started_at) messages + 1 fresh matching one further back in
     # the iterator than the catch-up limit would reach if it scanned in the

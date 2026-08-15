@@ -246,14 +246,14 @@ async def test_abc_gate_and_recovery_primitives() -> None:
     current.clear()
     current.update({
         "health_status": "limited", "error_class": "FloodWaitError", "error_source": "client_auto_send",
-        "cooldown_until": (datetime.utcnow().replace(microsecond=0) + timedelta(minutes=30)).isoformat(),
+        "cooldown_until": (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) + timedelta(minutes=30)).isoformat(),
     })
     allowed_fw, reason_fw = await gate("darias", new_dialog=False)
     check("I. active FloodWait cooldown -> gate deny", allowed_fw is False and reason_fw == "floodwait_cooldown_active", (allowed_fw, reason_fw))
 
     # J. Expired FloodWait -> allow (existing behavior preserved), and
     # recoverable via an ordinary send (unchanged -- floodwait always was).
-    current["cooldown_until"] = (datetime.utcnow().replace(microsecond=0) - timedelta(minutes=1)).isoformat()
+    current["cooldown_until"] = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - timedelta(minutes=1)).isoformat()
     allowed_fw2, reason_fw2 = await gate("darias", new_dialog=False)
     check("J. expired FloodWait -> gate allow (existing behavior preserved)", allowed_fw2 is True and reason_fw2 == "floodwait_cooldown_elapsed", (allowed_fw2, reason_fw2))
     recover_fw = await may_recover("darias")
@@ -343,7 +343,7 @@ async def test_de_post_followup_loop_stops_after_one_restriction() -> None:
         sent_calls.append(chat_id)
 
     def fake_kyiv_now():
-        return datetime.utcnow()
+        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
     def fake_followup_allowed_now(_now_local):
         return True
@@ -377,7 +377,7 @@ async def test_de_post_followup_loop_stops_after_one_restriction() -> None:
         "_mark_post_followup_sent": fake_mark_sent,
         "POST_MANUAL_FOLLOWUP_BATCH_SLEEP_MIN_SEC": 0, "POST_MANUAL_FOLLOWUP_BATCH_SLEEP_MAX_SEC": 0,
         "_POST_FOLLOWUP_V2_SKIPPED_LOG_DONE": False,
-        "_post_followup_v2_epoch_utc": lambda: datetime.utcnow(),
+        "_post_followup_v2_epoch_utc": lambda: datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None),
     }
     exec(compile(isolated, f"<{MAIN_PATH}:post_followup_loop>", "exec"), ns)
     fn = ns["_process_post_manual_followups_once"]
@@ -437,7 +437,7 @@ async def test_de_profile_reminder_loop_stops_after_one_restriction() -> None:
         return "2026-08-12T00:00:00"
 
     def fake_kyiv_now():
-        return datetime.utcnow()
+        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
     ns: Dict[str, Any] = {
         "asyncio": asyncio, "random": __import__("random"), "datetime": datetime,

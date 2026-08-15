@@ -295,11 +295,11 @@ def _seed_lease(db_path: str, **fields) -> None:
 # 2026-07-25 proxy-freshness incident fix: realistic fresh/stale Auth Guard
 # outcome timestamps for seeding test rows.
 def _fresh_ts(seconds_ago: int = 30) -> str:
-    return (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
 
 
 def _stale_ts(seconds_ago: int = 3600) -> str:
-    return (datetime.utcnow() - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
+    return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=seconds_ago)).replace(microsecond=0).isoformat()
 
 
 SECRET_FORBIDDEN_SUBSTRINGS = (
@@ -936,7 +936,7 @@ def test_14_proxy_guard_display_states_agree() -> None:
     # clock-skew tolerance -> treated as stale/unknown, never a false
     # healthy verdict, even though the raw field is a "success".
     db_path = _make_temp_db()
-    future_far = (datetime.utcnow() + timedelta(hours=1)).replace(microsecond=0).isoformat()
+    future_far = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(hours=1)).replace(microsecond=0).isoformat()
     _seed_manager(db_path, manager_key="mgr01", proxy_enabled=1, proxy_required=1,
                   proxy_host="1.2.3.4", proxy_port="1080",
                   auth_guard_state="ok", auth_guard_last_ok_at=future_far)
@@ -1086,8 +1086,8 @@ def test_14k_auth_guard_line_reflects_telegram_auth_not_proxy_state() -> None:
 # ======================================================================
 
 def test_15_proxy_detail_screen_bypass_and_states() -> None:
-    fresh = (datetime.utcnow() - timedelta(seconds=30)).replace(microsecond=0).isoformat()
-    stale = (datetime.utcnow() - timedelta(hours=2)).replace(microsecond=0).isoformat()
+    fresh = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=30)).replace(microsecond=0).isoformat()
+    stale = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(hours=2)).replace(microsecond=0).isoformat()
 
     scenarios = {
         # 1. bypass/direct, nothing assigned at all -> the early

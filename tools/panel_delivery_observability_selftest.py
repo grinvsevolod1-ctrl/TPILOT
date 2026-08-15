@@ -61,7 +61,7 @@ DELIVERY_NAMES = {
     "_panel_status_send", "_panel_result_send", "_panel_update_status_or_send",
     "_panel_log_delivery_error", "_panel_sanitize_log_field", "_PANEL_DELIVERY_LOG_FILE",
     # W3.2 TZ-6: _panel_log_delivery_error's log line now builds its timestamp via
-    # the approved _utc_now_iso() wrapper instead of a bare datetime.utcnow() --
+    # the approved _utc_now_iso() wrapper instead of a bare datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) --
     # extract it too, or the call raises NameError inside the try/except that
     # _panel_log_delivery_error itself swallows (silently dropping every log line
     # this whole suite exists to assert on).

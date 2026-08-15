@@ -386,7 +386,7 @@ async def run_p2_checks(tmp_db: str) -> None:
     list_cmd_fn = ns["_handle_proxy_pool_list_command"]
     card_cmd_fn = ns["_handle_proxy_pool_card_command"]
 
-    now = datetime.utcnow()
+    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
     past_ddmmyyyy = (now - timedelta(days=30)).strftime("%d.%m.%Y")
 
     # ------------------------------------------------------------------
@@ -1484,10 +1484,10 @@ async def run_p61_checks(tmp_db: str) -> None:
     # A lease that recently failed/went unverified DOES need action, even
     # though auto-renew is configured -- the admin should hear about it.
     # NOTE: _prenew_warn_action_needed compares last_renew_attempt_at
-    # against the REAL datetime.utcnow() (production wall-clock), NOT the
+    # against the REAL datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) (production wall-clock), NOT the
     # fixed fake `now` used above for slot-eligibility day-delta math --
     # these two fixtures must anchor to real current time, not `now`.
-    real_utcnow = datetime.utcnow()
+    real_utcnow = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
     lease_recent_failure = {
         "id": 503, "host": "50.0.0.3", "port": 58003, "manager_key": "mgr_e_1", "expires_at": today_ddmmyyyy, "status": "active",
         "auto_renew_enabled": 1, "provider_proxy_id": "PXY-FAILED-1",

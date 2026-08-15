@@ -160,7 +160,7 @@ def _iso(dt: datetime) -> str:
     return dt.replace(microsecond=0).isoformat()
 
 
-NOW = datetime.utcnow()
+NOW = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
 
 def ev(mrow=None, hrow=None, ss=None, proc="running", flap_new=0, last_verify="none"):

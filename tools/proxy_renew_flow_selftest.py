@@ -120,7 +120,7 @@ def _extract_and_exec(path: str, names: set, extra_ns: dict) -> dict:
 
 
 async def run_all_checks(tmp_db: str) -> None:
-    now = datetime.utcnow()
+    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
 
     # ------------------------------------------------------------------
     # 1/2/3. proxy_lease_list_expiring: finds expiring leases, excludes

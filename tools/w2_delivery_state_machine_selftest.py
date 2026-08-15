@@ -467,7 +467,7 @@ def test_17_18_retry_limit_and_no_requeue() -> None:
         # namespace ("restart") -- a dead row must never be re-selected.
         con = sqlite3.connect(db)
         con.execute("UPDATE manager_bot_sent SET next_attempt_at=? WHERE tg_user_id=1300 AND event_id=50",
-                    ((datetime.utcnow() - timedelta(days=1)).isoformat(),))
+                    ((datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(days=1)).isoformat(),))
         con.commit()
         con.close()
         ns2 = build_ns(db)
