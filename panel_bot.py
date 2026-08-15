@@ -5769,7 +5769,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
     if raw == "traffic_buyers":
         return _tp_visual_screen(["Главная", "Трафик и байеры"], "Здесь настраиваются источники, группы менеджеров и доступы байеров в Partner Bot."), _tp_visual_traffic_buyers_menu()
     if raw == "automation":
-        return _tp_visual_screen(["Главная", "Автоматизация"], "Здесь настраиваются автоответы, автодожимы, тексты, задержки и тихий режим.", "Анкета: 08:00–17:00\nАвтодожимы: 07:00–21:00\nТишина: 21:00–07:00"), _tp_visual_automation_menu()
+        return _tp_visual_screen(["Главная", "Автоматизация"], "Здесь настраиваются автоот��еты, автодожимы, тексты, задержки и тихий режим.", "Анкета: 08:00–17:00\nАвтодожимы: 07:00–21:00\nТишина: 21:00–07:00"), _tp_visual_automation_menu()
 
     simple = {
         "stats": (["Главная", "Отчёты и контроль", "Статистика"], "Статистика по менеджерам и датам."),
@@ -5835,7 +5835,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
         key = normalize_manager_key(raw.split(":", 1)[1])
         row = _manager_row_by_key(key)
         if not row:
-            return _tp_visual_screen(["Главная", "Прокси"], f"Менеджер не найден: {key}"), [[Button.inline("⬅️ Назад", b"menu:proxy")], [Button.inline("🏠 Главная", b"menu:main")]]
+            return _tp_visual_screen(["Главная", "П��окси"], f"Менеджер не найден: {key}"), [[Button.inline("⬅️ Назад", b"menu:proxy")], [Button.inline("🏠 Главная", b"menu:main")]]
         label = _manager_short_label(row)
         return _tp_visual_screen(["Главная", "Прокси", label], _proxy_detail_text(row)), _proxy_detail_buttons(key)
 
@@ -6729,7 +6729,7 @@ async def _tp_panel_v5_auth_input(event):
         user_id = int(getattr(event, "sender_id", 0) or 0)
         # TPILOT TERMINAL OK 20260809 (Ф4 bot-wide audit): terminal; the
         # fresh panel sent right after is a separate message.
-        await client.send_message(chat_id, "✅ Доступ подтверждён. Открываю панель.", buttons=_terminal_ok_button())
+        await client.send_message(chat_id, "✅ Д��ступ подтверждён. Открываю панель.", buttons=_terminal_ok_button())
         _register_panel_subscriber(chat_id, user_id)
         await _send_fresh_panel(chat_id, user_id, delete_previous=True)
         return
@@ -9044,7 +9044,7 @@ def _pb_proxy_state_check_text(state: str, row: dict) -> str:
     same _pb_proxy_effective_state classification, so wording differs only
     in length, never in verdict."""
     if state == "never":
-        return "данные проверки некорректны" if _pb_proxy_timestamp_malformed(row) else "не выполнялась"
+        return "данные проверки неко��ректны" if _pb_proxy_timestamp_malformed(row) else "не выполнялась"
     return _PB_PROXY_STATE_LABELS.get(state, "❓ данные устарели")
 
 
@@ -10570,7 +10570,7 @@ async def _ss_render_view(event, key) -> None:
     finally:
         con.close()
     lines = [
-        f"Сегодня неликвидов: {expected_today}",
+        f"Сегодня нел��квидов: {expected_today}",
         f"Скрины загружены: {uploaded_today}",
         f"Не хватает: {missing}",
         "",
@@ -11901,7 +11901,7 @@ _REPLACE_RESULT_MESSAGES = {
     "send_code_failed": "Не удалось отправить код. Попробуйте ещё раз.",
     "empty_code": "Введите код Telegram цифрами.",
     "no_pending_code": "Нет ожидающего кода. Начните заново.",
-    "invalid_code": "Код неверный или истёк. Введите код заново.",
+    "invalid_code": "Код неверны�� или истёк. Введите код заново.",
     "fatal_error": "Не удалось войти в Telegram-аккаунт.",
     "empty_password": "Введите пароль 2FA.",
     "no_pending_password": "Нет ожидающего запроса пароля. Начните заново.",
@@ -11946,7 +11946,7 @@ def _replace_parse_result(row: dict) -> dict:
             return data
     except Exception:
         pass
-    return {"ok": False, "code": "internal_error", "message": text or "Неизвестная ошибка."}
+    return {"ok": False, "code": "internal_error", "message": text or "Неизвестна�� ошибка."}
 
 
 def _replace_b64(text: str) -> str:
@@ -14055,7 +14055,7 @@ def _sched_pb_missing_text() -> str:
     lines = [
         _panel_header(),
         "",
-        "\U0001f4c5 Не отмечены рабочими на завтра",
+        "\U0001f4c5 Не от��ечены рабочими на завтра",
         "Дата: {}".format(tomorrow_str),
         "",
     ]
@@ -14242,7 +14242,7 @@ async def _sched_admin_callback(event):
         await _pb_safe_answer(event, )
     except Exception as exc:
         try:
-            await _pb_safe_answer(event, "Ошибка", alert=True)
+            await _pb_safe_answer(event, "Ошиб��а", alert=True)
         except Exception:
             pass
 
@@ -19595,7 +19595,7 @@ _NM_SEARCH_INDEX = [
     {"label": "📋 Список менеджеров", "route": "cmd:/manager_list", "path": "Менеджеры → Список",
      "keywords": "менеджер список manager статус"},
     {"label": "⚙️ Админ менеджеров", "route": "menu:manager_admin", "path": "Менеджеры → Админ",
-     "keywords": "менеджер админ admin статус enable disable резерв reserve где резерв "
+     "keywords": "ме��еджер админ admin статус enable disable резерв reserve где резерв "
                  "резервный аккаунт добавить аккаунт менеджер не работает проблема с менеджером"},
     {"label": "➕ Добавить менеджера", "route": "wiz:add_manager:start", "path": "Менеджеры → Добавить",
      "keywords": "менеджер добавить manager add добавить менеджера добавить аккаунт"},
@@ -23429,7 +23429,7 @@ def _proxy_success_card_text(*, manager_key: str, display_name: str, telegram_us
     Callers must source `password` from a safe local read (lease flows:
     _ppool_reveal_creds_once; manual one-line set: the operator's own
     just-parsed input) -- never from panel_commands result_text."""
-    lines = ["✅ Прокси установлен", "", "Аккаунт:", f"• Ключ: {manager_key or '_'}"]
+    lines = ["✅ Прокси у��тановлен", "", "Аккаунт:", f"• Ключ: {manager_key or '_'}"]
     name = str(display_name or "").strip()
     if name and name != manager_key:
         lines.append(f"• Имя: {name}")
@@ -24612,12 +24612,22 @@ def _tdimport_safe_error_ru(error_class: str) -> str:
     return _TDIMPORT_ERROR_RU.get(str(error_class or ""), "Внутренняя ошибка импорта.")
 
 
+def _tdimport_display_username(username: str) -> str:
+    """Local mirror of main.py's _display_username -- panel_bot.py runs in a
+    separate process and cannot import main.py (Telethon/env side effects at
+    import time), so the trivial @-prefix formatting is duplicated here."""
+    u = str(username or "").strip()
+    if not u:
+        return "_"
+    return u if u.startswith("@") else "@" + u
+
+
 def _tdimport_confirm_screen_text(data: dict) -> str:
     method = "готовая сессия" if data.get("import_method") == "ready_session" else "tdata (конвертация)"
     lines = [
         "🪪 Проверьте аккаунт перед установкой:",
         f"ID: {data.get('tg_user_id') or '_'}",
-        f"Username: {_display_username(str(data.get('username') or ''))}" if data.get("username") else "Username: _",
+        f"Username: {_tdimport_display_username(str(data.get('username') or ''))}" if data.get("username") else "Username: _",
         f"Имя: {data.get('display_name') or '_'}",
         f"Телефон: {data.get('masked_phone') or '_'}",
         f"Источник данных: {method}",
