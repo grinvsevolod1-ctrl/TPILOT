@@ -822,7 +822,7 @@ def main() -> int:
         ref_l = _ref_lite_counters(mgr_rows, d)
         eng_l = _engine_lite_counters(mgr_rows, d)
         ok_mk = _compare(f"Lite/{mk}   [REF-Partner vs Engine]", ref_l.get(mk, {}), eng_l.get(mk, {}), args.verbose)
-        ok_tot = _compare(f"Lite/TOTAL [REF-Partner vs Engine]", ref_l.get("TOTAL", {}), eng_l.get("TOTAL", {}), args.verbose)
+        ok_tot = _compare("Lite/TOTAL [REF-Partner vs Engine]", ref_l.get("TOTAL", {}), eng_l.get("TOTAL", {}), args.verbose)
         primary_pass = primary_pass and ok_mk and ok_tot
         manager_pass = manager_pass and ok_mk and ok_tot
         partner_pass = partner_pass and ok_mk and ok_tot
@@ -834,7 +834,7 @@ def main() -> int:
         ref_p = _ref_window_counters(mgr_rows, d, "day", widen_fetch=False)  # fetch=target_date only
         eng_p = _engine_window_counters(mgr_rows, d, "day")
         ok_mk = _compare(f"Pro-day/{mk}   [REF-Partner vs Engine]", ref_p.get(mk, {}), eng_p.get(mk, {}), args.verbose)
-        ok_tot = _compare(f"Pro-day/TOTAL [REF-Partner vs Engine]", ref_p.get("TOTAL", {}), eng_p.get("TOTAL", {}), args.verbose)
+        ok_tot = _compare("Pro-day/TOTAL [REF-Partner vs Engine]", ref_p.get("TOTAL", {}), eng_p.get("TOTAL", {}), args.verbose)
         primary_pass = primary_pass and ok_mk and ok_tot
         manager_pass = manager_pass and ok_mk and ok_tot
         partner_pass = partner_pass and ok_mk and ok_tot
@@ -852,7 +852,7 @@ def main() -> int:
             ref_partner_f.get(mk, {}), eng_f.get(mk, {}), args.verbose,
         )
         ok_p_tot = _compare(
-            f"Flight/TOTAL [REF-Partner vs Engine]",
+            "Flight/TOTAL [REF-Partner vs Engine]",
             ref_partner_f.get("TOTAL", {}), eng_f.get("TOTAL", {}), args.verbose,
         )
         partner_pass = partner_pass and ok_p_mk and ok_p_tot
@@ -865,7 +865,7 @@ def main() -> int:
                 ref_mgr_f.get(mk, {}), eng_f.get(mk, {}), args.verbose,
             )
             ok_m_tot = _compare(
-                f"Flight/TOTAL [REF-Manager vs Engine]",
+                "Flight/TOTAL [REF-Manager vs Engine]",
                 ref_mgr_f.get("TOTAL", {}), eng_f.get("TOTAL", {}), args.verbose,
             )
             primary_pass = primary_pass and ok_m_mk and ok_m_tot
@@ -968,7 +968,7 @@ def main() -> int:
             a_label = "PASS" if admin_pass else "FAIL"
             print(f"REF-Admin   vs Engine: {a_label}  (--admin; included in overall gate)")
         else:
-            print(f"REF-Admin   vs Engine: SKIP  (pass --admin to enable)")
+            print("REF-Admin   vs Engine: SKIP  (pass --admin to enable)")
         gate_parts = "manager" + (" + admin" if admin_pass is not None else "")
         o_label = "PASS" if primary_pass else "FAIL"
         print(f"Overall gate          : {o_label}  ({gate_parts})")

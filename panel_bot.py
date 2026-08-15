@@ -13583,7 +13583,7 @@ def _bizlinks_test_confirm_text(mk: str, slot_no: int) -> str:
             pass
     return (
         _panel_header()
-        + f"\n\n\U0001f9ea Подтверждение создания ссылки"
+        + "\n\n\U0001f9ea Подтверждение создания ссылки"
         + f"\n\nМенеджер: {mk}"
         + f"\nСлот: #{int(slot_no):02d}"
         + f"\nДата: {tomorrow}"
