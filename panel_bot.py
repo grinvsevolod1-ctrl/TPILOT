@@ -1689,7 +1689,7 @@ def _danger_prompt_text(action: str, key: str) -> str:
         "Это действие защищено паролем из MANAGER_ADMIN_PASSWORD.",
         "Введите пароль одним сообщением.",
         "",
-        "Пароль не будет сохранён в wizard-состоянии. После ввода сообщение с паролем будет удалено, если Telegram разрешит это сделать.",
+        "Пароль не будет сохранён в wizard-состоянии. После вв��да сообщение с паролем будет удалено, если Telegram разрешит это сделать.",
     ]).rstrip()
 
 
@@ -1864,7 +1864,7 @@ def _calendar_menu(kind: str, target: str, iso_date: str):
         action_all = "🌙 Долёты по всем за дату"
         back_menu = b"menu:flights"
     else:
-        title = "📊 Статистика"
+        title = "📊 Статисти��а"
         action_all = "📊 Статистика по всем за дату"
         back_menu = b"menu:stats"
 
@@ -2372,7 +2372,7 @@ def _source_detail_text(row: dict) -> str:
     labels = {normalize_manager_key(r.get("manager_key") or ""): _manager_short_label(r) for r in _manager_rows()}
     managers = [m for m, s in links.items() if s == key]
     return "\n".join([
-        f"📦 Источник трафика: {name}",
+        f"📦 Источник ��рафика: {name}",
         "",
         f"Ключ: {key}",
         f"Статус: {status}",
@@ -5835,7 +5835,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
         key = normalize_manager_key(raw.split(":", 1)[1])
         row = _manager_row_by_key(key)
         if not row:
-            return _tp_visual_screen(["Главная", "П��окси"], f"Менеджер не найден: {key}"), [[Button.inline("⬅️ Назад", b"menu:proxy")], [Button.inline("🏠 Главная", b"menu:main")]]
+            return _tp_visual_screen(["Главная", "П����окси"], f"Менеджер не найден: {key}"), [[Button.inline("⬅️ Назад", b"menu:proxy")], [Button.inline("🏠 Главная", b"menu:main")]]
         label = _manager_short_label(row)
         return _tp_visual_screen(["Главная", "Прокси", label], _proxy_detail_text(row)), _proxy_detail_buttons(key)
 
@@ -8029,7 +8029,7 @@ def _manager_detail_buttons(key: str):  # type: ignore[override]
         else _pb_toggle_btn("🔕 Включить тишину", f"mmt:silentcard:on:{key}", _mmt_fallback)
     )
     return [
-        [Button.inline("📋 Проверить режим", f"cmd:/autoreply status {key}".encode())],
+        [Button.inline("📋 Проверить режи��", f"cmd:/autoreply status {key}".encode())],
         [_greeting_btn],
         [_quest_btn],
         [_silent_btn],
@@ -10207,7 +10207,7 @@ def _pb_manager_full_card_sections(key: str) -> list:
     f_lines = [
         _pb_full_card_line("ID в системе", row.get("id")),
         _pb_full_card_line("Добавлен", row.get("created_at")),
-        _pb_full_card_line("Обновлён", row.get("updated_at")),
+        _pb_full_card_line("О��новлён", row.get("updated_at")),
         _pb_full_card_line("Последний вход", row.get("last_login_at")),
     ]
 
@@ -14653,7 +14653,7 @@ def _d2_confirm_all_buttons(count: int) -> list:
     if len(cb_today.encode("utf-8")) <= 64:
         buttons.append([Button.inline("\U0001f4c5 Сегодня ({})".format(today), cb_today.encode("utf-8"))])
     buttons.append([
-        Button.inline("⬅️ Назад", b"menu:bizlinks_create_count_all"),
+        Button.inline("⬅️ Наза��", b"menu:bizlinks_create_count_all"),
         Button.inline("\U0001f3e0 Главная", b"menu:main"),
     ])
     return buttons
@@ -16063,7 +16063,7 @@ def _tpc3c_request_text(req: dict) -> str:
         src = str(req.get("source_key") or "").strip()
         inh = req.get("inherited_at_request")
         if int(inh or 0) == 1 and src:
-            lines.append(f"Сейчас: {cur} (по источнику {src})")
+            lines.append(f"Сейчас: {cur} (п�� источнику {src})")
         else:
             lines.append(f"Сейчас: {cur}")
     if req.get("requested_by_user_id"):
@@ -17029,7 +17029,7 @@ def _tr_stats_text(period: str) -> str:
     lines = [
         "🤝 Статистика передач",
         f"Период: {label} ({_display_date(start)} — {_display_date(end)})",
-        "Период считается по дате создания передачи.",
+        "Период считается по дате созда��ия передачи.",
         "",
         f"Всего создано: {created}",
         f"Фактически написали: {confirmed}",
@@ -19223,7 +19223,7 @@ def _nm_managers_screen() -> Tuple[str, list]:
         "Внутри: единый список менеджеров с карточками (статус, скрины, доступы, замена, "
         "резерв, опасные действия), добавление, доступы ManagerBot и графики менеджеров "
         "(рабочие даты, заявки, кто работает завтра). "
-        "Автоответы и режимы менеджера — в карточке менеджера и в «⚙️ Автоматизация». "
+        "Автоответы и р��жимы менеджера — в карточке менеджера и в «⚙️ Автоматизация». "
         "Если аккаунт не работает — начните с «📡 Telegram Health» и «🌐 Прокси» в "
         "разделе «🛠 Система».",
         rows,
@@ -19431,7 +19431,7 @@ def _nm_automation_screen() -> Tuple[str, list]:
         "🤖 АВТОМАТИЗАЦИЯ",
         "Админ-бот → Новое меню → Автоматизация",
         "Внутри: автоответы, автодожимы, тексты, задержки, аварийная тишина (полный запрет "
-        "авто-сообщений), приветствия, автоанкета, проверка анкет, LLM-наблюдения (read-only), "
+        "авто-сообщений), приветствия, а��тоанкета, проверка анкет, LLM-наблюдения (read-only), "
         "глобальный переключатель LLM и автоматические статусы (оба требуют подтверждения).",
         rows,
     )
@@ -19531,7 +19531,7 @@ _NM_SEARCH_INDEX = [
      "keywords": "прокси добавить socks proxy"},
     {"label": "📦 Пул прокси", "route": "menu:ppool", "path": "Прокси → Пул",
      "keywords": "прокси пул pool ppool свободные занятые осиротевшие сторонние"},
-    {"label": "💳 Продление и баланс", "route": "prn:root", "path": "Прокси → Продление и баланс",
+    {"label": "💳 Продление и баланс", "route": "prn:root", "path": "П��окси → Продление и баланс",
      "keywords": "прокси продление баланс renewal renew деньги оплата"},
     {"label": "🔗 Бизнес-ссылки — создание", "route": "menu:nm_bizlinks_create", "path": "Бизнес-ссылки → Создание",
      "keywords": "ссылки бизнес bld создать чатлинк chatlink links"},
@@ -19594,7 +19594,7 @@ _NM_SEARCH_INDEX = [
      "keywords": "экспорт excel выгрузка дубли duplicate"},
     {"label": "📋 Список менеджеров", "route": "cmd:/manager_list", "path": "Менеджеры → Список",
      "keywords": "менеджер список manager статус"},
-    {"label": "⚙️ Админ менеджеров", "route": "menu:manager_admin", "path": "Менеджеры → Админ",
+    {"label": "⚙️ Админ менеджеров", "route": "menu:manager_admin", "path": "Менеджеры → ��дмин",
      "keywords": "ме��еджер админ admin статус enable disable резерв reserve где резерв "
                  "резервный аккаунт добавить аккаунт менеджер не работает проблема с менеджером"},
     {"label": "➕ Добавить менеджера", "route": "wiz:add_manager:start", "path": "Менеджеры → Добавить",
@@ -19918,7 +19918,7 @@ _NM_PREV_MAIN_MENU = globals().get("_main_menu")
 
 def _main_menu():  # type: ignore[override]
     rows = list(_NM_PREV_MAIN_MENU()) if callable(_NM_PREV_MAIN_MENU) else []
-    rows.insert(0, [Button.inline("🧭 Новое меню", b"menu:nm_root")])
+    rows.insert(0, [Button.inline("🧭 Новое ме��ю", b"menu:nm_root")])
     return rows
 
 # --- TPILOT NM NEW MENU END ---
@@ -21812,7 +21812,7 @@ def _pbuy_confirm_buttons(key: str, *, ret: str = ""):
     key = normalize_manager_key(key or "")
     cancel_cb = f"pxm:menu:{key}".encode() if ret == "proxy_card" else f"wiz:buyproxy:cancel:{key}".encode()
     return [
-        [Button.inline("✅ Подтвердить покупку", f"wiz:buyproxy:confirm:{key}".encode())],
+        [Button.inline("✅ Подтверди��ь покупку", f"wiz:buyproxy:confirm:{key}".encode())],
         [Button.inline("❌ Отмена", cancel_cb)],
     ]
 
@@ -22773,7 +22773,7 @@ async def _prenew_run_calc(chat_id: int, user_id: int, lease_id: int) -> None:
     if not data.get("ok"):
         # BL-2 fix: never show data['message'] (possibly raw provider
         # error) -- classified reason/action only, neutral fallback.
-        reason = data.get("reason") or "Не удалось выполнить продление."
+        reason = data.get("reason") or "Не удалось ��ыполнить продление."
         action = data.get("action") or "Откройте карточку прокси и проверьте состояние."
         msg = f"Причина: {reason}\nЧто делать: {action}"
         try:
@@ -23429,7 +23429,7 @@ def _proxy_success_card_text(*, manager_key: str, display_name: str, telegram_us
     Callers must source `password` from a safe local read (lease flows:
     _ppool_reveal_creds_once; manual one-line set: the operator's own
     just-parsed input) -- never from panel_commands result_text."""
-    lines = ["✅ Прокси у��тановлен", "", "Аккаунт:", f"• Ключ: {manager_key or '_'}"]
+    lines = ["✅ П��окси у��тановлен", "", "Аккаунт:", f"• Ключ: {manager_key or '_'}"]
     name = str(display_name or "").strip()
     if name and name != manager_key:
         lines.append(f"• Имя: {name}")
@@ -23966,6 +23966,18 @@ def _ppool_pin_env_value() -> str:
     return str(globals().get("PANEL_ADMIN_PASSWORD") or globals().get("MANAGER_ADMIN_PASSWORD") or "").strip()
 
 
+def _ppool_pin_matches(raw: str, pin_value: str) -> bool:
+    """Constant-time PIN comparison (hmac.compare_digest) so a wrong PIN
+    cannot be probed character-by-character via response timing. Empty
+    configured PIN always denies -- callers must never fall open."""
+    import hmac as _pin_hmac
+    if not pin_value:
+        return False
+    return _pin_hmac.compare_digest(
+        str(raw or "").encode("utf-8"), str(pin_value).encode("utf-8")
+    )
+
+
 def _ppool_reveal_creds_once(lease_id: int) -> Optional[Dict[str, str]]:
     """Direct local read of proxy_leases.host/port/login/password for one lease.
     Never logs the values, never goes through panel_commands. Returns None if
@@ -24053,7 +24065,7 @@ async def _pxm_reveal_pin_input(event):
         except Exception:
             pass
         return
-    if raw != pin_value:
+    if not _ppool_pin_matches(raw, pin_value):
         try:
             await client.send_message(chat_id, "⚠️ Неверный PIN. Proxy не показан.", buttons=_pxm_result_card_buttons(key))
         except Exception:
@@ -24114,7 +24126,7 @@ async def _ppool_reveal_pin_input(event):
         except Exception:
             pass
         return
-    if raw != pin_value:
+    if not _ppool_pin_matches(raw, pin_value):
         try:
             await client.send_message(chat_id, "⚠️ Неверный PIN. Пароль не показан.", buttons=_ppool_card_buttons("all", {"lease_id": lease_id}) + _terminal_ok_button())
         except Exception:
@@ -24592,7 +24604,7 @@ _TDIMPORT_ERROR_RU = {
     "multiple_accounts": "В архиве несколько аккаунтов — пришлите архив с одним аккаунтом.",
     "session_corrupt": "Файл сессии повреждён.",
     "session_schema_unsupported": "Формат файла сессии не поддерживается.",
-    "tdata_conversion_failed": "Не удалось преобразовать tdata (неизвестный вариант или повреждение).",
+    "tdata_conversion_failed": "Не удалось преобразовать tdata (не��звестный вариант или повреждение).",
     "tdata_passcode_required": "Эта tdata защищена локальным паролем — такие архивы не поддерживаются.",
     "session_unauthorized": "Сессия не авторизована в Telegram.",
     "proxy_missing": "Прокси для менеджера не назначен.",
@@ -25010,7 +25022,7 @@ async def _tdimport_document_input(event):
             # A non-JSON result_text means the controller answered but with an
             # unexpected (non-JSON) payload -- typically a stale main.py whose
             # dispatcher doesn't recognise /manager_tdimport_start.
-            err = ("❗ Контроллер вернул неожиданный ответ (возможно, main.py устарел и не "
+            err = ("❗ К��нтроллер вернул неожиданный ответ (возможно, main.py устарел и не "
                    "знает команду импорта). Обновите и перезапустите контроллер.\n\n"
                    + _safe_text(result_text, 150))
         try:
@@ -26051,7 +26063,7 @@ async def _devlogin_pin_input(event):
         except Exception:
             pass
         return
-    if raw != pin_value:
+    if not _ppool_pin_matches(raw, pin_value):
         try:
             await client.send_message(chat_id, "⚠️ Неверный PIN. Подключение не запущено.",
                                       buttons=[[Button.inline("⬅️ Назад к менеджеру", f"menu:manager:{key}".encode())]] + _terminal_ok_button())
