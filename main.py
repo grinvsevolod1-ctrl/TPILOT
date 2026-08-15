@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import asyncio
@@ -1828,7 +1828,7 @@ def _format_geoage_card(row: Dict[str, Any], manager_label: str = "") -> str:
 
     lines += ["", "📋 Анкета"]
     unknown = status not in ("liquid", "nonliquid")
-    _append_field(lines, "Возраст", row.get("age"), show_unknown=unknown and row.get("age") is None)
+    _append_field(lines, "В��зраст", row.get("age"), show_unknown=unknown and row.get("age") is None)
     _append_field(lines, "Страна", row.get("country"), show_unknown=unknown and not country)
     _append_field(lines, "Регион", row.get("region"))
     _append_field(lines, "Город", row.get("city"), show_unknown=unknown and not _nonempty(row.get("city")))
@@ -19449,7 +19449,7 @@ async def _build_stat_period_text(spec: Dict[str, Any]) -> str:  # type: ignore[
     scope_label = "Все менеджеры"
     if scope == "manager":
         target = registry_normalize_manager_key(key or "all") or "all"
-        scope_label = "Все менеджеры" if target == "all" else f"Менеджер: {target}"
+        scope_label = "Все менед��еры" if target == "all" else f"Менеджер: {target}"
     leads = await _tp_sdf_collect_windows_range(target, "day", start_iso, end_iso)
     # DELETED MANAGER STATS RETENTION 20260711 (period-filter correction): this
     # range report has an explicit [start_iso, end_iso] -- a tombstoned manager
@@ -20590,7 +20590,7 @@ async def _tp_gq_set_schedule(manager_key: str, day_start: str, day_end: str, ni
     warn = ""
     if int(meta.get("covered") or 0) < 1440:
         warn = "\n⚠️ Есть промежуток без авто-сообщений. В этот промежуток клиенту ничего не отправляется."
-    return f"✅ График сохранён для {key}\nДневное: {ds}-{de}\nНочное: {ns}-{ne}{warn}"
+    return f"✅ График сохранён для {key}\nДнев��ое: {ds}-{de}\nНочное: {ns}-{ne}{warn}"
 
 
 async def _tp_gq_reset_schedule(manager_key: str, *, user_id: int = 0) -> None:
@@ -23289,7 +23289,7 @@ async def _tp_hg_queue_command_for_manager(key: str, command: str, *, user_id: i
                 return True, str((row or {}).get("result_text") or f"🟢 OK {key}: OK")
             return False, str((row or {}).get("error_text") or (row or {}).get("result_text") or f"{key}: ошибка проверки")
         await asyncio.sleep(0.7)
-    return False, f"{key}: manager-процесс не ответил за {timeout_sec} сек. Проверьте, что он запущен."
+    return False, f"{key}: manager-процесс не ответил за {timeout_sec} сек. Проверьте, что о�� запущен."
 
 
 async def _tp_hg_queue_check_for_manager(key: str, *, user_id: int = 0, timeout_sec: int = 45) -> Tuple[bool, str]:  # type: ignore[override]
@@ -29608,7 +29608,7 @@ async def _queue_bizlink_delete_tpilot_for_manager(
     # Check expiry
     now_iso = datetime.utcnow().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
-        return False, "Preview истёк (>5 мин). Создайте новый."
+        return False, "Preview истёк (>5 мин). С��здайте новый."
 
     # Atomic consume — prevents double execution
     if not callable(_bsd3a_preview_consume):
@@ -36664,7 +36664,8 @@ async def replacement_confirm_tdimport_install(
     session_source_path = ""
     tdi_work_root = ""
     try:
-        result_json = json.loads(str(tdi_row.get("result_json") or "{}"))
+        import json as _rcti_json
+        result_json = _rcti_json.loads(str(tdi_row.get("result_json") or "{}"))
         session_source_path = str(result_json.get("session_source_path") or "")
         tdi_work_root = str(result_json.get("work_root") or "")
     except Exception:
@@ -40868,7 +40869,7 @@ async def _renewal_auto_tick_report_outcome(lease: Dict[str, Any], result: Dict[
         return
 
     header = [
-        f"Менеджер: {await _prenew_manager_identity_line(str(lease.get('manager_key') or ''))}",
+        f"Ме��еджер: {await _prenew_manager_identity_line(str(lease.get('manager_key') or ''))}",
         f"Ключ: {lease.get('manager_key') or '_'}",
         f"Прокси: {lease.get('host') or '_'}:{lease.get('port') or '_'}",
         f"Действует до: {_prenew_format_expires_display(lease.get('expires_at'))}",
