@@ -207,6 +207,9 @@ def build_ns(db_path, base_dir, *, client_factory_holder):
     ns = {
         "os": os, "asyncio": asyncio, "aiosqlite": _aiosqlite, "Path": Path,
         "datetime": datetime, "timedelta": timedelta, "timezone": timezone,
+        # utcnow refactor (2026-08-16): extracted main.py code reads the
+        # clock through the module-level _tp_utc_now() seam (naive UTC).
+        "_tp_utc_now": (lambda: datetime.now(timezone.utc).replace(tzinfo=None)),
         "Optional": None, "Dict": dict, "Any": object,
         "BASE_DIR": base_dir, "TPILOT_DB_PATH": db_path,
         "registry_normalize_manager_key": manager_registry.normalize_manager_key,

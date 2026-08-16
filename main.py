@@ -3176,7 +3176,7 @@ async def _handle_manager_proxy_command(chat_id: int, user_id: int, text: str) -
             return True
         if action == "OFF":
             await manager_set_fields(key, proxy_enabled=0, proxy_updated_at=_now_utc_iso())
-            await client.send_message(chat_id, f"✅ Proxy выключен для {key}.\nЧтобы применить к уже запущенному аккаунту, перезапуст��те менеджера: MANAGER STOP {key}, потом MANAGER START {key}.")
+            await client.send_message(chat_id, f"✅ Proxy выключен для {key}.\nЧтобы применить к уже запущенному аккаунту, перезапустите менеджера: MANAGER STOP {key}, потом MANAGER START {key}.")
             return True
         if action == "ON":
             if not str(row.get("proxy_host") or "").strip() or not _proxy_port_int(row.get("proxy_port")):
@@ -6024,7 +6024,7 @@ async def _handle_unanswered_notify_command(args: str = "") -> str:
         "/unanswered_notify on - включить автоуведомления в PanelBot",
         "/unanswered_notify off - выключить автоуведомления в PanelBot",
         "/unanswered all - показать всех вручную",
-        "/unanswered <manager_key> - показать по менед��еру",
+        "/unanswered <manager_key> - показать по менеджеру",
     ]).rstrip()
 # --- UNANSWERED PANEL NOTIFY TOGGLE END ---
 
@@ -6888,7 +6888,7 @@ async def _manager_delete_full_core(key: str, *, requested_by: int = 0) -> str:
         )
         return (
             f"⚠️ Не удалось сохранить снимок статистики менеджера {key}: {tombstone_error}\n"
-            "Удаление из реес��ра не выполнено, чтобы удалённый менеджер не пропал из статистики. Повторите команду."
+            "Удаление из реестра не выполнено, чтобы удалённый менеджер не пропал из статистики. Повторите команду."
         )
 
     # PROXY LIFECYCLE SYNC 20260721: hard-delete is an auto-terminal event --
@@ -7642,7 +7642,7 @@ async def _group_stats_text(group_key: str = "all") -> str:
         members = await _group_members(group_key)
         leads = await _structure_leads_for_managers(members)
         stats = _stats_for_leads_subset(leads)
-        lines = [f"👥 Группа менеджеров: {grp.get('name') or grp.get('group_key')}", f"Дата: {date_disp}", "", f"Статус: {'а��тивна' if _nice_status(grp.get('status')) == 'active' else 'выключена'}"]
+        lines = [f"👥 Группа менеджеров: {grp.get('name') or grp.get('group_key')}", f"Дата: {date_disp}", "", f"Статус: {'активна' if _nice_status(grp.get('status')) == 'active' else 'выключена'}"]
         lines.append("Менеджеры: " + (", ".join(labels.get(m, m) for m in members) if members else "не добавлены"))
         lines.append("")
         _append_compact_stats(lines, stats)
@@ -8426,7 +8426,7 @@ async def _handle_funnel_command(args: str, *, user_id: int = 0) -> str:
             "Команды:",
             "/funnel all - источники + потери за сегодня",
             "/funnel sources - качество источников",
-            "/funnel groups - к��чество групп",
+            "/funnel groups - качество групп",
             "/funnel links - связки источник + менеджер",
             "/funnel losses - где теряем лидов",
             "/funnel best - лучшие источники",
@@ -8600,7 +8600,7 @@ async def _partner_info_text(user_id: int) -> str:
         f"Уведомления о лидах: {'да' if int(row.get('can_live_leads') or 0) == 1 else 'нет'}",
         f"Данные лида: {'да' if int(row.get('can_view_contacts') or 0) == 1 else 'нет'}",
         f"Excel: {'да' if int(row.get('can_excel') or 0) == 1 else 'нет'}",
-        f"Формат ста��истики: {str(row.get('stat_format') or 'pro').upper()}",
+        f"Формат статистики: {str(row.get('stat_format') or 'pro').upper()}",
     ]).rstrip()
 
 
@@ -9396,7 +9396,7 @@ async def _manager_qr_wait_task(owner_user_id: int, manager_key: str) -> None:
         _manager_auth_audit_log("qr_error", manager_key, ok=0, error_class=e.__class__.__name__, error_repr=repr(e)[:300], context=error_context)
         await _tpag_insert_notification(
             "⚠️ Ошибка QR-входа",
-            f"Не удал��сь войти по QR для {manager_key}: {e.__class__.__name__}.",
+            f"Не удалось войти по QR для {manager_key}: {e.__class__.__name__}.",
         )
         return
     # Normalize a thin User from qr.wait() into a full one while the live client is still
@@ -11049,7 +11049,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
     if cmd == "/followup":
         return {"ok": True, "result_text": await _handle_post_followup_command(args, user_id=requested_by)}
     if cmd == "/silent" and not callable(globals().get("_handle_silent_command")):
-        return {"ok": True, "result_text": "🔇 Тихий режим сейчас управляется через раздел 💬 Автоответы к��иентам и ⚙️ Анкета."}
+        return {"ok": True, "result_text": "🔇 Тихий режим сейчас управляется через раздел 💬 Автоответы клиентам и ⚙️ Анкета."}
     if callable(_TPILOT_202605_ORIG_PANEL_EXEC):
         return await _TPILOT_202605_ORIG_PANEL_EXEC(command_text, requested_by=requested_by)
     return {"ok": False, "error_text": f"Команда не поддерживается в панели: {cmd}"}
@@ -15299,7 +15299,7 @@ def _tp_report_v3_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         if bucket == "under18":
             return "нет 18 лет / 18+ не подтверждён"
         if bucket == "na":
-            return "не ответил на город и воз��аст"
+            return "не ответил на город и возраст"
         if bucket == "trash":
             return "трэш"
         return "_"
@@ -19204,7 +19204,7 @@ def _tp_gq_validate_schedule(day_start: str, day_end: str, night_start: str, nig
         return False, "⚠️ Начало и конец окна не могут совпадать.", {}
     overlap = _tp_gq_overlap_minutes(ds, de, ns, ne)
     if overlap > 0:
-        return False, "⚠️ Дневное и ночное окно пересе��аются. Сохранение запрещено. Отправьте правильный график.", {}
+        return False, "⚠️ Дневное и ночное окно пересекаются. Сохранение запрещено. Отправьте правильный график.", {}
     return True, "", {"day_start": ds, "day_end": de, "night_start": ns, "night_end": ne, "covered": _tp_gq_covered_minutes(ds, de, ns, ne)}
 
 
