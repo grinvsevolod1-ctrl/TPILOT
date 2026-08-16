@@ -301,9 +301,6 @@ def build_main_ns_ready(db_path: str, base_dir: Path, *, running_keys: set) -> d
         "datetime": datetime,
         "timedelta": timedelta,
         "timezone": timezone,
-        # utcnow refactor (2026-08-16): extracted panel_bot code reads the
-        # clock through the module-level _pb_utc_now() seam (naive UTC).
-        "_pb_utc_now": (lambda: datetime.now(timezone.utc).replace(tzinfo=None)),
         # Deliberately the REAL stdlib time module -- Group 1's whole point
         # is genuine wall-clock concurrency evidence, never a fast-forwarded
         # fake clock (contrast with Group T's _FakeDeadlineClock below).

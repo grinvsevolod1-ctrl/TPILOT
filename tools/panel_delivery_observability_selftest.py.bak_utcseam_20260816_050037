@@ -66,11 +66,6 @@ DELIVERY_NAMES = {
     # _panel_log_delivery_error itself swallows (silently dropping every log line
     # this whole suite exists to assert on).
     "_utc_now_iso",
-    # utcnow refactor (2026-08-16): _utc_now_iso now delegates to the
-    # module-level _pb_utc_now() clock seam -- extract it too, for the same
-    # reason as _utc_now_iso itself (a NameError inside the swallowed
-    # try/except would silently drop every log line under test).
-    "_pb_utc_now",
 }
 
 

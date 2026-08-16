@@ -95,10 +95,7 @@ def build_pure_ns() -> dict:
     (pure, no-network) timestamp-freshness math."""
     nodes = _extract_by_name(PURE_NAMES)
     module_src = "\n\n".join(ast.unparse(n) for n in nodes)
-    ns = {"Dict": dict, "Any": object, "datetime": datetime, "timezone": timezone,
-          # utcnow refactor (2026-08-16): freshness math reads the clock via
-          # the module-level _pb_utc_now() seam (naive UTC contract).
-          "_pb_utc_now": (lambda: datetime.now(timezone.utc).replace(tzinfo=None))}
+    ns = {"Dict": dict, "Any": object, "datetime": datetime, "timezone": timezone}
     exec(compile(module_src, f"<{PANEL_PATH}:status_pure>", "exec"), ns)
     return ns
 
@@ -121,8 +118,6 @@ def build_live_ns(db_path: str, proc_scan=None) -> dict:
         "re": re,
         "Dict": dict, "Any": object,
         "datetime": datetime, "timezone": timezone,
-        # utcnow refactor (2026-08-16): same _pb_utc_now() seam as above.
-        "_pb_utc_now": (lambda: datetime.now(timezone.utc).replace(tzinfo=None)),
         "TPILOT_DB_PATH": db_path,
         "BASE_DIR": BASE_DIR,
         "normalize_manager_key": manager_registry.normalize_manager_key,

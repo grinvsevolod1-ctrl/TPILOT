@@ -261,11 +261,6 @@ def build_routing_ns(db_path: str, *, fake_old_screen=None, fake_llm_status_text
         "sqlite3": sqlite3,
         "os": os,
         "datetime": _dt,
-        # utcnow refactor (2026-08-16): extracted panel_bot code (set_setting
-        # timestamps) reads the clock through the module-level _pb_utc_now()
-        # seam (naive UTC contract).
-        "_pb_utc_now": (lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
         "Tuple": tuple, "List": list, "Dict": dict, "Any": object,
         "Button": _FakeButton,
         "TPILOT_DB_PATH": db_path,
@@ -469,7 +464,7 @@ def test_3b_traffic_has_sources_merged_in() -> None:
         check("3b. Traffic has '📌 Источники' -> menu:sources", _find(rows, label="📌 Источники", data=b"menu:sources") is not None, rows)
         check("3b. Traffic has '📊 Статистика источников' -> cmd:/source stats all",
               _find(rows, label="📊 Статистика источников", data=b"cmd:/source stats all") is not None, rows)
-        check("3b. Traffic has '➕ Добавить источ��ик' -> wiz:add_source:start",
+        check("3b. Traffic has '➕ Добавить источник' -> wiz:add_source:start",
               _find(rows, label="➕ Добавить источник", data=b"wiz:add_source:start") is not None, rows)
         check("3b. Traffic still has Байеры/Группы/Список байеров (unchanged)",
               _find(rows, label="🧑‍💼 Байеры и доступы", data=b"menu:partners") is not None
