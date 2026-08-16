@@ -341,11 +341,6 @@ def build_main_ns(db_path: str, base_dir: Path, *, script: dict = None, os_modul
         "manager_delete_onboarding_by_key": _storage.manager_delete_onboarding_by_key,
         "manager_list_pending": _storage.manager_list_pending,
         "manager_set_fields": _storage.manager_set_fields,
-        # main.py calls storage.manager_bot_access_ensure_sync via a module-level
-        # binding when granting ManagerBot access after onboarding/relogin commit;
-        # ast-extraction never pulls plain imports, so bind the real storage
-        # function explicitly (same _storage object, already pointed at temp DB).
-        "manager_bot_access_ensure_sync": _storage.manager_bot_access_ensure_sync,
         "_build_manager_telegram_client_from_row": lambda row, session_path, source="onboarding": fake_client_cls(session_path),
         "_api_profile_for": lambda source: (0, "", "onboarding"),
         "_manager_process_running": proc["fn_running"],
@@ -1254,18 +1249,6 @@ def build_panel_callback_ns(db_path: str, submit_and_wait_fn) -> dict:
     async def _fake_safe_event_edit(event, text, buttons=None):
         event.edits.append((text, buttons))
 
-    async def _fake_pb_safe_answer(event, *args, **kwargs):
-        # panel_bot.py defines _pb_safe_answer at module level (never raises,
-        # returns bool); the callback handler now calls it instead of raw
-        # event.answer(). Same contract here: delegate, swallow exceptions.
-        try:
-            answer = getattr(event, "answer", None)
-            if answer is not None:
-                await answer(*args, **kwargs)
-            return True
-        except Exception:
-            return False
-
     tree = ast.parse(PANEL_SRC)
     marker_names = {"_relogin_callback", "_relogin_wizard_input"}
     other_names = {
@@ -1324,7 +1307,6 @@ def build_panel_callback_ns(db_path: str, submit_and_wait_fn) -> dict:
         "normalize_manager_key": manager_registry.normalize_manager_key,
         "list_manager_rows_from_db_sync": manager_registry.list_manager_rows_from_db_sync,
         "_safe_event_edit": _fake_safe_event_edit,
-        "_pb_safe_answer": _fake_pb_safe_answer,
         "_is_allowed": lambda event: True,
         "_submit_and_wait": submit_and_wait_fn,
     }

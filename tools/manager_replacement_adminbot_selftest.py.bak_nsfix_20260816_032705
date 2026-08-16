@@ -303,20 +303,6 @@ STAGE3_REAL_NAMES = {
     "_AUTHUI_DISPATCH", "_AUTHUI_PREV_PANEL_EXEC",
     "_panel_manager_relogin_qr_start_command", "_panel_manager_replace_qr_start_command",
     "_panel_manager_replace_tdimport_start_command", "_panel_manager_replace_tdimport_confirm_command",
-    # TPILOT PREPARED ACCOUNTS PHASE 4/5 (2026-08-11): yet another later
-    # _panel_execute_command_text override stacked on top of the AUTHUI one
-    # (same dispatch-dict + prev-pointer pattern). Its body references these
-    # two globals, plus _PREPARED_DISPATCH's dict VALUES are the 9 prepared-
-    # accounts handler function objects themselves (bound at module-exec
-    # time) -- all must be extracted or calling the (now prepared)
-    # _panel_execute_command_text raises NameError, even though this test
-    # never calls a /prepared_* command.
-    "_PREPARED_DISPATCH", "_PREPARED_PREV_PANEL_EXEC",
-    "_panel_prepared_add_command", "_panel_prepared_method_command",
-    "_panel_prepared_pending_command", "_panel_prepared_import_command",
-    "_panel_prepared_verify_command", "_panel_prepared_activate_command",
-    "_panel_prepared_list_command", "_panel_prepared_card_command",
-    "_panel_prepared_delete_command",
 }
 
 
@@ -588,15 +574,6 @@ def build_panel_ns(db_path: str, *, submit_and_wait_fn=None, is_allowed: bool = 
     async def _fake_safe_event_edit(event, text, buttons=None):
         event.edits.append((text, buttons))
 
-    async def _fake_pb_safe_answer(event, *args, **kwargs):
-        try:
-            answer = getattr(event, "answer", None)
-            if answer is not None:
-                await answer(*args, **kwargs)
-            return True
-        except Exception:
-            return False
-
     def _fake_manager_admin_detail_text(row):
         key = str((row or {}).get("manager_key") or "")
         return f"CARD:{key}"
@@ -670,10 +647,6 @@ def build_panel_ns(db_path: str, *, submit_and_wait_fn=None, is_allowed: bool = 
         "_safe_event_edit": _fake_safe_event_edit,
         "_manager_admin_detail_text": _fake_manager_admin_detail_text,
         "_is_allowed": (lambda event: is_allowed),
-        # panel_bot.py defines _pb_safe_answer at module level (never raises,
-        # returns bool); ast-extraction doesn't pull it, so stub the same
-        # contract here: delegate to event.answer, swallow any exception.
-        "_pb_safe_answer": _fake_pb_safe_answer,
         "_submit_and_wait": submit_and_wait_fn,
         "_RW_PREV_ADMIN_DETAIL_BUTTONS": _fake_prev_buttons,
     }
