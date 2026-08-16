@@ -140,8 +140,7 @@ def test_m_def_counts() -> None:
     send_ex_defs = find_defs(MAIN_TREE, "_send_manager_private_ex")
     resolve_defs = find_defs(PANEL_TREE, "_pb_manager_status_resolve")
     check("M1. _tp_hg_send_allowed has exactly 1 definition", len(gate_defs) == 1, len(gate_defs))
-    # was 4 (3 dead + 1 active); commit ef4fb8d removed one DEAD override
-    check("M2. _send_manager_private has exactly 3 definitions (2 dead + 1 active thin wrapper)", len(send_defs) == 3, len(send_defs))
+    check("M2. _send_manager_private has exactly 4 definitions (3 dead + 1 active thin wrapper)", len(send_defs) == 4, len(send_defs))
     check("M3. _send_manager_private_ex has exactly 1 definition (the real send body)", len(send_ex_defs) == 1, len(send_ex_defs))
     check("M4. panel_bot.py's _pb_manager_status_resolve has exactly 1 definition", len(resolve_defs) == 1, len(resolve_defs))
 

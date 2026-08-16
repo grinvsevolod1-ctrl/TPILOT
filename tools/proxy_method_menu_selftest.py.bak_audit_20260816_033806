@@ -290,9 +290,7 @@ PXM_NAMES = {
     "_ppool_parse_result_json", "_pbuy_parse_result_json", "_ppool_assign_result_text",
     "_ppool_guard_failed_buttons", "_PPOOL_STATUS_LABELS",
     # existing PIN reveal mechanism (Stage 6.1C) -- reused, not duplicated
-    # (_ppool_pin_matches: PIN comparison helper extracted later in panel_bot;
-    # _pxm_reveal_pin_input calls it instead of a raw == compare)
-    "_ppool_pin_env_value", "_ppool_pin_matches",
+    "_ppool_pin_env_value",
     # shared plumbing
     "_wizard_get", "_wizard_set", "_wizard_clear",
     "_connect_panel_db", "_ensure_panel_runtime_tables", "_utc_now_iso",
@@ -335,14 +333,6 @@ PXM_NAMES = {
 
 async def _fake_ppool_success_card_text_from_lease(data: dict, *, fallback_text: str) -> str:
     return f"SUCCESS_CARD:{data.get('manager_key')}:{fallback_text}"
-
-
-async def _fake_prep_resume_after_proxy(chat_id, user_id, key, *, event=None) -> bool:
-    """PREPARED ACCOUNTS PHASE 6 seam: production returns False for every
-    non-prepared manager, after which callers continue their normal
-    onboarding behavior. All managers in this test are ordinary (created
-    via /manager_add), so the correct faithful stub is a constant False."""
-    return False
 
 
 def build_pxm_ns(db_path: str, *, scripted_commands: dict, is_allowed: bool = True, pin: str = "1234"):
@@ -392,7 +382,6 @@ def build_pxm_ns(db_path: str, *, scripted_commands: dict, is_allowed: bool = Tr
         "_title_for_menu": _fake_title_for_menu,
         "_is_allowed": _fake_is_allowed,
         "_ppool_success_card_text_from_lease": _fake_ppool_success_card_text_from_lease,
-        "_prep_resume_after_proxy": _fake_prep_resume_after_proxy,
         "_PANEL_RECENT_CALLBACKS": {},
         "_PANEL_DEDUPE_SEC": 2.5,
         "ALLOWED_USERS": set(),
@@ -516,7 +505,6 @@ def build_pxm_ns_raw_aware(db_path: str, *, scripted_commands: dict, is_allowed:
         "_title_for_menu": _fake_title_for_menu,
         "_is_allowed": _fake_is_allowed,
         "_ppool_success_card_text_from_lease": _fake_ppool_success_card_text_from_lease,
-        "_prep_resume_after_proxy": _fake_prep_resume_after_proxy,
         "_PANEL_RECENT_CALLBACKS": {},
         "_PANEL_DEDUPE_SEC": 2.5,
         "ALLOWED_USERS": set(),
@@ -890,7 +878,7 @@ async def test_rc21_missing_username_safe():
     tmp_root, db_path = make_temp_env("pxm_rc21_")
     ns = build_pxm_ns(db_path, scripted_commands={})
     try:
-        seed_manager(db_path, manager_key="mgrNU", display_name="Б��зЮзернейм", telegram_username="")
+        seed_manager(db_path, manager_key="mgrNU", display_name="БезЮзернейм", telegram_username="")
         set_manager_proxy_creds(db_path, "mgrNU", host="4.4.4.4", port="4000", login="l", password="p")
         card_text = ns["_pxm_result_card_text"]("mgrNU")
         reveal_text = ns["_pxm_full_reveal_text"]("mgrNU")

@@ -63,9 +63,7 @@ async def run(tmp_db: str) -> None:
     cfg = await storage.proxy_renewal_config_get(db_path=tmp_db)
     check("config seeds exactly one row", bool(cfg) and cfg.get("id") == 1)
     check("automation is OFF by default", int(cfg.get("automation_enabled") or 0) == 0)
-    # storage.py deliberately changed the seed default 7 -> 2 (plus a gated
-    # one-shot 7->2 migration for existing DBs, see lead_days_migrated_7to2)
-    check("default lead_days is 2", int(cfg.get("lead_days") or 0) == 2)
+    check("default lead_days is 7", int(cfg.get("lead_days") or 0) == 7)
     check("default renewal_period_id is 1m", cfg.get("renewal_period_id") == "1m")
     # re-seeding does not duplicate/overwrite
     async with aiosqlite.connect(tmp_db) as db:

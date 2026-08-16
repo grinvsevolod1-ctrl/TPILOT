@@ -160,9 +160,7 @@ def main() -> None:
     followup_nodes = defs(tree, "_process_post_manual_followups_once")
 
     assert len(gate_nodes) == 1
-    # was 4 (3 dead + 1 active); commit ef4fb8d ("streamline lead status...")
-    # removed one DEAD override -- active thin wrapper is still last-def
-    assert len(send_nodes) == 3
+    assert len(send_nodes) == 4
     assert len(send_ex_nodes) == 1
     assert len(profile_nodes) == 2
     assert len(followup_nodes) == 2

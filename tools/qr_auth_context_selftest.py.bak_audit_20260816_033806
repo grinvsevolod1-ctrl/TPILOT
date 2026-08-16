@@ -400,13 +400,6 @@ def build_qr_ns(db_path: str, base_dir: Path, *, script: dict = None, exclude_na
         "_manager_runtime_onboarding_set": fake_manager_runtime_onboarding_set,
         "_repl_storage": _storage,
         "_MANAGER_AUTH_AUDIT_LOG": tmp_audit_log,
-        # main.py binds _PREPARED_READY_MARKER at module level from
-        # features/prepared_accounts/model.py (PREPARED ACCOUNTS PHASE 4/5);
-        # _manager_qr_wait_task now checks the finalize result text for it.
-        # Bind the REAL constant so the test stays in sync with production.
-        "_PREPARED_READY_MARKER": __import__(
-            "features.prepared_accounts.model", fromlist=["PREPARED_READY_MARKER"]
-        ).PREPARED_READY_MARKER,
         "SessionPasswordNeededError": SessionPasswordNeededError,
         "PasswordHashInvalidError": PasswordHashInvalidError,
         "_api_profile_for": lambda source: (0, "", "onboarding"),
