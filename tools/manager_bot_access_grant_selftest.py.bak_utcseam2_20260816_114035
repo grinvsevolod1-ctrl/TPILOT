@@ -115,11 +115,6 @@ def extract_and_exec(path: Path, names: set, extra_ns: dict) -> dict:
         raise AssertionError(f"could not find {missing} as top-level defs in {path}")
     module_src = "\n\n".join(ast.unparse(picked[n]) for n in sorted(picked))
     ns = dict(extra_ns)
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{path.name}>", "exec"), ns)
     return ns
 
@@ -645,11 +640,6 @@ def _build_start_ns(db_path, mutate=None, buttons_fn=None):
         "sqlite3": sqlite3, "Path": Path, "datetime": datetime,
         "_mbstat_start_buttons": buttons_fn if buttons_fn is not None else _ButtonsFake(db_path),
     }
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, "<manager_bot.py:start>", "exec"), ns)
     return ns
 
@@ -837,11 +827,6 @@ def _build_real_buttons_chain(db_path, can_view_stats=False, closer_keys=()):
     }
     src = "\n\n".join(helpers[n] for n in sorted(helpers)) + "\n\n" + \
           "\n\n".join(s for _, s in pieces)
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(src, "<manager_bot.py:buttons-chain>", "exec"), ns)
     return ns["_mbstat_start_buttons"], n_defs, n_binds
 
@@ -1258,11 +1243,6 @@ def _finalize_login_ns(db_path, mutate=None):
         "TPILOT_DB_PATH": db_path,
         "print": lambda *a, **k: None,
     }
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, "<main.py:finalize>", "exec"), ns)
     return ns
 
@@ -1733,11 +1713,6 @@ def run_race_injection_checks() -> None:
     f10a_mutant_text = storage_text.replace(f10a_anchor, "mgr_row = (1,)  # F10a mutation: re-check disabled", 1)
     check("F10a precondition: mutation actually changed the text", f10a_mutant_text != storage_text)
     f10a_ns: dict = {"__file__": str(storage_src), "__name__": "storage_f10a_mutant"}
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        f10a_ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(f10a_mutant_text, "<storage.py:F10a-mutant>", "exec"), f10a_ns)
 
     db_f10a = _make_temp_db()
@@ -1764,11 +1739,6 @@ def run_race_injection_checks() -> None:
     f10b_mutant_text = storage_text.replace(f10b_anchor, "elif False:  # F10b mutation: revoked re-check disabled", 1)
     check("F10b precondition: mutation actually changed the text", f10b_mutant_text != storage_text)
     f10b_ns: dict = {"__file__": str(storage_src), "__name__": "storage_f10b_mutant"}
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        f10b_ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(f10b_mutant_text, "<storage.py:F10b-mutant>", "exec"), f10b_ns)
 
     db_f10b = _make_temp_db()
@@ -1883,11 +1853,6 @@ def run_mutation_checks() -> None:
     )
     check("F2 precondition: mutation actually changed the text", mutated_storage != storage_text)
     mod_ns: dict = {"__file__": str(storage_src), "__name__": "storage_f2_mutant"}
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        mod_ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(mutated_storage, "<storage.py:F2-mutant>", "exec"), mod_ns)
     db_f2 = _make_temp_db()
     _seed_manager(db_f2, "f2mgr", 9102)
@@ -1904,11 +1869,6 @@ def run_mutation_checks() -> None:
     # revoked or disabled).
     def _exec_storage_mutant(mutated_text, tag):
         mns: dict = {"__file__": str(storage_src), "__name__": f"storage_{tag}_mutant"}
-        # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-        # clock through per-file naive-UTC seams -- bind them all.
-        for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-            mns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-                __import__("datetime").timezone.utc).replace(tzinfo=None))
         exec(compile(mutated_text, f"<storage.py:{tag}-mutant>", "exec"), mns)
         return mns["manager_bot_access_ensure_sync"]
 
@@ -2004,11 +1964,6 @@ def run_mutation_checks() -> None:
     )
     check("F4 precondition: mutation actually changed the text", mutated_storage_f4 != storage_text)
     mod_ns_f4: dict = {"__file__": str(storage_src), "__name__": "storage_f4_mutant"}
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        mod_ns_f4.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(mutated_storage_f4, "<storage.py:F4-mutant>", "exec"), mod_ns_f4)
 
     # First prove removing ONLY the query is not (by itself) exploitable --
@@ -2023,11 +1978,6 @@ def run_mutation_checks() -> None:
     check("F4 precondition: the query-only mutant text differs from the real source",
           query_only_mutant_src != storage_text)
     query_only_ns: dict = {"__file__": str(storage_src), "__name__": "storage_f4_queryonly_mutant"}
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        query_only_ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(query_only_mutant_src, "<storage.py:F4-query-only-mutant>", "exec"), query_only_ns)
     db_f4a = _make_temp_db()
     _seed_manager(db_f4a, "f4victim0", 9104, telegram_username="shared_name0")

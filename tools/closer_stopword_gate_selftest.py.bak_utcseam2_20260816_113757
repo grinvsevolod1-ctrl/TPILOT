@@ -91,11 +91,6 @@ def _extract_and_exec(path: str, names: set, extra_ns: dict) -> dict:
         raise AssertionError(f"expected {names}, missing {missing} in {path}")
     module_src = "\n\n".join(ast.unparse(n) for n in nodes)
     ns = dict(extra_ns)
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{path}>", "exec"), ns)
     return ns
 

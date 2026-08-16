@@ -23,17 +23,7 @@ import random
 import sqlite3
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
-
-def _mbot_utc_now():
-    """Naive-UTC clock seam (utcnow refactor stage 2, 2026-08-16). Same
-    contract as main._tp_utc_now() / storage._utc_now(): returns what
-    _mbot_utc_now() used to return (a NAIVE datetime in UTC), so every
-    isoformat() DB string, cutoff comparison and timedelta stays
-    byte-identical. Deprecation-free on Python 3.12+; single patch point
-    for selftests that freeze this file's clock."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -124,7 +114,7 @@ client = TelegramClient(MANAGER_BOT_SESSION_FILE, API_ID, API_HASH)
 
 
 def _now_iso() -> str:
-    return _mbot_utc_now().replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 # --- TPILOT MANAGER EVENT DELIVERY STATE MACHINE 20260726 START ---
@@ -250,10 +240,10 @@ def _mark_send_attempt(event_id: int, tg_user_id: int, exc: BaseException) -> No
         if dead:
             next_attempt_at = ""
         elif classification.get("cooldown_seconds"):
-            next_attempt_at = (_mbot_utc_now() + timedelta(
+            next_attempt_at = (datetime.utcnow() + timedelta(
                 seconds=max(1, int(classification["cooldown_seconds"])))).replace(microsecond=0).isoformat()
         else:
-            next_attempt_at = (_mbot_utc_now() + timedelta(
+            next_attempt_at = (datetime.utcnow() + timedelta(
                 seconds=_mb_backoff_seconds_with_jitter(attempts))).replace(microsecond=0).isoformat()
         err_cls = type(exc).__name__[:120]
         con.execute(
@@ -434,7 +424,7 @@ def _mb_claim_event(event_id: int, tg_user_id: int) -> bool:
         return False
     con = _connect()
     try:
-        now_dt = _mbot_utc_now()
+        now_dt = datetime.utcnow()
         now = now_dt.replace(microsecond=0).isoformat()
         lease_expires_at = (now_dt + timedelta(seconds=MANAGER_BOT_CLAIM_LEASE_SECONDS)).replace(microsecond=0).isoformat()
         lease_token = uuid.uuid4().hex
@@ -527,7 +517,7 @@ def _mb_recover_stale_claims(now_iso: str = "") -> List[Dict[str, Any]]:
             dead = attempts >= MANAGER_BOT_SEND_MAX_ATTEMPTS
             status = "dead" if dead else "failed"
             next_attempt_at = "" if dead else (
-                _mbot_utc_now() + timedelta(seconds=_mb_backoff_seconds_with_jitter(attempts))
+                datetime.utcnow() + timedelta(seconds=_mb_backoff_seconds_with_jitter(attempts))
             ).replace(microsecond=0).isoformat()
             cur = con.execute(
                 """
@@ -1386,7 +1376,7 @@ def _w1_myaccess_audit_log(uid: int, outcome: str, resolved_manager_key: str, *,
     reachable from here; this mirrors the same append-only, always-
     timestamped convention independently, scoped to this file."""
     try:
-        ts = _mbot_utc_now().replace(microsecond=0).isoformat()
+        ts = datetime.utcnow().replace(microsecond=0).isoformat()
         key = _norm_key(resolved_manager_key or "")
         actor_ref = _w1_myaccess_actor_ref(uid)
         line = (
@@ -2089,7 +2079,7 @@ def _check_throttle(card: Dict[str, Any], seconds: int = 20) -> int:
         return 0
     try:
         last = datetime.fromisoformat(raw)
-        diff = (_mbot_utc_now() - last).total_seconds()
+        diff = (datetime.utcnow() - last).total_seconds()
         if diff < seconds:
             return max(1, int(seconds - diff))
     except Exception:
@@ -3051,7 +3041,7 @@ _SS_BATCH_EXPIRY_SEC = 1800  # 30 minutes
 
 
 def _ss_now_iso() -> str:
-    return _mbot_utc_now().replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _ss_safe_name(s) -> str:
@@ -4300,7 +4290,7 @@ def _m1_age_minutes(iso_str) -> Optional[float]:
     if not raw:
         return None
     try:
-        return (_mbot_utc_now() - datetime.fromisoformat(raw)).total_seconds() / 60.0
+        return (datetime.utcnow() - datetime.fromisoformat(raw)).total_seconds() / 60.0
     except Exception:
         return None
 

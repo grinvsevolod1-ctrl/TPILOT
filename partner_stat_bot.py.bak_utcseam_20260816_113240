@@ -9,16 +9,6 @@ import re
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone, date
-
-def _psb_utc_now():
-    """Naive-UTC clock seam (utcnow refactor stage 2, 2026-08-16). Same
-    contract as main._tp_utc_now() / storage._utc_now(): returns what
-    _psb_utc_now() used to return (a NAIVE datetime in UTC), so every
-    isoformat() DB string, cutoff comparison and timedelta stays
-    byte-identical. Deprecation-free on Python 3.12+; single patch point
-    for selftests that freeze this file's clock."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -58,7 +48,7 @@ client = TelegramClient(PARTNER_SESSION_FILE, API_ID, API_HASH)
 
 
 def _now_iso() -> str:
-    return _psb_utc_now().replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _kyiv_now() -> datetime:
@@ -2118,10 +2108,10 @@ def _pse_record_failure(uid: int, event_id: int, exc: BaseException) -> None:
         if dead:
             next_attempt_at = ""
         elif classification.get("cooldown_seconds"):
-            next_attempt_at = (_psb_utc_now() + timedelta(
+            next_attempt_at = (datetime.utcnow() + timedelta(
                 seconds=max(1, int(classification["cooldown_seconds"])))).replace(microsecond=0).isoformat()
         else:
-            next_attempt_at = (_psb_utc_now() + timedelta(
+            next_attempt_at = (datetime.utcnow() + timedelta(
                 seconds=_pse_backoff_seconds_with_jitter(attempts))).replace(microsecond=0).isoformat()
         err_cls = type(exc).__name__[:120]
         con.execute(
@@ -3519,7 +3509,7 @@ def _main_buttons(buyer: Dict[str, Any] | None = None):  # type: ignore[override
         ]
         if buyer and int((buyer or {}).get("can_excel") or 0) == 1:
             rows.append([Button.inline("📦 Excel", b"excel_menu:main")])
-        rows.append([Button.inline("🔄 Обнов��ть", b"menu:main")])
+        rows.append([Button.inline("🔄 Обновить", b"menu:main")])
         return rows
     rows = [
         [Button.inline("📊 День", b"stats:today"), Button.inline("🌙 Долёты", b"flights:today")],
@@ -4855,7 +4845,7 @@ async def _rsva_callback(event):
             primary_key, reserve_key, target_date = parts[2], parts[3], parts[4]
             pair = _rsva_find_pair(source_key, primary_key, reserve_key)
             if not pair:
-                await event.answer("Эта пара резерва недоступна для ваш��го источника.", alert=True)
+                await event.answer("Эта пара резерва недоступна для вашего источника.", alert=True)
                 return
             if callable(_rsva_cancel):
                 try:
@@ -6519,9 +6509,8 @@ def _arn_safe_display(display_name) -> str:
 
 def _arn_utc_iso_to_kyiv_hm(iso_utc: str) -> str:
     """Converts a UTC ISO string in storage.py's own _now_iso() format
-    (naive UTC, no tz suffix, microsecond=0 -- what datetime.utcnow()
-    used to produce; see the _psb_utc_now seam) to a Kyiv HH:MM display
-    string. Never raises."""
+    (datetime.utcnow().replace(microsecond=0).isoformat(), naive, no tz
+    suffix) to a Kyiv HH:MM display string. Never raises."""
     raw = str(iso_utc or "").strip()
     if not raw:
         return ""
@@ -6962,7 +6951,7 @@ def _rsvan_now_iso() -> str:
     comparison (updated_at>?/updated_at>=?) correct without a per-row
     normalize-in-Python step for the common case; malformed/foreign-format
     rows are still caught defensively below (see _rsvan_parse_utc)."""
-    return _psb_utc_now().replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _rsvan_parse_utc(raw) -> Optional[datetime]:
@@ -7131,7 +7120,7 @@ def _rsvan_done_events_for_source(source_key: str, *, baseline_ts: str,
     sk = _norm_key(source_key)
     if not sk or not baseline_ts:
         return []
-    cutoff_iso = (_psb_utc_now().replace(microsecond=0) - timedelta(hours=int(freshness_hours))).isoformat()
+    cutoff_iso = (datetime.utcnow().replace(microsecond=0) - timedelta(hours=int(freshness_hours))).isoformat()
     try:
         storage.ensure_reserve_tables(TPILOT_DB_PATH)
         con = sqlite3.connect(TPILOT_DB_PATH)

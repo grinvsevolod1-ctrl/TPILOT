@@ -176,11 +176,6 @@ def build_delivery_ns(db_path: str, *, client=None):
         "client": client or _FakeClient(),
         "storage": real_storage,
     }
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{MB_PATH}:delivery>", "exec"), ns)
     return ns
 

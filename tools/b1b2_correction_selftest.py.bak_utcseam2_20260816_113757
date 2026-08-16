@@ -226,11 +226,6 @@ def build_send_ns(db_path: str, *, placeholder_fn, send_client: _FakeSendClient,
         "_buttons_for_manual_state": fake_buttons_for_manual_state,
         "_mb_send_with_fallback": send_client.send_with_fallback,
     }
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{MB_PATH}:b1fix>", "exec"), ns)
     if not has_fix:
         ns["_MbPlaceholderUnavailable"] = type("_MbPlaceholderUnavailable", (Exception,), {})
@@ -563,11 +558,6 @@ def build_auth_ns(db_path: str, *, now_fn=None, fail_execute=False, fail_commit=
         "_connect_panel_db": fake_connect,
         "_terminal_ok_button": lambda: [["OK"]],
     }
-    # utcnow refactor stage 2 (2026-08-16): extracted bot code reads the
-    # clock through per-file naive-UTC seams -- bind them all.
-    for _seam in ("_mbot_utc_now", "_psb_utc_now", "_pbr_utc_now"):
-        ns.setdefault(_seam, lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{PB_PATH}:b2fix>", "exec"), ns)
     if now_fn is not None:
         ns["time"] = now_fn
