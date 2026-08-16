@@ -205,14 +205,7 @@ def run_group_b() -> None:
             "_tp_pss_low", "_tp_pss_int_or_none", "_tp_pss_is_russia",
             "_autostatus_enabled_sync",
         },
-        {"re": re, "_tp_pss_datetime": _DummyDatetime,
-         # utcnow refactor (2026-08-16): _tp_pss_now_iso now calls
-         # _now_utc_iso() first and falls back to the module-level
-         # _tp_utc_now() clock seam -- bind both to the same frozen instant
-         # so the derivation stays deterministic.
-         "_now_utc_iso": (lambda: _DummyDatetime.utcnow()
-                          .replace(microsecond=0).isoformat()),
-         "_tp_utc_now": _DummyDatetime.utcnow},
+        {"re": re, "_tp_pss_datetime": _DummyDatetime},
     )
     decide = ns["_tp_pss_decide_from_facts"]
 

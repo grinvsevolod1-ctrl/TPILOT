@@ -287,13 +287,6 @@ def build_delete_links_ns(main_src: str, behaviors: dict, mutations=None):
         "_bsd3a_mark_deleted": mark_deleted,
         "_bsd3a_mark_delete_failed": mark_failed,
         "FloodWaitError": FloodWaitError,
-        # utcnow refactor (2026-08-16): extracted main.py code (audit
-        # timestamps inside _bizlink_delete_safe_log's swallowed try/except)
-        # reads the clock through the module-level _tp_utc_now() seam --
-        # without this binding the NameError is silently swallowed and the
-        # audit rows under test never get written.
-        "_tp_utc_now": (lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
         "TPILOT_DB_PATH": ":memory:",
     }
     ns = _build_ns(
@@ -460,10 +453,7 @@ def build_controller_parse_harness(main_src: str, mutate=None):
     params = (
         "row, mk, mode, target_date, preview, user_id, preview_created_at, "
         "_bsd3a_audit_add, _bizlink_delete_safe_log, datetime, TPILOT_DB_PATH, "
-        "_m213d3a_ctrl_json, _bizlink_delete_safe_sanitize, "
-        # utcnow refactor (2026-08-16): the branch's now_iso timestamp reads
-        # the clock through the module-level _tp_utc_now() seam.
-        "_tp_utc_now"
+        "_m213d3a_ctrl_json, _bizlink_delete_safe_sanitize"
     )
     harness = _wrap_async_harness("_controller_parse_harness", params, body, mutate=mutate)
 
@@ -492,9 +482,6 @@ def build_controller_parse_harness(main_src: str, mutate=None):
             row, "mgr_x", "manual", "2026-08-04", preview, 555, "2026-08-04T00:00:00",
             _fake_audit_add, _fake_safe_log, _dt, ":memory:",
             json, real_sanitize,
-            # utcnow refactor (2026-08-16): naive-UTC clock seam.
-            (lambda: _dt.now(__import__("datetime").timezone.utc)
-             .replace(tzinfo=None)),
         )
         return ok_flag, result_text, (audit_calls[0] if audit_calls else None)
 

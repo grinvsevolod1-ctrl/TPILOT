@@ -182,7 +182,7 @@ def build_full_card_ns(db_path: str, *, proc_scan=None) -> dict:
         "TPILOT_DB_PATH": db_path,
         "BASE_DIR": BASE_DIR,
         "datetime": datetime, "timedelta": timedelta, "timezone": timezone, "ZoneInfo": ZoneInfo,
-        # utcnow refactor (2026-08-16): extracted proxy-guard helpers read the
+        # utcnow refactor (2026-08-16): extracted panel_bot helpers read the
         # clock through the module-level _pb_utc_now() seam (naive UTC).
         "_pb_utc_now": (lambda: datetime.now(timezone.utc).replace(tzinfo=None)),
         "normalize_manager_key": manager_registry.normalize_manager_key,
@@ -902,7 +902,7 @@ def test_14_proxy_guard_display_states_agree() -> None:
     try:
         ns = build_full_card_ns(db_path)
         text = ns["_pb_manager_full_card_text"]("mgr01", 1)
-        check("14h. [R3.2] required proxy missing host/port -> 'Прове��ка: не настроен'",
+        check("14h. [R3.2] required proxy missing host/port -> 'Проверка: не настроен'",
               "Проверка: не настроен" in text, text)
         check("14h. [R3.2] a fresh OLD guard success never renders as a current PROXY pass "
               "once the proxy is unwired -- scoped to the ПРОКСИ section's own 'Проверка:' "
