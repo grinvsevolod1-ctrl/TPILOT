@@ -1325,6 +1325,10 @@ def build_panel_callback_ns(db_path: str, submit_and_wait_fn) -> dict:
         "list_manager_rows_from_db_sync": manager_registry.list_manager_rows_from_db_sync,
         "_safe_event_edit": _fake_safe_event_edit,
         "_pb_safe_answer": _fake_pb_safe_answer,
+        # utcnow refactor (2026-08-16): extracted handlers now read the clock
+        # through the module-level _pb_utc_now() seam (naive UTC contract).
+        "_pb_utc_now": (lambda: __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).replace(tzinfo=None)),
         "_is_allowed": lambda event: True,
         "_submit_and_wait": submit_and_wait_fn,
     }

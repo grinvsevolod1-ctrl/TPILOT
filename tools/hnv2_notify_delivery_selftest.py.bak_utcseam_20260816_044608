@@ -46,9 +46,6 @@ PANEL_TREE = ast.parse(PANEL_SRC)
 REAL_NAMES = {
     "_finish_panel_notification", "_reap_stale_running_panel_notifications",
     "_connect_panel_db", "_ensure_panel_runtime_tables", "_utc_now_iso",
-    # utcnow refactor (2026-08-16): _utc_now_iso delegates to the
-    # module-level _pb_utc_now() clock seam -- must be extracted with it.
-    "_pb_utc_now",
     "_take_panel_notifications",
 }
 
@@ -87,9 +84,6 @@ def build_ns(db_path: str) -> dict:
     ns = {
         "os": os, "sqlite3": sqlite3,
         "datetime": datetime, "timedelta": timedelta,
-        # utcnow refactor (2026-08-16): the extracted _pb_utc_now() seam
-        # calls datetime.now(timezone.utc) -- timezone must be in the ns.
-        "timezone": __import__("datetime").timezone,
         "TPILOT_DB_PATH": db_path,
     }
     exec(compile(module_src, f"<{PANEL_PATH}:hnv2_notify_delivery>", "exec"), ns)

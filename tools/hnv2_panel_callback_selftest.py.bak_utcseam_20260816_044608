@@ -97,9 +97,6 @@ PANEL_REAL_NAMES = {
     # of a local datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) -- a real, load-bearing dependency for
     # this function, same as every other helper in this set.
     "_utc_now_iso",
-    # utcnow refactor (2026-08-16): _utc_now_iso delegates to the
-    # module-level _pb_utc_now() clock seam -- must be extracted with it.
-    "_pb_utc_now",
     # R1B/F-16/F-32 (2026-08-12, large reliability batch): every
     # `await event.answer(...)` call site in panel_bot.py -- including
     # inside _hnv2_callback -- was mechanically rewritten to
