@@ -104,10 +104,6 @@ def extract_and_exec(tree, names, extra_ns):
         raise AssertionError(f"missing {missing}")
     module_src = "\n\n".join(ast.unparse(picked[n]) for n in names if n in picked)
     ns = dict(extra_ns)
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, "<main.py renewal extract>", "exec"), ns)
     return ns
 
@@ -596,7 +592,7 @@ def run_balance_alert_checks(main_tree) -> None:
     below $20, at most once per 24h while still below, reset on recovery,
     balance-read failure never raises/blocks. REAL storage (temp DB) +
     REAL _renewal_balance_alert_tick, with _renewal_balance/_now_utc_iso/
-    the clock (datetime + _tp_utc_now seam) faked for deterministic control."""
+    datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) faked for deterministic control."""
     print("\n-- low-balance AdminBot alert (REAL execution, temp DB) --")
 
     work = Path(tempfile.mkdtemp(prefix="proxy_balance_alert_"))
@@ -641,11 +637,6 @@ def run_balance_alert_checks(main_tree) -> None:
             "_renewal_balance": _fake_renewal_balance,
             "_create_panel_notification": _fake_create_panel_notification,
             "_now_utc_iso": _fake_now_utc_iso,
-            # utcnow refactor (2026-08-16): the tick's cooldown age math now
-            # reads the clock through the module-level _tp_utc_now() seam --
-            # bind it to the SAME controllable fake clock, otherwise the
-            # real wall clock leaks in and the 24h anti-spam checks drift.
-            "_tp_utc_now": clock.utcnow,
         },
     )
     tick = ns["_renewal_balance_alert_tick"]

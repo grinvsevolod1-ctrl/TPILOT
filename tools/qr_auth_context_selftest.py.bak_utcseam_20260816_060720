@@ -420,10 +420,6 @@ def build_qr_ns(db_path: str, base_dir: Path, *, script: dict = None, exclude_na
     }
     if extra_ns:
         ns.update(extra_ns)
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{MAIN_PATH}:qr>", "exec"), ns)
     ns["__calls__"] = calls
     ns["__relogin_commit_calls__"] = relogin_commit_calls
@@ -511,10 +507,6 @@ def build_relogin_commit_ns(db_path: str, base_dir: Path) -> dict:
         "_log_manager_danger_action": fake_log_manager_danger_action,
         "_manager_finalize_login": fake_manager_finalize_login,
     }
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{MAIN_PATH}:relogin_commit>", "exec"), ns)
     ns["__storage__"] = _storage
     ns["__client_calls__"] = calls
@@ -554,10 +546,6 @@ def build_promote_ns(db_path: str, base_dir: Path, *, script: dict = None) -> di
         "manager_get_onboarding": _storage.manager_get_onboarding,
         "_replacement_build_client": client_factory,
     }
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{MAIN_PATH}:promote>", "exec"), ns)
     ns["__storage__"] = _storage
     ns["__client_calls__"] = calls
@@ -871,10 +859,6 @@ def main() -> int:
         )
         # Inject the mutant function (guard stripped) into the SAME namespace
         # its real dependencies were already exec'd into.
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
         exec(compile(ast.Module(body=[mutant_fn], type_ignores=[]), f"<{MAIN_PATH}:qr-mutant>", "exec"), nsm1)
         await seed_manager(nsm1, key="mgrm1", tg_user_id=556001, username="m1_u")
         m1_live_holder = {"path": nsm1["_manager_runtime_paths_for_key"]("mgrm1")["session_path"]}
@@ -922,10 +906,6 @@ def main() -> int:
             db_pathm2, tmp_rootm2, script={"wait": "ok", "me": me_m2},
             exclude_names={"_manager_qr_wait_task"},
         )
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
         exec(compile(ast.Module(body=[mutant_fn2], type_ignores=[]), f"<{MAIN_PATH}:qr-mutant2>", "exec"), nsm2)
         await seed_manager(nsm2, key="mgrm2", tg_user_id=556101, username="m2_u")
         await nsm2["_manager_relogin_qr_start"](102345, "mgrm2")
@@ -965,10 +945,6 @@ def main() -> int:
             exclude_names={"replacement_send_qr_start", "_manager_replace_qr_start"},
             extra_ns={"replacement_send_qr_start": fake_replacement_send_qr_start_collide_m3},
         )
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
         exec(compile(ast.Module(body=[mutant_fn3], type_ignores=[]), f"<{MAIN_PATH}:qr-mutant3>", "exec"), nsm3)
         await seed_manager(nsm3, key="mgrm3old", tg_user_id=556201, username="m3old_u")
         op_id_m3 = await seed_draft_replacement_op(nsm3, old_key="mgrm3old", new_key="mgrm3new")
@@ -1101,10 +1077,6 @@ def main() -> int:
                 "_repl_storage": _storage,
                 "_MANAGER_AUTH_AUDIT_LOG": Path(db_path).parent / "manager_auth_audit.log",
             }
-            # utcnow refactor (2026-08-16): extracted main.py code reads the
-            # clock through the module-level _tp_utc_now() seam (naive UTC).
-            ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-                __import__("datetime").timezone.utc).replace(tzinfo=None))
             exec(compile(module_src, f"<{MAIN_PATH}:signin>", "exec"), ns)
             ns["__storage__"] = _storage
             return ns
@@ -1294,10 +1266,6 @@ def main() -> int:
 
         tmp_rootm4, db_pathm4 = make_temp_env()
         nsm4 = build_qr_ns(db_pathm4, tmp_rootm4, script={"pass_sign_in": "ok"}, exclude_names={"_panel_manager_pass_command"})
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
         exec(compile(ast.Module(body=[mutant_fn4], type_ignores=[]), f"<{MAIN_PATH}:qr-mutant4>", "exec"), nsm4)
         await seed_manager(nsm4, key="mgrm4", tg_user_id=559401, username="m4_u")
         client_m4 = FakeQRClient("dummy", script={"pass_sign_in": "ok"}, tag="2fa")
@@ -1613,10 +1581,6 @@ def main() -> int:
 
         tmp_rootM5, db_pathM5 = make_temp_env()
         nsM5 = build_qr_ns(db_pathM5, tmp_rootM5, exclude_names={"_panel_manager_qr_cancel_command"})
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None))
         exec(compile(ast.Module(body=[mutant_fn5], type_ignores=[]), f"<{MAIN_PATH}:qr-mutant5>", "exec"), nsM5)
         await seed_manager(nsM5, key="mgrm5", tg_user_id=561011, username="m5_u")
         temp_pathM5 = nsM5["_manager_relogin_temp_session_path"]("mgrm5")
