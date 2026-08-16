@@ -1125,15 +1125,10 @@ def test_24_missing_manager_safe() -> None:
 # (nothing else about the dispatch pipeline changes) still holds and is
 # re-verified by this new snapshot.
 _CMD_DISPATCH_BLOCK_SNAPSHOT = (
-    # 2026-08 hardening pass replaced the raw event.answer() with the
-    # never-raising module-level _pb_safe_answer wrapper (same wording,
-    # same alert flag) across ALL panel callback handlers -- verified as
-    # intentional and re-snapshotted here, same convention as the
-    # _panel_answer_fast re-snapshot documented above.
     '    if data.startswith("cmd:"):\n'
     '        command = data.split(":", 1)[1].strip()\n'
     '        if not command:\n'
-    '            await _pb_safe_answer(event, "Пустая команда", alert=True)\n'
+    '            await event.answer("Пустая команда", alert=True)\n'
     '            return\n'
     '\n'
     '        chat_id = int(event.chat_id or 0)\n'
@@ -1362,12 +1357,8 @@ def test_29_autostatus_status_indicator_fix() -> None:
           'b"autostatus_status_info"' in block, block)
     check("16. new callback has its own dedicated handler with a meaningful notice",
           'if data == "autostatus_status_info":' in PANEL_SRC and "ℹ️ Это текущий статус автостатусов" in PANEL_SRC, None)
-    # (2026-08 hardening: raw event.answer -> never-raising _pb_safe_answer;
-    #  the user-visible wording is what this check protects and is unchanged)
     check("16. generic noop handler's wording is UNCHANGED for the many genuine section headers",
-          'if data == "noop":' in PANEL_SRC
-          and ('await event.answer("Это заголовок блока"' in PANEL_SRC
-               or 'await _pb_safe_answer(event, "Это заголовок блока"' in PANEL_SRC), None)
+          'if data == "noop":' in PANEL_SRC and 'await event.answer("Это заголовок блока"' in PANEL_SRC, None)
     # sanity: plenty of other noop buttons still exist untouched (section
     # headers / disabled placeholders elsewhere in the file).
     check("16. sanity: other genuine noop section headers still present in the file",

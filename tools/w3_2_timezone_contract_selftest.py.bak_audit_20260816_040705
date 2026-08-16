@@ -144,19 +144,8 @@ def check_panel_bot_redirect() -> None:
 
     # _sched_pb_kyiv_today is EXPLICITLY W3.3 scope per the frozen Plan Freeze
     # (02_S9_TIMEZONE_CONTRACT.md 2.3 redirect table) -- W3.2 must NOT touch it.
-    # W3.3-B has since legitimately performed that redirect (through
-    # storage.w3_business_date), so BOTH states are valid here: the original
-    # untouched body (pre-W3.3 tree) or the W3.3-B redirect (post-W3.3 tree).
-    # What this gate still forbids is any THIRD, unplanned form.
-    _spbkt_original = ('def _sched_pb_kyiv_today():\n'
-                       '    return datetime.now(tz=ZoneInfo("Europe/Kyiv")).date()') in src
-    _spbkt_w33_redirect = (
-        "def _sched_pb_kyiv_today():" in src
-        and "w3_business_date" in src.split("def _sched_pb_kyiv_today():")[-1][:500]
-    )
-    check("panel_bot.py: _sched_pb_kyiv_today is either untouched (pre-W3.3) or carries "
-          "the planned W3.3-B storage.w3_business_date redirect -- no third form",
-          _spbkt_original or _spbkt_w33_redirect)
+    check("panel_bot.py: _sched_pb_kyiv_today is left untouched (deferred to W3.3 by the frozen plan)",
+          'def _sched_pb_kyiv_today():\n    return datetime.now(tz=ZoneInfo("Europe/Kyiv")).date()' in src)
 
 
 def check_preflight_redirect() -> None:

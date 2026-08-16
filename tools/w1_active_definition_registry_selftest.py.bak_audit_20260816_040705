@@ -67,21 +67,13 @@ def _active_func_node(text: str, name: str):
 def test_tpag_monitor_once_active_copy_has_w1_instrumentation():
     text = _read("main.py")
     spans = _defs(text, "_tpag_monitor_once")
-    # Commit ef4fb8d ("streamline lead status...") REMOVED the pre-existing
-    # dead copy, so 1 definition (active only) is now the expected state;
-    # 2 (dead + active) was correct before that cleanup. Anything else is
-    # a registry violation.
-    if len(spans) not in (1, 2):
-        fail(f"expected 1 (active only, post-ef4fb8d) or 2 (dead + active, "
-             f"pre-cleanup) definitions of _tpag_monitor_once, "
-             f"found {len(spans)}: {spans}")
+    if len(spans) != 2:
+        fail(f"expected exactly 2 definitions of _tpag_monitor_once (1 pre-existing dead "
+             f"copy + 1 active), found {len(spans)}: {spans}")
         return
     active_src = _active_source(text, "_tpag_monitor_once")
-    if len(spans) == 2:
-        dead_lo, dead_hi = spans[0]
-        dead_src = "\n".join(text.splitlines()[dead_lo - 1:dead_hi])
-    else:
-        dead_src = ""
+    dead_lo, dead_hi = spans[0]
+    dead_src = "\n".join(text.splitlines()[dead_lo - 1:dead_hi])
     checks = {
         "sweep_id generated": "sweep_id" in active_src,
         "structured event emitted on list failure": "PROXY_GUARD_SWEEP_LIST_FAILED" in active_src,
@@ -94,10 +86,7 @@ def test_tpag_monitor_once_active_copy_has_w1_instrumentation():
         fail(f"active _tpag_monitor_once (L{spans[-1][0]}) is missing: {missing}")
     else:
         ok(f"active _tpag_monitor_once (L{spans[-1][0]}) carries every W1 instrumentation marker")
-    if len(spans) == 1:
-        ok("the pre-existing dead copy was removed by the ef4fb8d cleanup; "
-           "only the active instrumented copy remains")
-    elif "PROXY_GUARD_SWEEP_SUMMARY" in dead_src:
+    if "PROXY_GUARD_SWEEP_SUMMARY" in dead_src:
         fail("the OLD dead copy of _tpag_monitor_once was edited instead of/as well as "
              "the active one -- this would be a no-op fix")
     else:
