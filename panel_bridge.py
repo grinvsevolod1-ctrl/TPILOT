@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 
 def _now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -151,7 +151,7 @@ def cleanup_panel_commands(db_path: str, *, keep_hours: int = 48) -> None:
     ensure_panel_tables(db_path)
     # ISO strings are UTC naive and lexicographically sortable enough here.
     import datetime as _dt
-    cutoff = (_dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None) - _dt.timedelta(hours=int(keep_hours or 48))).replace(microsecond=0).isoformat()
+    cutoff = (_dt.datetime.utcnow() - _dt.timedelta(hours=int(keep_hours or 48))).replace(microsecond=0).isoformat()
     con = _connect(db_path)
     try:
         con.execute("DELETE FROM panel_commands WHERE created_at<? AND status IN ('done','error')", (cutoff,))
@@ -173,7 +173,7 @@ def reap_stale_running_panel_commands(db_path: str, *, stale_minutes: int = 60) 
     # Both columns default to '' (empty string), not NULL, so NULLIF is required to make
     # COALESCE treat empty strings as absent and fall back correctly.
     cutoff = (
-        _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None) - _dt.timedelta(minutes=max(10, int(stale_minutes or 60)))
+        _dt.datetime.utcnow() - _dt.timedelta(minutes=max(10, int(stale_minutes or 60)))
     ).replace(microsecond=0).isoformat()
     now = _now_iso()
     con = _connect(db_path)

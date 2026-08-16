@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import asyncio
@@ -414,7 +414,7 @@ def _audit_manager_telethon_proxy(source: str, row: Dict[str, Any], session_path
             proxy_configured = bool(_build_telethon_proxy_from_row(row))
         except Exception:
             proxy_configured = False
-    ts = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    ts = datetime.utcnow().replace(microsecond=0).isoformat()
     key = registry_normalize_manager_key(row.get("manager_key") or "")
     line = (
         f"time_utc={ts}\tsource={source}\tmanager_key={key}\tsession_path={session_path}"
@@ -574,11 +574,11 @@ _PROGRAM_SENT_TTL_SEC = 300
 
 # -------------------- small utils --------------------
 def _now_utc_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _future_iso(seconds: int) -> str:
-    return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=int(seconds))).replace(microsecond=0).isoformat()
+    return (datetime.utcnow() + timedelta(seconds=int(seconds))).replace(microsecond=0).isoformat()
 
 
 def _future_iso_max(seconds: int, minimum_seconds: int = 0) -> str:
@@ -1783,7 +1783,7 @@ async def _process_auto_offline() -> None:
     work_end_local = day0.replace(hour=int(WORK_DAY_END_HOUR), minute=0, second=0, microsecond=0)
     no_show_local = day0.replace(hour=int(NO_SHOW_CHECK_HOUR), minute=int(NO_SHOW_CHECK_MINUTE), second=0, microsecond=0)
     work_start_utc = work_start_local.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0)
-    now_utc_naive = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+    now_utc_naive = datetime.utcnow().replace(microsecond=0)
 
     rows = await manager_list_rows(include_removed=False)
     for row in rows or []:
@@ -2212,7 +2212,7 @@ async def _process_profile_reminders_once() -> int:
         gate_allowed_tick = False
     if not gate_allowed_tick:
         return 0
-    now_utc = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+    now_utc = datetime.utcnow().replace(microsecond=0)
     today_local = _kyiv_now().date().isoformat()
     sent = 0
     for lead in await _fetch_reminder_candidates(DB_PATH, limit=200):
@@ -2753,7 +2753,7 @@ def _manager_auth_audit_log(event: str, manager_key: str, **fields: Any) -> None
     """Append-only structured line for manager auth attempts (mirrors the existing
     manager_telethon_proxy_audit.log style). Never raises. Never logs phone/password/api_hash
     raw values — callers must pass already-masked phone and profile-name-only API info."""
-    ts = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    ts = datetime.utcnow().replace(microsecond=0).isoformat()
     key = registry_normalize_manager_key(manager_key or "")
     parts = [f"time_utc={ts}", f"event={event}", f"manager_key={key}"]
     for name, value in fields.items():
@@ -3860,7 +3860,7 @@ POST_MANUAL_FOLLOWUP_MAX_PER_DAY = int(os.getenv("POST_MANUAL_FOLLOWUP_MAX_PER_D
 # process's own start time (captured once below), so only cycles that begin after this
 # manager process restarts ever get v2 planning - no .env edit required.
 POST_MANUAL_FOLLOWUP_V2_EPOCH_UTC_RAW = os.getenv("POST_MANUAL_FOLLOWUP_V2_EPOCH_UTC") or ""
-_POST_FOLLOWUP_V2_PROCESS_START_UTC = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+_POST_FOLLOWUP_V2_PROCESS_START_UTC = datetime.utcnow().replace(microsecond=0)
 _POST_FOLLOWUP_V2_EPOCH_CACHE: Optional[datetime] = None
 _POST_FOLLOWUP_V2_SKIPPED_LOG_DONE = False
 
@@ -4253,7 +4253,7 @@ async def _process_post_manual_followups_once() -> int:
     if not _tp_followup_allowed_now(now_local):
         return 0
     today_local = now_local.date().isoformat()
-    now_utc_dt = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+    now_utc_dt = datetime.utcnow().replace(microsecond=0)
     mgr_key = registry_normalize_manager_key(MANAGER_RUNTIME_KEY)
 
     # TPILOT HEALTH RECOVERY HYBRID-D 20260723: autodozhim only ever replies
@@ -5150,7 +5150,7 @@ async def _mb_backfill_daily_leads_from_events(manager_key: str) -> None:
         now = _now_utc_iso()
     except Exception:
         import datetime as _bf_dt
-        now = _bf_dt.datetime.now(_bf_dt.timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        now = _bf_dt.datetime.utcnow().replace(microsecond=0).isoformat()
     inserted = 0
     try:
         async with aiosqlite.connect(str(DB_PATH)) as dst_db:
@@ -5420,7 +5420,7 @@ _TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT = globals().get("_record_daily_lead_event")
 
 
 def _tp_dt_utc_now() -> datetime:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+    return datetime.utcnow().replace(microsecond=0)
 
 
 def _tp_parse_utc(raw: str) -> Optional[datetime]:
@@ -10285,7 +10285,7 @@ def _tp_business_elapsed_minutes(start_utc_raw: Any, end_utc_raw: Any = None, *,
     start_utc = _tp_utc_parse(start_utc_raw)
     if not start_utc:
         return 0
-    end_utc = _tp_utc_parse(end_utc_raw) if end_utc_raw else datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+    end_utc = _tp_utc_parse(end_utc_raw) if end_utc_raw else datetime.utcnow().replace(microsecond=0)
     if not end_utc or end_utc <= start_utc:
         return 0
     start_local = start_utc.replace(tzinfo=timezone.utc).astimezone(TZ_KYIV)
@@ -11135,7 +11135,7 @@ _CONTENT_PROFILE_CATEGORIES = {
 
 def _content_now_iso() -> str:
     try:
-        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        return datetime.utcnow().replace(microsecond=0).isoformat()
     except Exception:
         return ""
 
@@ -12509,7 +12509,7 @@ def _tpag_fresh(row: Dict[str, Any]) -> bool:
     checked = _tpag_parse_dt((row or {}).get("auth_guard_checked_at"))
     if not checked:
         return False
-    age = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - checked).total_seconds()
+    age = (datetime.utcnow().replace(microsecond=0) - checked).total_seconds()
     return 0 <= age <= TPAG_V2_GUARD_TTL_SEC
 
 
@@ -13145,7 +13145,7 @@ def _tp_ci_now_iso() -> str:
     try:
         return _now_utc_iso()
     except Exception:
-        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_ci_norm_key(raw: Any) -> str:
@@ -14411,7 +14411,7 @@ def _tp_qs_now_iso() -> str:
     try:
         return _now_utc_iso()
     except Exception:
-        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_qs_norm_key(raw: Any) -> str:
@@ -16313,7 +16313,7 @@ TPAG_STABILITY_RETRY_DELAYS_SEC = (2, 5)
 
 
 def _tpag_stability_now_dt() -> datetime:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+    return datetime.utcnow().replace(microsecond=0)
 
 
 async def _tpag_stability_ensure_schema() -> None:
@@ -16750,7 +16750,7 @@ def _w1_emit_sweep_event(event: str, **fields: Any) -> None:
     project-wide safe identifier, already used verbatim in
     _manager_auth_audit_log) and sweep/timing/outcome metadata."""
     try:
-        now_utc = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0)
+        now_utc = datetime.utcnow().replace(microsecond=0)
         record = {
             "event": event,
             "timestamp_utc": now_utc.isoformat() + "Z",
@@ -17806,8 +17806,8 @@ async def _tpac_create_snapshot(scope: str, start_d: str, end_d: str, label: str
         return "\n".join(lines).rstrip()
 
     now = _now_utc_iso()
-    sid = "repair_" + datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).strftime("%Y%m%d_%H%M%S")
-    expires = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(hours=24)).replace(microsecond=0).isoformat()
+    sid = "repair_" + datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    expires = (datetime.utcnow() + timedelta(hours=24)).replace(microsecond=0).isoformat()
     summary = _tpac_changes_summary(changes)
     payload = {
         "snapshot_id": sid,
@@ -18511,7 +18511,7 @@ def _tp_pss_now_iso():
     try:
         return _now_utc_iso()
     except Exception:
-        return _tp_pss_datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        return _tp_pss_datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_pss_text(v):
@@ -19121,7 +19121,7 @@ def _content_text_defaults() -> dict:  # type: ignore[override]
 
 
 def _tp_gq_now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_gq_norm_key(raw: Any) -> str:
@@ -19726,7 +19726,7 @@ TP_HG_STATUS_UNKNOWN = "unknown"
 
 
 def _tp_hg_now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_hg_parse_iso(raw: Any) -> Optional[datetime]:
@@ -20572,7 +20572,7 @@ async def _tp_hg_update_status(
                     error_source = str(error_source or "periodic_self_check")
                     action_required = ""
                 if int(cooldown_seconds or 0) > 0:
-                    cooldown_until = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) + timedelta(seconds=int(cooldown_seconds))).isoformat()
+                    cooldown_until = (datetime.utcnow().replace(microsecond=0) + timedelta(seconds=int(cooldown_seconds))).isoformat()
                 sev = _tp_hg_severity(status)
                 await db.execute(
                     """
@@ -20754,7 +20754,7 @@ def _tp_hg_is_stale(row: Dict[str, Any]) -> bool:
     if not dt:
         return True
     try:
-        return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - dt).total_seconds() > TP_HG_UNKNOWN_AFTER_SEC
+        return (datetime.utcnow().replace(microsecond=0) - dt).total_seconds() > TP_HG_UNKNOWN_AFTER_SEC
     except Exception:
         return True
 
@@ -21062,7 +21062,7 @@ async def _tp_hg_send_allowed(manager_key: str, *, new_dialog: bool, recovery_pr
     family = _tp_hg_restriction_family(status=status, error_class=str(row.get("error_class") or ""))
     if family == _TP_HG_FAMILY_FLOODWAIT:
         cooldown_until = _tp_hg_parse_iso(str(row.get("cooldown_until") or ""))
-        if cooldown_until and datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) < cooldown_until:
+        if cooldown_until and datetime.utcnow().replace(microsecond=0) < cooldown_until:
             return False, _TP_HG_GATE_DENY_FLOODWAIT_COOLDOWN
         return True, "floodwait_cooldown_elapsed"
     # Sticky non-FloodWait restrictions, including PeerFlood: no longer a
@@ -21746,7 +21746,7 @@ def _tp_ae_now_iso() -> str:
     try:
         return _now_utc_iso()
     except Exception:
-        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_ae_truth(raw: Any, default: int = 0) -> int:
@@ -22583,7 +22583,7 @@ def _tp_fm_now_iso() -> str:
     try:
         return _now_utc_iso()
     except Exception:
-        return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _tp_fm_local_minutes(dt: datetime) -> int:
@@ -23131,7 +23131,7 @@ async def _tp_fm_record_manual_outbound_presence(manager_key: str, chat_id: int,
         return
     work_date = _tp_fm_work_date(now_local)
     now_iso = _tp_fm_now_iso()
-    cutoff_utc = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - timedelta(minutes=int(TP_FM_WORK_PRESENCE_WINDOW_MINUTES))).isoformat()
+    cutoff_utc = (datetime.utcnow().replace(microsecond=0) - timedelta(minutes=int(TP_FM_WORK_PRESENCE_WINDOW_MINUTES))).isoformat()
     await _tp_fm_ensure_presence_schema()
     async with aiosqlite.connect(TPILOT_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -23500,7 +23500,7 @@ def _tp_pa_now_iso():
         return _now_utc_iso()
     except Exception:
         try:
-            return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+            return datetime.utcnow().replace(microsecond=0).isoformat()
         except Exception:
             return ""
 
@@ -24312,12 +24312,12 @@ async def _mb_ensure_events_table() -> None:
 
 
 def _mb_now_iso() -> str:
-    return _mb_datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return _mb_datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _mb_current_lead_date() -> str:
     # W3.2 D6 (2026-08-01, contract R3): the former
-    # `except Exception: _mb_datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).date().isoformat()` substituted a UTC
+    # `except Exception: _mb_datetime.utcnow().date().isoformat()` substituted a UTC
     # date for the Kyiv business lead_date -- between 00:00 and 02:00/03:00 Kyiv that is
     # the previous day. storage.w3_now() raises loudly by contract; that failure must
     # propagate (every caller is covered by a whole-body handler) and never be papered
@@ -26025,7 +26025,7 @@ async def _manager_recover_link_limit(manager_key: str, current_target_date: str
     delete_count = max(int(needed or 0), 15)
     needed_for_stop = max(int(needed or 0), 1)
     max_viewed = delete_count * 3
-    started_at = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    started_at = datetime.utcnow().replace(microsecond=0).isoformat()
 
     attempted_slugs: set = set()
     touched_slugs: List[str] = []  # real deletes + expired-cleaned, for the audit row
@@ -26060,7 +26060,7 @@ async def _manager_recover_link_limit(manager_key: str, current_target_date: str
                     error_class="tg_limit",
                     error_text=error_text_out,
                     created_at=started_at,
-                    finished_at=datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(),
+                    finished_at=datetime.utcnow().replace(microsecond=0).isoformat(),
                     db_path=TPILOT_DB_PATH,
                 )
         except Exception:
@@ -26071,7 +26071,7 @@ async def _manager_recover_link_limit(manager_key: str, current_target_date: str
         # current batch's target_date -- otherwise oldest_n can walk straight into live
         # today/tomorrow/day-after-tomorrow links once older history is exhausted or dead.
         # Kyiv business date, ISO lexical comparison is safe here.
-        # W3.2 D7 (2026-08-01): the former `except Exception: datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).date()...`
+        # W3.2 D7 (2026-08-01): the former `except Exception: datetime.utcnow().date()...`
         # substituted a UTC date here, widening the deletion window by a day around Kyiv
         # midnight. Resolved inside this try so a W3TimezoneError is caught by the handler
         # below -> reason="exception", ok=False, zero deletions. Fail-closed; "never raises"
@@ -27821,7 +27821,7 @@ async def _queue_bizlink_delete_tpilot_for_manager(
         return False, "Это подтверждение уже было использовано (single-use)."
 
     # Check expiry
-    now_iso = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now_iso = datetime.utcnow().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
         return False, "Preview истёк (>5 мин). Создайте новый."
 
@@ -27948,7 +27948,7 @@ async def _queue_bizlink_delete_tpilot_for_manager(
                         error_class=audit_error_class,
                         error_text=audit_error_text,
                         created_at=preview_created_at,
-                        finished_at=datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(),
+                        finished_at=datetime.utcnow().replace(microsecond=0).isoformat(),
                         db_path=TPILOT_DB_PATH,
                     )
             except Exception as _ae:
@@ -28313,7 +28313,7 @@ async def _queue_bizlink_delete_telegram_for_manager(
         return False, "Неверный тип preview (ожидается global)."
     if int(preview.get("consumed") or 0):
         return False, "Это подтверждение уже было использовано (single-use)."
-    now_iso = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now_iso = datetime.utcnow().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
         return False, "Preview истёк (>5 мин). Создайте новый."
 
@@ -28408,7 +28408,7 @@ async def _queue_bizlink_delete_telegram_for_manager(
                         error_class="",
                         error_text=str(row.get("error_text") or result_dict.get("abort_reason") or "")[:500],
                         created_at=preview_created_at,
-                        finished_at=datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat(),
+                        finished_at=datetime.utcnow().replace(microsecond=0).isoformat(),
                         db_path=TPILOT_DB_PATH,
                     )
             except Exception as _ae:
@@ -29196,7 +29196,7 @@ async def _health_incident_handle(
         due = True
         if last_notified:
             try:
-                age = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(last_notified)).total_seconds()
+                age = (datetime.utcnow() - datetime.fromisoformat(last_notified)).total_seconds()
                 due = age >= HEALTH_INCIDENT_REMINDER_INTERVAL_SEC
             except Exception:
                 due = True
@@ -31405,7 +31405,7 @@ def _prenew_warn_action_needed(lease: Dict[str, Any]) -> Optional[Dict[str, str]
         recently_failed = last_status.startswith("renew_failed") or last_status == "renew_unverified"
         if recently_failed and last_attempt:
             try:
-                elapsed = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(str(last_attempt))).total_seconds()
+                elapsed = (datetime.utcnow() - datetime.fromisoformat(str(last_attempt))).total_seconds()
             except Exception:
                 elapsed = None
             if elapsed is None or elapsed <= recent_failure_window_sec:
@@ -32478,7 +32478,7 @@ async def _ppool_derive_status(
     # not a naive expiry datetime against UTC now -- day-math elsewhere in
     # this subsystem (_prenew_warn_eligible/_prenew_autorenew_gates_ok/
     # _renewal_eligible_leases) is already Kyiv-based, and a date-only
-    # expires_at parses to midnight, so comparing it to datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+    # expires_at parses to midnight, so comparing it to datetime.utcnow()
     # mislabelled a lease expiring TODAY as already "(expired)" for several
     # hours every morning (Kyiv is ahead of UTC).
     is_expired = expires_dt is not None and expires_dt.date() < _kyiv_now().date()
@@ -33203,7 +33203,7 @@ def _tp_mgrbf_scan_backup_candidates(manager_key: str, *, base_dir: Optional[str
                 try:
                     deleted_at = datetime.utcfromtimestamp(db_file.stat().st_mtime)
                 except Exception:
-                    deleted_at = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+                    deleted_at = datetime.utcnow()
             out.append((str(db_file), deleted_at))
     except Exception:
         return []
@@ -36357,7 +36357,7 @@ async def _manager_health_heartbeat_ok(key: str, *, max_age_sec: int = _RUNTIME_
         return False, False, "no last_check_at"
     try:
         parsed = datetime.fromisoformat(last_check.replace("Z", "+00:00"))
-        age = (datetime.now(timezone.utc) - parsed).total_seconds() if parsed.tzinfo else (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - parsed).total_seconds()
+        age = (datetime.now(timezone.utc) - parsed).total_seconds() if parsed.tzinfo else (datetime.utcnow() - parsed).total_seconds()
     except Exception:
         return False, False, "bad last_check_at"
     if age > max_age_sec:
@@ -36431,7 +36431,7 @@ async def _manager_runtime_ready_once(
         age = None
         try:
             parsed = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-            age = (datetime.now(timezone.utc) - parsed).total_seconds() if parsed.tzinfo else (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - parsed).total_seconds()
+            age = (datetime.now(timezone.utc) - parsed).total_seconds() if parsed.tzinfo else (datetime.utcnow() - parsed).total_seconds()
         except Exception:
             age = None
         if age is None or age > start_status_max_age_sec:
@@ -36516,7 +36516,7 @@ async def _manager_runtime_ready_once(
     ping_checked_at = str(ping_data.get("checked_at") or "")
     try:
         parsed_ping = datetime.fromisoformat(ping_checked_at.replace("Z", "+00:00"))
-        ping_age = (datetime.now(timezone.utc) - parsed_ping).total_seconds() if parsed_ping.tzinfo else (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - parsed_ping).total_seconds()
+        ping_age = (datetime.now(timezone.utc) - parsed_ping).total_seconds() if parsed_ping.tzinfo else (datetime.utcnow() - parsed_ping).total_seconds()
     except Exception:
         ping_age = None
     if ping_age is None or ping_age > max(60, int(ping_timeout_sec) * 3):
@@ -38184,7 +38184,7 @@ async def _plc_manager_health_signal(manager_key: str) -> Dict[str, Any]:
     if health_status == "blocked":
         dt0 = _tp_hg_parse_iso(health_row.get("first_seen_at"))
         if dt0 is not None:
-            grace_elapsed = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - dt0).total_seconds() >= _PLC_TERMINAL_GRACE_SEC
+            grace_elapsed = (datetime.utcnow() - dt0).total_seconds() >= _PLC_TERMINAL_GRACE_SEC
     return {"health_status": health_status, "grace_elapsed": grace_elapsed}
 
 
@@ -38664,7 +38664,7 @@ async def _renewal_balance_alert_tick() -> None:
             if was_below:
                 last_at = state.get("last_alert_at")
                 try:
-                    elapsed = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(str(last_at))).total_seconds() if last_at else None
+                    elapsed = (datetime.utcnow() - datetime.fromisoformat(str(last_at))).total_seconds() if last_at else None
                 except Exception:
                     elapsed = None
                 send = elapsed is None or elapsed >= _PRENEW_BALANCE_ALERT_COOLDOWN_SEC
@@ -39571,7 +39571,7 @@ def _hnv2_collect_evidence(key: str, mrow: dict, hrow: dict, ss: dict, proc: str
     the caller and passed in, so this function -- and therefore the
     classifier that consumes its output -- is trivially unit-testable
     without a real DB, filesystem, or subprocess."""
-    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+    now = datetime.utcnow()
     mrow = mrow or {}
     hrow = hrow or {}
     ss = ss or {}
@@ -40630,7 +40630,7 @@ async def _hnv2_advance_recovery(key: str, sig: str, family: str, status: str, p
                 _repl_storage.health_incident_v2_set_state(key, sig, status="recovery_pending", db_path=TPILOT_DB_PATH, recovery_pending_since=now_iso)
                 return
             since_dt = _tp_hg_parse_iso(since)
-            elapsed = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - since_dt).total_seconds() if since_dt is not None else None
+            elapsed = (datetime.utcnow() - since_dt).total_seconds() if since_dt is not None else None
             if elapsed is not None and elapsed >= stable_sec:
                 resolved = _repl_storage.health_incident_v2_resolve_from_recovery_pending(key, sig, db_path=TPILOT_DB_PATH)
                 if resolved:

@@ -56,7 +56,7 @@ QUEUE_DB_PATH = (os.getenv("TPILOT_DB_PATH") or os.getenv("QUEUE_DB_PATH") or DE
 
 
 def _now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 async def _table_columns(db: aiosqlite.Connection, table: str) -> List[str]:
@@ -656,7 +656,7 @@ async def set_send_disabled(chat_id: int, reason: str) -> None:
 async def schedule_city_wait(chat_id: int, *, delay_sec: int = 60) -> None:
     # Upsert followup row and schedule city_wait phase.
     await ensure_followup(chat_id)
-    next_run = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=int(delay_sec))).replace(microsecond=0).isoformat()
+    next_run = (datetime.utcnow() + timedelta(seconds=int(delay_sec))).replace(microsecond=0).isoformat()
     await set_followup_fields(chat_id, phase="city_wait", step=0, attempts=0, next_run=next_run, last_bot_ts=_now_iso())
 
 
@@ -1424,7 +1424,7 @@ async def manager_queue_take_next(
     os.makedirs(os.path.dirname(qdb), exist_ok=True)
     key = str(manager_key or "").strip()
     now_iso = _queue_now_iso()
-    stale_cutoff = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=max(1, int(stale_after_sec or 30)))).replace(microsecond=0).isoformat()
+    stale_cutoff = (datetime.utcnow() - timedelta(seconds=max(1, int(stale_after_sec or 30)))).replace(microsecond=0).isoformat()
 
     async with aiosqlite.connect(qdb) as db:
         await _manager_queue_ready(db)
@@ -1585,7 +1585,7 @@ async def manager_queue_cleanup_finished(
     db_path: Optional[str] = None,
 ) -> int:
     qdb = _queue_db_path(db_path)
-    cutoff = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=max(60, int(older_than_sec or 86400)))).replace(microsecond=0).isoformat()
+    cutoff = (datetime.utcnow() - timedelta(seconds=max(60, int(older_than_sec or 86400)))).replace(microsecond=0).isoformat()
     async with aiosqlite.connect(qdb) as db:
         await _manager_queue_ready(db)
         cur = await db.execute(
@@ -1937,7 +1937,7 @@ def bizlink_upsert_pending(
 ) -> Dict[str, Any]:
     """INSERT OR IGNORE a pending bizlinks row; return the current row."""
     ensure_bizlink_tables(db_path)
-    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
     try:
         con.execute(
@@ -1992,7 +1992,7 @@ def bizlink_mark_created(
     ensure_bizlink_tables(db_path)
     ensure_bizlink_delete_tables(db_path)  # guarantees deleted_at/deleted_by_user_id/delete_error exist
     _bsl_ensure_views_column(db_path)
-    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
     try:
         con.execute(
@@ -2042,7 +2042,7 @@ def bizlink_mark_failed(
 ) -> None:
     """UPDATE bizlinks row to status='failed' with error details."""
     ensure_bizlink_tables(db_path)
-    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
     try:
         con.execute(
@@ -3338,7 +3338,7 @@ def manager_stats_tombstone_upsert(
     try:
         deleted_dt = datetime.fromisoformat(deleted_at_s)
     except Exception:
-        deleted_dt = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+        deleted_dt = datetime.utcnow()
         deleted_at_s = deleted_dt.replace(microsecond=0).isoformat()
     retention_until_s = (deleted_dt + timedelta(days=int(retention_days or 60))).replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
@@ -3910,7 +3910,7 @@ def health_incident_upsert_open(manager_key, signature, *, db_path=None, preserv
             if resolved_at:
                 elapsed = None
                 try:
-                    elapsed = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0) - datetime.fromisoformat(resolved_at)).total_seconds()
+                    elapsed = (datetime.utcnow().replace(microsecond=0) - datetime.fromisoformat(resolved_at)).total_seconds()
                 except Exception:
                     elapsed = None
                 if elapsed is not None and 0 <= elapsed < int(preserve_notify_within_sec):
@@ -4013,7 +4013,7 @@ def health_incident_claim_notify(manager_key, signature, *, repeat_after_sec, db
             con.commit()
             return "open"
 
-        cutoff = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=int(repeat_after_sec or 0))).replace(microsecond=0).isoformat()
+        cutoff = (datetime.utcnow() - timedelta(seconds=int(repeat_after_sec or 0))).replace(microsecond=0).isoformat()
         cur = con.execute(
             "UPDATE health_incidents SET last_notified_at=?, reminder_count=reminder_count+1"
             " WHERE manager_key=? AND signature=? AND status='open'"
@@ -4436,7 +4436,7 @@ def health_incident_v2_observe(manager_key, signature, *, family, detail, confir
     sig = str(signature or "").strip()
     fam = str(family or "").strip()
     det = str(detail or "")[:500]
-    due = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=int(confirm_sec or 0))).replace(microsecond=0).isoformat()
+    due = (datetime.utcnow() + timedelta(seconds=int(confirm_sec or 0))).replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
     try:
         existing = con.execute(
@@ -5690,9 +5690,9 @@ def bizlink_delete_preview_create(
     """Create a preview/confirm token row from candidate rows. Returns preview_id (UUID4)."""
     import json as _bsd3a_json
     ensure_bizlink_delete_tables(db_path)
-    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
     expires = (
-        datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+        datetime.utcnow()
         + timedelta(seconds=max(60, int(ttl_seconds or 300)))
     ).replace(microsecond=0).isoformat()
     preview_id = str(_m213d3a_uuid.uuid4())
@@ -5757,7 +5757,7 @@ def bizlink_delete_preview_consume(preview_id, db_path=None):
     """
     try:
         ensure_bizlink_delete_tables(db_path)
-        now_iso = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        now_iso = datetime.utcnow().replace(microsecond=0).isoformat()
         con = _bsl_connect(db_path)
         try:
             cur = con.execute(
@@ -5788,7 +5788,7 @@ def bizlink_mark_deleted(
     """
     try:
         ensure_bizlink_delete_tables(db_path)
-        now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
         con = _bsl_connect(db_path)
         try:
             con.execute(
@@ -5824,7 +5824,7 @@ def bizlink_mark_delete_failed(manager_key, slug, error_text, db_path=None):
     """
     try:
         ensure_bizlink_delete_tables(db_path)
-        now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
         con = _bsl_connect(db_path)
         try:
             con.execute(
@@ -5870,7 +5870,7 @@ def bizlink_delete_audit_add(
         ensure_bizlink_delete_tables(db_path)
         con = _bsl_connect(db_path)
         try:
-            now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+            now = datetime.utcnow().replace(microsecond=0).isoformat()
             con.execute(
                 """
                 INSERT INTO bizlink_delete_audit
@@ -6025,9 +6025,9 @@ def bizlink_global_preview_create(
     """
     import json as _bsd3b_json
     ensure_bizlink_global_delete_tables(db_path)
-    now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    now = datetime.utcnow().replace(microsecond=0).isoformat()
     expires = (
-        datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+        datetime.utcnow()
         + timedelta(seconds=max(60, int(ttl_seconds or 300)))
     ).replace(microsecond=0).isoformat()
     preview_id = str(_m213d3a_uuid.uuid4())
@@ -6110,7 +6110,7 @@ def bizlink_global_audit_add(
         ensure_bizlink_global_delete_tables(db_path)
         con = _bsl_connect(db_path)
         try:
-            now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+            now = datetime.utcnow().replace(microsecond=0).isoformat()
             con.execute(
                 """
                 INSERT INTO bizlink_global_delete_audit
@@ -8399,7 +8399,7 @@ def devlogin_create_with_cooldown(request_id, manager_key, *, requested_by_user_
         raise ValueError("request_id and manager_key are required")
     cooldown_sec = int(cooldown_sec or 0)
     ensure_devlogin_tables(db_path)
-    now_dt = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+    now_dt = datetime.utcnow()
     now = now_dt.replace(microsecond=0).isoformat()
     cooldown_cutoff = (now_dt - timedelta(seconds=cooldown_sec)).replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
@@ -9775,7 +9775,7 @@ def w2_log_delivery_failure(db_path=None, event_id=0, manager_key="", tg_user_id
         try:
             now = _now_iso()
             try:
-                kyiv = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0, tzinfo=ZoneInfo("UTC")).astimezone(
+                kyiv = datetime.utcnow().replace(microsecond=0, tzinfo=ZoneInfo("UTC")).astimezone(
                     ZoneInfo("Europe/Kyiv")).replace(tzinfo=None).isoformat()
             except Exception:
                 kyiv = now
@@ -9821,7 +9821,7 @@ def w2_stale_sending_events(db_path=None, stale_after_seconds=None):
         cols = [r["name"] for r in con.execute("PRAGMA table_info(manager_bot_sent)").fetchall()]
         if "lease_expires_at" not in cols:
             return []
-        now = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
         rows = con.execute(
             "SELECT tg_user_id, event_id, claimed_at, lease_expires_at, claim_worker_ref FROM manager_bot_sent "
             "WHERE send_status='sending'"
@@ -9831,7 +9831,7 @@ def w2_stale_sending_events(db_path=None, stale_after_seconds=None):
             lease_expires_at = str(r["lease_expires_at"] or "")
             expired = bool(lease_expires_at) and lease_expires_at <= now
             if stale_after_seconds is not None:
-                cutoff = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=stale_after_seconds)).replace(microsecond=0).isoformat()
+                cutoff = (datetime.utcnow() - timedelta(seconds=stale_after_seconds)).replace(microsecond=0).isoformat()
                 claimed_at = str(r["claimed_at"] or "")
                 expired = bool(claimed_at) and claimed_at <= cutoff
             out.append({
@@ -11934,7 +11934,7 @@ def prepared_account_claim_activating(manager_key, *, ttl_seconds=300, db_path=N
         return False
     ensure_prepared_accounts_table(db_path)
     now = _now_iso()
-    cutoff = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - timedelta(seconds=max(0, int(ttl_seconds)))).replace(microsecond=0).isoformat()
+    cutoff = (datetime.utcnow() - timedelta(seconds=max(0, int(ttl_seconds)))).replace(microsecond=0).isoformat()
     con = _bsl_connect(db_path)
     try:
         cur = con.execute(

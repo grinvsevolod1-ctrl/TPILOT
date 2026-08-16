@@ -27,7 +27,7 @@ VERSION = "repair_reparse_profile_from_messages_v1_20260516"
 
 
 def now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def table_exists(con: sqlite3.Connection, table: str) -> bool:

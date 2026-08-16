@@ -114,7 +114,7 @@ client = TelegramClient(MANAGER_BOT_SESSION_FILE, API_ID, API_HASH)
 
 
 def _now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 # --- TPILOT MANAGER EVENT DELIVERY STATE MACHINE 20260726 START ---
@@ -240,10 +240,10 @@ def _mark_send_attempt(event_id: int, tg_user_id: int, exc: BaseException) -> No
         if dead:
             next_attempt_at = ""
         elif classification.get("cooldown_seconds"):
-            next_attempt_at = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(
+            next_attempt_at = (datetime.utcnow() + timedelta(
                 seconds=max(1, int(classification["cooldown_seconds"])))).replace(microsecond=0).isoformat()
         else:
-            next_attempt_at = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(
+            next_attempt_at = (datetime.utcnow() + timedelta(
                 seconds=_mb_backoff_seconds_with_jitter(attempts))).replace(microsecond=0).isoformat()
         err_cls = type(exc).__name__[:120]
         con.execute(
@@ -424,7 +424,7 @@ def _mb_claim_event(event_id: int, tg_user_id: int) -> bool:
         return False
     con = _connect()
     try:
-        now_dt = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+        now_dt = datetime.utcnow()
         now = now_dt.replace(microsecond=0).isoformat()
         lease_expires_at = (now_dt + timedelta(seconds=MANAGER_BOT_CLAIM_LEASE_SECONDS)).replace(microsecond=0).isoformat()
         lease_token = uuid.uuid4().hex
@@ -517,7 +517,7 @@ def _mb_recover_stale_claims(now_iso: str = "") -> List[Dict[str, Any]]:
             dead = attempts >= MANAGER_BOT_SEND_MAX_ATTEMPTS
             status = "dead" if dead else "failed"
             next_attempt_at = "" if dead else (
-                datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) + timedelta(seconds=_mb_backoff_seconds_with_jitter(attempts))
+                datetime.utcnow() + timedelta(seconds=_mb_backoff_seconds_with_jitter(attempts))
             ).replace(microsecond=0).isoformat()
             cur = con.execute(
                 """
@@ -1376,7 +1376,7 @@ def _w1_myaccess_audit_log(uid: int, outcome: str, resolved_manager_key: str, *,
     reachable from here; this mirrors the same append-only, always-
     timestamped convention independently, scoped to this file."""
     try:
-        ts = datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+        ts = datetime.utcnow().replace(microsecond=0).isoformat()
         key = _norm_key(resolved_manager_key or "")
         actor_ref = _w1_myaccess_actor_ref(uid)
         line = (
@@ -2079,7 +2079,7 @@ def _check_throttle(card: Dict[str, Any], seconds: int = 20) -> int:
         return 0
     try:
         last = datetime.fromisoformat(raw)
-        diff = (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - last).total_seconds()
+        diff = (datetime.utcnow() - last).total_seconds()
         if diff < seconds:
             return max(1, int(seconds - diff))
     except Exception:
@@ -3041,7 +3041,7 @@ _SS_BATCH_EXPIRY_SEC = 1800  # 30 minutes
 
 
 def _ss_now_iso() -> str:
-    return datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _ss_safe_name(s) -> str:
@@ -4290,7 +4290,7 @@ def _m1_age_minutes(iso_str) -> Optional[float]:
     if not raw:
         return None
     try:
-        return (datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(raw)).total_seconds() / 60.0
+        return (datetime.utcnow() - datetime.fromisoformat(raw)).total_seconds() / 60.0
     except Exception:
         return None
 
