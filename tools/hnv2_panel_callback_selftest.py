@@ -656,6 +656,9 @@ def test_runtime_diag_no_db_mutation():
     print("\n-- Runtime: /hnv2_diag causes zero DB writes and returns a secret-free report --")
 
     nodes = _extract_by_names(MAIN_TREE, MAIN_SRC, {
+        # utcnow refactor (2026-08-16): extracted main.py diag code reads
+        # the clock through the module-level _tp_utc_now() seam.
+        "_tp_utc_now",
         "_hnv2_diag_text", "_hnv2_diag_scrub", "_HNV2_DIAG_SECRET_PATTERNS",
         "_hnv2_collect_evidence", "_hnv2_classify_root_cause", "_hnv2_result",
         "_hnv2_signature", "_hnv2_normalize_sig_component",

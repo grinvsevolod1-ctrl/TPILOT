@@ -125,9 +125,6 @@ def test_dbguard_rejects_unsafe_paths() -> None:
 
 MAIN_GATE_NAMES = {
     "_now_utc_iso",
-    # utcnow refactor (2026-08-16): _now_utc_iso and the gate helpers now
-    # read the clock through the module-level _tp_utc_now() seam.
-    "_tp_utc_now",
     "_ensure_lead_auto_state_table", "_get_auto_state", "_set_auto_state_fields",
     "_set_lead_automation_stopped", "_lead_automation_gate",
     "_is_post_followup_disable_word",
@@ -147,9 +144,6 @@ def build_gate_ns(manager_db_path: str, central_db_path: str) -> dict:
             "aiosqlite": aiosqlite,
             "time": _time,
             "datetime": _dt,
-            # utcnow refactor (2026-08-16): the extracted _tp_utc_now() seam
-            # calls datetime.now(timezone.utc) -- timezone must be in the ns.
-            "timezone": __import__("datetime").timezone,
             "Dict": Dict, "Any": Any, "Optional": Optional, "Tuple": Tuple,
             "registry_normalize_manager_key": manager_registry.normalize_manager_key,
             "DB_PATH": manager_db_path,

@@ -236,9 +236,6 @@ def build_gate(*, db_path: str, queue: FakeQueue, process_running: bool = True,
     return {
         "aiosqlite": _aiosqlite, "asyncio": asyncio, "time": _time, "re": _re,
         "datetime": datetime, "timedelta": timedelta, "timezone": timezone,
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        "_tp_utc_now": (lambda: datetime.now(timezone.utc).replace(tzinfo=None)),
         "Any": Any, "Dict": Dict, "List": List, "Optional": Optional, "Tuple": Tuple,
         "TPILOT_DB_PATH": db_path,
         "TP_HG_STATUS_BLOCKED": "blocked",

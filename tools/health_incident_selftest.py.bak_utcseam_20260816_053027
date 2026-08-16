@@ -87,9 +87,6 @@ MAIN_SRC = open(MAIN_PATH, encoding="utf-8-sig").read()
 
 REAL_NAMES = {
     "_health_incident_handle", "_health_incident_notify", "_health_agg_utc_now_iso",
-    # utcnow refactor (2026-08-16): the timestamp helpers above now read the
-    # clock through the module-level _tp_utc_now() seam -- extract it too.
-    "_tp_utc_now",
     "HEALTH_INCIDENT_REMINDER_INTERVAL_SEC", "_HAGG_OK", "_HAGG_WARNING_TEMPORARY", "_HAGG_UNKNOWN",
     # TPILOT FIX-3 20260718b: non-recoverable auth/identity incident coverage --
     # the manager-recovery classifier and its two persistent-incident helpers,

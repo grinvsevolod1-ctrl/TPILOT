@@ -92,10 +92,6 @@ def _build_ns(tmp_db: str, log_lines: list):
             "MANAGER_RUNTIME_KEY": "mgr1",
             "_mb_json": json,
             "_mb_datetime": _dt.datetime,
-            # utcnow refactor (2026-08-16): _mb_now_iso now reads the clock
-            # through the module-level _tp_utc_now() seam (naive UTC).
-            "_tp_utc_now": (lambda: _dt.datetime.now(
-                _dt.timezone.utc).replace(tzinfo=None)),
             "_kyiv_now": lambda: _FakeKyiv(),
             "_tp_catchup_log": _fake_catchup_log,
             "_MB_EVENTS_READY": False,

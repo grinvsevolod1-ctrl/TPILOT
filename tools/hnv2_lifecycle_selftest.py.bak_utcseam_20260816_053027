@@ -56,9 +56,6 @@ MAIN_SRC = open(MAIN_PATH, encoding="utf-8-sig").read()
 MAIN_TREE = ast.parse(MAIN_SRC)
 
 REAL_NAMES = {
-    # utcnow refactor (2026-08-16): extracted HNV2/health code reads the
-    # clock through the module-level _tp_utc_now() seam -- extract it too.
-    "_tp_utc_now",
     "HNV2_ENABLED", "HNV2_ACCOUNT_MAX_AGE_SEC", "HNV2_PROXY_MAX_AGE_SEC",
     "HNV2_STUCK_STARTING_SEC", "HNV2_CONNECTED_MAX_AGE_SEC", "HNV2_EXIT_EVIDENCE_MAX_AGE_SEC",
     "HNV2_STABLE_SEC", "HNV2_STABLE_SEC_SQLITE_LOCK", "HNV2_SPAWN_VERIFY_DELAY_SEC",
