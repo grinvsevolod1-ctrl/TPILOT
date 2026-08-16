@@ -1188,11 +1188,7 @@ def test_static_active_definitions():
         ("_tp_hg_run_self_check", "live_probe_ok"),
     ):
         defs = find_defs(name)
-        # Commit ef4fb8d ("streamline lead status...") removed DEAD shadowed
-        # copies, so a single (active-only) definition is now a valid state;
-        # what still matters is that the ACTIVE (last) def carries the patch
-        # marker and any surviving dead copies stay untouched (below).
-        check(f"static. {name} has at least one definition (stacked chain allowed, per CLAUDE.md section 4; dead copies may have been removed by cleanup ef4fb8d)", len(defs) >= 1, len(defs))
+        check(f"static. {name} has more than one stacked definition (override chain, per CLAUDE.md section 4)", len(defs) > 1, len(defs))
         last_src = ast.unparse(defs[-1]) if defs else ""
         check(f"static. the LAST (active) {name} definition contains the new patch marker '{expect_snippet}'", expect_snippet in last_src, len(defs))
         for i, d in enumerate(defs[:-1]):
