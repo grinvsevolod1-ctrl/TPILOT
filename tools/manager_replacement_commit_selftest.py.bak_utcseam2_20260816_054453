@@ -640,10 +640,6 @@ def build_main_ns(db_path: str, base_dir: Path, *, script: dict = None, fast_dea
         "PasswordHashInvalidError": PasswordHashInvalidError,
         "PhoneNumberBannedError": PhoneNumberBannedError,
         "Tuple": tuple, "List": list, "Dict": dict, "Any": object, "Optional": None,
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        "_tp_utc_now": (lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
     }
     exec(compile(module_src, f"<{MAIN_PATH}:replacement_commit>", "exec"), ns)
     if fast_deadline:

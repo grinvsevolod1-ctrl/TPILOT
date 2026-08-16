@@ -149,10 +149,6 @@ def build_main_ns(db_path: str, *, write_status_calls: list) -> dict:
         "MANAGER_RUNTIME_KEY": "",
         "CONTROLLER_MODE": False,
         "_m212a_write_start_status": fake_write_start_status,
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        "_tp_utc_now": (lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
     }
     exec(compile(module_src, f"<{MAIN_PATH}:startup>", "exec"), ns)
     ns["__storage__"] = _storage

@@ -168,10 +168,6 @@ def _build_ns(main_src: str, names, extra_ns: dict, mutations: Optional[dict] = 
         parts.append(src)
     module_src = "\n\n".join(parts)
     ns = dict(extra_ns)
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<main.py:{','.join(sorted(names))}>", "exec"), ns)
     return ns
 
@@ -359,10 +355,6 @@ def load_readiness(extra_ns: dict, mutations: Optional[dict] = None,
             src = _apply_subs(src, mutations[nm])
         parts.append(src)
     ns = dict(extra_ns)
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile("\n\n".join(parts), "<main.py:readiness>", "exec"), ns)
     return ns
 

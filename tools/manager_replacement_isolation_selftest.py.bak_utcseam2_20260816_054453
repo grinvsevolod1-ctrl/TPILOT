@@ -317,10 +317,6 @@ def build_main_ns_ready(db_path: str, base_dir: Path, *, running_keys: set) -> d
         "_manager_process_running": fake_process_running,
         "_tpag_run_guard": fake_auth_guard,
         "Tuple": tuple, "List": list, "Dict": dict, "Any": object, "Optional": None,
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        "_tp_utc_now": (lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
     }
     exec(compile(module_src, f"<{MAIN_PATH}:isolation_ready>", "exec"), ns)
     ns["__storage__"] = _storage

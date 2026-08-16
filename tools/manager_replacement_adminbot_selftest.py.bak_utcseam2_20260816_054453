@@ -448,10 +448,6 @@ def build_main_ns(db_path: str, base_dir: Path, *, script: dict = None, replacem
         # status pre-check, result passthrough, panel-side rendering), not
         # the engine's own cutover logic.
         "replacement_commit": replacement_commit_fn or make_fake_replacement_commit({}),
-        # utcnow refactor (2026-08-16): extracted main.py code reads the
-        # clock through the module-level _tp_utc_now() seam (naive UTC).
-        "_tp_utc_now": (lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
     }
     exec(compile(module_src, f"<{MAIN_PATH}:replacement_adminbot>", "exec"), ns)
     ns["__calls__"] = calls

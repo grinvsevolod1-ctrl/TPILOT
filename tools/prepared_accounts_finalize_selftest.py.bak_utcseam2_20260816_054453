@@ -72,10 +72,6 @@ def _extract_and_exec(path, names: set, extra_ns: dict) -> dict:
         raise AssertionError(f"expected {names}, found {found} in {path}")
     module_src = "\n\n".join(ast.unparse(n) for n in nodes)
     ns = dict(extra_ns)
-    # utcnow refactor (2026-08-16): extracted main.py code reads the
-    # clock through the module-level _tp_utc_now() seam (naive UTC).
-    ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc).replace(tzinfo=None))
     exec(compile(module_src, f"<{path}>", "exec"), ns)
     return ns
 
