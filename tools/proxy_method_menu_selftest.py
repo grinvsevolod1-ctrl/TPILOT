@@ -890,7 +890,7 @@ async def test_rc21_missing_username_safe():
     tmp_root, db_path = make_temp_env("pxm_rc21_")
     ns = build_pxm_ns(db_path, scripted_commands={})
     try:
-        seed_manager(db_path, manager_key="mgrNU", display_name="Б��зЮзернейм", telegram_username="")
+        seed_manager(db_path, manager_key="mgrNU", display_name="БезЮзернейм", telegram_username="")
         set_manager_proxy_creds(db_path, "mgrNU", host="4.4.4.4", port="4000", login="l", password="p")
         card_text = ns["_pxm_result_card_text"]("mgrNU")
         reveal_text = ns["_pxm_full_reveal_text"]("mgrNU")

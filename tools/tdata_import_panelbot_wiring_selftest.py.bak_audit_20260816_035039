@@ -162,17 +162,8 @@ def main():
         check(f"_submit_and_wait has a timeout branch for {cmd}", cmd in timeout_src)
 
     # --- backup exists for this phase --------------------------------------
-    # File-copy backups are the safety net of the ORIGINAL no-git workflow;
-    # they live only on the machine where the P7 patch was applied and are
-    # never committed. On a git checkout (repo migrated 2026-08) provenance
-    # is the git history itself, so absence of the .bak file is expected
-    # there -- not a wiring defect. Keep the hard gate for non-git trees.
     backups = glob.glob(os.path.join(BASE_DIR, "panel_bot.py.bak_tdimport_p7_*"))
-    if not backups and os.path.isdir(os.path.join(BASE_DIR, ".git")):
-        print("    (note) no panel_bot.py.bak_tdimport_p7_* backup -- git checkout, "
-              "history is the provenance; skipping backup-presence gate.")
-    else:
-        check("a pre-edit panel_bot.py backup exists for this phase", len(backups) >= 1, detail=str(backups))
+    check("a pre-edit panel_bot.py backup exists for this phase", len(backups) >= 1, detail=str(backups))
 
     # --- PROOF: existing phone/code/2FA/QR/pool internals untouched -------
     # Line-level diff against the pre-edit backup. Every changed/added line
@@ -228,10 +219,7 @@ def main():
 
     # --- spot-check: a known phone/QR/pool code excerpt is BYTE-IDENTICAL -
     known_excerpts = [
-        # AUTH UI Ф4 moved the phone-prompt send into unified _auth_enter_phone,
-        # which builds the same QR-entry + back buttons into a local variable
-        # instead of an inline kwarg -- the wiring itself is unchanged.
-        'buttons = _manager_qr_entry_button(key) + _back_to_panel_buttons()',
+        'buttons=_manager_qr_entry_button(key) + _back_to_panel_buttons())',
         'async def panel_wizard_input(event):',
         'elif command_text.startswith("/proxy_pool_autorenew"):',
     ]

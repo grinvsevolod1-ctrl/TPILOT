@@ -172,17 +172,6 @@ PANEL_SRC = open(PANEL_PATH, encoding="utf-8-sig").read()
 # the true pre-N5 state.
 _P5_BACKUP_CANDIDATES = sorted(glob.glob(str(BASE_DIR / "panel_bot.py.bak_nm2_p5_*")))
 if not _P5_BACKUP_CANDIDATES:
-    # The pre-N5 file-copy backup exists only on the machine where the N5
-    # patch was applied (the ORIGINAL no-git workflow); it was never
-    # committed. On a git checkout (repo migrated 2026-08) this entire test
-    # is a diff against that backup, so without it there is nothing
-    # meaningful to compare -- git history is the provenance there. Skip
-    # cleanly on git trees; keep the hard failure for non-git trees.
-    if (BASE_DIR / ".git").is_dir():
-        print("SELFTEST SKIPPED: no panel_bot.py.bak_nm2_p5_* backup on this "
-              "git checkout -- N5 parity was proven on the original machine; "
-              "git history is the provenance here.")
-        sys.exit(0)
     raise AssertionError(
         "menu_parity_selftest: no panel_bot.py.bak_nm2_p5_* backup found -- "
         "this gate requires the exact pre-N5 backup to prove capabilities "

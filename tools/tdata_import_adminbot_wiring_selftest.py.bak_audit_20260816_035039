@@ -226,18 +226,9 @@ def main():
           proxy_row_direct.get("proxy_mode") != "proxy", detail=str(proxy_row_direct))
 
     # --- backup file exists (implementation-control requirement) ----------
-    # File-copy backups belong to the ORIGINAL no-git workflow; they exist
-    # only on the machine where the phase patch was applied and were never
-    # committed. On a git checkout (repo migrated 2026-08) git history is
-    # the provenance, so skip the presence gate there; keep it hard for
-    # non-git trees.
     import glob
     backups = glob.glob(os.path.join(BASE_DIR, "main.py.bak_tdimport_*"))
-    if not backups and os.path.isdir(os.path.join(BASE_DIR, ".git")):
-        print("    (note) no main.py.bak_tdimport_* backup -- git checkout, "
-              "history is the provenance; skipping backup-presence gate.")
-    else:
-        check("a pre-edit main.py backup exists for this phase", len(backups) >= 1, detail=str(backups))
+    check("a pre-edit main.py backup exists for this phase", len(backups) >= 1, detail=str(backups))
 
     # --- EXECUTION-ORDER test (TPILOT 20260719): the earlier "last top-level def"
     # check is TRUE even when the whole tdimport block sits AFTER
@@ -358,30 +349,12 @@ def main():
     # auth_key under api_id 2040 (the mirror image of the bug this release fixes).
     # The tdimport flow never calls this finalize, so imported managers' 'tdesktop'
     # value is unaffected by the reset.
-    # PREPARED ACCOUNTS PHASE 5 refactored the literal kwarg into a dict item
-    # (set_fields_kwargs["auth_profile"] = "project") gated ONLY by the new
-    # preserve_auth_profile flag (default False -> reset still happens on
-    # every ordinary phone/QR/relogin/replacement finalize; True is used
-    # exclusively by Phase 5 activation of imported 'tdesktop' managers).
     finalize_src = _src_without_docstring(last_def(tree, "_manager_finalize_login"))
-    _reset_forms = (
-        "auth_profile='project'" in finalize_src
-        or 'auth_profile="project"' in finalize_src
-        or '"auth_profile"] = "project"' in finalize_src
-        or "'auth_profile'] = 'project'" in finalize_src
-    )
     check("_manager_finalize_login resets auth_profile='project' on every successful "
           "project-API sign_in (phone/code/2FA, QR, relogin, replacement)",
-          _reset_forms and "manager_set_fields" in finalize_src,
+          ("auth_profile='project'" in finalize_src or 'auth_profile="project"' in finalize_src)
+          and "manager_set_fields" in finalize_src,
           detail=finalize_src[:300])
-    # ast.unparse normalizes kwarg spacing to "name: bool=False"
-    _finalize_unparsed = ast.unparse(last_def(tree, "_manager_finalize_login"))
-    check("the auth_profile reset is gated only by preserve_auth_profile "
-          "(default False keeps the reset-on-every-finalize invariant)",
-          "preserve_auth_profile" in finalize_src
-          and ("preserve_auth_profile: bool=False" in _finalize_unparsed
-               or "preserve_auth_profile: bool = False" in _finalize_unparsed),
-          detail=_finalize_unparsed[:200])
 
     # runtime-side (main.py:~486) selection: source-scan confirms the module-level
     # `client = TelegramClient(...)` construction branches on MANAGER_REGISTRY_ROW's
