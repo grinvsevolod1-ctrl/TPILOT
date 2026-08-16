@@ -151,17 +151,8 @@ def _ensure_panel_runtime_tables() -> None:
         con.close()
 
 
-def _pb_utc_now() -> datetime:
-    """Naive-UTC clock seam (utcnow refactor, 2026-08-16). Same contract as
-    storage._utc_now(): returns what _pb_utc_now() used to return (NAIVE
-    UTC), so every isoformat() DB string and cutoff comparison stays
-    byte-identical. Deprecation-free on Python 3.12+; single patch point
-    for selftests that need to freeze this file's clock."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
 def _utc_now_iso() -> str:
-    return _pb_utc_now().replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _register_panel_subscriber(chat_id: int, user_id: int = 0) -> None:
@@ -258,7 +249,7 @@ def _reap_stale_running_panel_notifications(max_age_sec: int = 600) -> int:
     reaped. Never raises."""
     try:
         _ensure_panel_runtime_tables()
-        cutoff = (_pb_utc_now() - timedelta(seconds=max(60, int(max_age_sec or 600)))).replace(microsecond=0).isoformat()
+        cutoff = (datetime.utcnow() - timedelta(seconds=max(60, int(max_age_sec or 600)))).replace(microsecond=0).isoformat()
         con = _connect_panel_db()
         try:
             cur = con.execute(
@@ -5807,7 +5798,7 @@ def _hnv2_health_notification_buttons(body: str) -> list:
         # attaches tzinfo.
         # RR-1 (W3.2 2026-08-07): fromisoformat here only validates the
         # shape; the "is it still in the future" check reuses the approved
-        # _utc_now_iso() wrapper instead of a local _pb_utc_now()/
+        # _utc_now_iso() wrapper instead of a local datetime.utcnow()/
         # astimezone()/replace(tzinfo=...) coercion -- two same-format
         # naive-UTC ISO strings compare correctly as plain strings.
         # Malformed or unexpectedly tz-aware input fails CLOSED
@@ -5959,7 +5950,7 @@ def _tpag_panel_v2_fresh(row: dict) -> bool:
     checked = _tpag_panel_v2_parse_dt((row or {}).get("auth_guard_checked_at"))
     if not checked:
         return False
-    return 0 <= (_pb_utc_now().replace(microsecond=0) - checked).total_seconds() <= 10 * 60
+    return 0 <= (datetime.utcnow().replace(microsecond=0) - checked).total_seconds() <= 10 * 60
 
 
 def _tpag_panel_v2_proxy_counts() -> tuple[int, int, str]:
@@ -6136,7 +6127,7 @@ _TP_PANEL_V5_ORIG_AUTOMATION_MENU = globals().get("_tp_visual_automation_menu")
 
 def _tp_panel_v5_now_iso() -> str:
     try:
-        return _pb_utc_now().replace(microsecond=0).isoformat()
+        return datetime.utcnow().replace(microsecond=0).isoformat()
     except Exception:
         return ""
 
@@ -8597,7 +8588,7 @@ def _pb_proxy_guard_state(row, *, now=None) -> str:
     must never be silently reclassified as a confirmed failure (owner
     contract E)."""
     row = row or {}
-    now = now or _pb_utc_now().replace(microsecond=0)
+    now = now or datetime.utcnow().replace(microsecond=0)
     state = str(row.get("auth_guard_state") or "").strip().lower()
 
     if state == "degraded":
@@ -8934,7 +8925,7 @@ def _w1_result_age_seconds(row) -> "float | None":
     any classification decision, only to expose 'result age seconds' in the
     structured record for future correlation (I-27)."""
     row = row or {}
-    now = _pb_utc_now().replace(microsecond=0)
+    now = datetime.utcnow().replace(microsecond=0)
     ok_at = _tpag_panel_v2_parse_dt(row.get("auth_guard_last_ok_at"))
     bad_at = _tpag_panel_v2_parse_dt(row.get("auth_guard_last_bad_at"))
     latest = None
@@ -8959,7 +8950,7 @@ def _w1_render_classification_record(row, *, tg_health, proc_running, session_ex
     key = normalize_manager_key(row.get("manager_key") or "")
     proxy_effective = _pb_proxy_effective_state(row)
     reason_code = _w1_render_reason_code(category, proxy_effective)
-    now_utc = _pb_utc_now().replace(microsecond=0)
+    now_utc = datetime.utcnow().replace(microsecond=0)
     return {
         "event": "fleet_render_row",
         "timestamp_utc": now_utc.isoformat() + "Z",
@@ -9909,7 +9900,7 @@ _SS_MODE_CYCLE = {"off": "instant", "instant": "daily", "daily": "off"}
 
 
 def _ss_now_iso() -> str:
-    return _pb_utc_now().replace(microsecond=0).isoformat()
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _ensure_screenshot_tables() -> None:

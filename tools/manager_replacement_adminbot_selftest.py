@@ -674,6 +674,11 @@ def build_panel_ns(db_path: str, *, submit_and_wait_fn=None, is_allowed: bool = 
         # returns bool); ast-extraction doesn't pull it, so stub the same
         # contract here: delegate to event.answer, swallow any exception.
         "_pb_safe_answer": _fake_pb_safe_answer,
+        # utcnow refactor (2026-08-16): _utc_now_iso in the extracted code now
+        # calls the module-level _pb_utc_now() clock seam -- bind the same
+        # naive-UTC contract here (real clock is fine for this test).
+        "_pb_utc_now": (lambda: __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).replace(tzinfo=None)),
         "_submit_and_wait": submit_and_wait_fn,
         "_RW_PREV_ADMIN_DETAIL_BUTTONS": _fake_prev_buttons,
     }

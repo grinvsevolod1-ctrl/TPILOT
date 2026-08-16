@@ -163,11 +163,7 @@ def main() -> int:  # noqa: C901 (single-file selftest, straight-line checks)
         _guard_temp_db(tmp_db)
 
         asyncio.run(_ensure_full_schema(tmp_db))
-        # Freeze the clock used by _now_iso and claim's cutoff math.
-        # storage.py now reads the wall clock ONLY through its _utc_now()
-        # seam (utcnow refactor 2026-08-16), so patch that single function;
-        # _FrozenDateTime/_set_fake_offset keep providing the offset math.
-        storage._utc_now = _FrozenDateTime.utcnow
+        storage.datetime = _FrozenDateTime  # freeze the clock used by _now_iso and claim's cutoff math
         _set_fake_offset(0)
 
         # --- 1: CREATE TABLE idempotent ---------------------------------------

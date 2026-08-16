@@ -139,9 +139,7 @@ def main() -> int:  # noqa: C901
         tmp_db = os.path.join(tmp, "test.db")
         _guard_temp_db(tmp_db)
         asyncio.run(_ensure_full_schema(tmp_db))
-        # storage.py reads the clock only through its _utc_now() seam
-        # (utcnow refactor 2026-08-16) -- patch that single function.
-        storage._utc_now = _FrozenDateTime.utcnow
+        storage.datetime = _FrozenDateTime
         _set_fake_offset(0)
 
         async def _get_manager_row(k):

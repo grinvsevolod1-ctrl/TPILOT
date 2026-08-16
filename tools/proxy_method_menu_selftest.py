@@ -320,6 +320,9 @@ PXM_NAMES = {
     "_pb_safe_answer", "_pb_is_query_invalid_error",
     "_PB_QUERY_INVALID_CLASS_NAMES", "_PB_QUERY_INVALID_TEXT_MARKERS",
     "_pb_track_task",
+    # utcnow refactor (2026-08-16): _utc_now_iso and cutoff math now go
+    # through the module-level _pb_utc_now() clock seam.
+    "_pb_utc_now",
     # TERMINAL OK 20260809 (Ф4 bot-wide audit): _pxm_send_result_card,
     # _pxm_reveal_pin_input, and _send_text_result_with_panel now call
     # _terminal_ok_button().
