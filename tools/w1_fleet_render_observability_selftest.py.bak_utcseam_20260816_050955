@@ -100,10 +100,6 @@ def build_namespace():
     ns = {
         "__name__": "w1_test_ns",
         "datetime": datetime,
-        # utcnow refactor (2026-08-16): extracted panel_bot code reads the
-        # clock through the module-level _pb_utc_now() seam (naive UTC).
-        "_pb_utc_now": (lambda: datetime.now(
-            __import__("datetime").timezone.utc).replace(tzinfo=None)),
         "ZoneInfo": __import__("zoneinfo").ZoneInfo,
         "_tpag_panel_v2_parse_dt": fake_parse_dt,
         "normalize_manager_key": (lambda k: str(k or "").strip().lower()),

@@ -150,6 +150,9 @@ def build_delivery_ns(log_path: str, *, fail_send: bool = False, fail_edit: bool
     ns = {
         "os": os,
         "datetime": datetime,
+        # utcnow refactor (2026-08-16): the extracted _pb_utc_now() seam
+        # calls datetime.now(timezone.utc) -- timezone must be in the ns.
+        "timezone": __import__("datetime").timezone,
         "BASE_DIR": BASE_DIR,
         "_safe_text": lambda s, limit=3900: str(s or "")[:limit],
         "_back_to_panel_buttons": lambda: [],

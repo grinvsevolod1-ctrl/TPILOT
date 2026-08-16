@@ -583,6 +583,10 @@ def build_panel_ns_min(db_path: str, *, submit_and_wait_fn=None) -> dict:
         "json": json,
         "os": os,
         "datetime": __import__("datetime").datetime,
+        # utcnow refactor (2026-08-16): the extracted _utc_now_iso reads the
+        # clock through the module-level _pb_utc_now() seam (naive UTC).
+        "_pb_utc_now": (lambda: __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).replace(tzinfo=None)),
         "Button": _FakeButton,
         "TPILOT_DB_PATH": db_path,
         "normalize_manager_key": manager_registry.normalize_manager_key,
