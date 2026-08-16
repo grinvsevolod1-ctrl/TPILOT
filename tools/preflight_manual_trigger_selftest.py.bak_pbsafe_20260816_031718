@@ -258,18 +258,6 @@ MANUAL_RUN_NAMES = {
 }
 
 
-async def _fake_pb_safe_answer(event, *args, **kwargs):
-    """Stub for panel_bot's _pb_safe_answer: production defines it at module
-    level (so it always exists at handler runtime), but this test's AST
-    extraction only pulls MANUAL_RUN_NAMES -- provide the same behavior here
-    by delegating to FakeEvent.answer and never raising."""
-    try:
-        await event.answer(*args, **kwargs)
-        return True
-    except Exception:
-        return False
-
-
 def build_ns(report_source, kv: FakeKV, client: FakeClient, verify_calls: list, verify_in_progress: dict,
              is_allowed=True, duplicate=False, prev_service_menu_rows=None, managers=None):
     if managers is not None:
@@ -298,8 +286,6 @@ def build_ns(report_source, kv: FakeKV, client: FakeClient, verify_calls: list, 
             "events": _FakeEventsNS,
             "Button": _FakeButton,
             "_is_allowed": (lambda event: is_allowed),
-            "_pb_safe_answer": _fake_pb_safe_answer,
-            "_pb_track_task": asyncio.create_task,
             "_panel_callback_is_duplicate": (lambda chat_id, user_id, key_text: duplicate),
             "_PF_STAGE1_OK": True,
             "_pb_get_setting": kv.get,
