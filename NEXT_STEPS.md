@@ -1,16 +1,23 @@
 # NEXT_STEPS — что делать дальше (после utcnow-рефакторинга, 2026-08-16)
 
 Состояние на момент пуша в main: рефакторинг `datetime.utcnow()` -> naive-UTC
-clock seams завершён и провалидирован для `storage.py`, `panel_bot.py`,
-`main.py` и ~25 селфтестов. Полный прогон: 113/113 неповреждённых тестов PASS
-(кроме 2 pre-existing падений, см. п.4). allow_spend AST-гейт PASS, mojibake 0,
-py_compile всех прод-файлов OK.
+clock seams ЗАВЕРШЁН для ВСЕХ прод-файлов (этап 1 + этап 2):
+- Этап 1: `storage.py` (`_utc_now`), `panel_bot.py` (`_pb_utc_now`),
+  `main.py` (`_tp_utc_now`, 50 мест).
+- Этап 2: `manager_bot.py` (`_mbot_utc_now`, 9), `partner_stat_bot.py`
+  (`_psb_utc_now`, 6), `panel_bridge.py` (`_pbr_utc_now`, 3).
+
+Валидация этапа 2: полный прогон 137/150 PASS, 0 регрессий — все 13
+падений идентичны pre-existing baseline (см. п.4). allow_spend AST-гейт
+PASS, mojibake 0 во всех изменённых файлах, py_compile всех прод-файлов OK.
+В прод-коде не осталось ни одного вызова `datetime.utcnow()` — только
+упоминания в комментариях/докстрингах (описывают контракт seam'ов).
 
 ## 1. Деплой на сервер (ПРИОРИТЕТ)
 
-Деплой-пакет: `main.py`, `panel_bot.py`, `storage.py` + изменённые
-`tools/*_selftest.py` (селфтесты опциональны в рантайме, но нужны для
-валидации на сервере).
+Деплой-пакет: `main.py`, `panel_bot.py`, `storage.py`, `manager_bot.py`,
+`partner_stat_bot.py`, `panel_bridge.py` + изменённые `tools/*_selftest.py`
+(селфтесты опциональны в рантайме, но нужны для валидации на сервере).
 
 Порядок по проектному регламенту (AGENTS.md, раздел 10):
 1. Бэкап целевых файлов на сервере (`<file>.py.bak_utcseam_<timestamp>`).
@@ -20,29 +27,27 @@ py_compile всех прод-файлов OK.
 5. Рестарт контроллера/ботов, проверить логи на DeprecationWarning
    (их больше быть не должно) и на NameError вокруг `_tp_utc_now` /
    `_pb_utc_now` / `_utc_now`.
-6. Ручная проверка ботов: карточка менеджера, proxy pool, статистика.
+   6. Ручная проверка ботов: карточка менеджера, proxy pool, статистика.
+   7. Рестарт бот-процессов, использующих новые seam'ы: ManagerBot
+      (`_mbot_utc_now`), PartnerBot (`_psb_utc_now`), panel bridge
+      (`_pbr_utc_now`) — проверить логи на NameError вокруг этих имён.
 
-## 2. Завершить рефакторинг utcnow в остальных файлах
+## 2. Рефакторинг utcnow ЗАВЕРШЁН
 
-Не тронуты (вне объёма этого патча), содержат `datetime.utcnow()`:
-- `manager_bot.py` — 9 вызовов
-- `partner_stat_bot.py` — 6 вызовов
-- `panel_bridge.py` — 3 вызова
+Все прод-файлы переведены на naive-UTC clock seams. Больше нет файлов
+с `datetime.utcnow()` в исполняемом коде. Сводка seam'ов по файлам:
+- `storage.py` — `_utc_now`
+- `panel_bot.py` — `_pb_utc_now`
+- `main.py` — `_tp_utc_now`
+- `manager_bot.py` — `_mbot_utc_now`
+- `partner_stat_bot.py` — `_psb_utc_now`
+- `panel_bridge.py` — `_pbr_utc_now`
 
-Схема та же, что уже применена:
-1. Бэкап файла.
-2. Добавить module-level seam (по образцу `_pb_utc_now` в panel_bot.py):
-   `datetime.now(timezone.utc).replace(tzinfo=None)` — контракт naive UTC,
-   байт-в-байт совместим со старым `utcnow()`.
-3. Заменить все вызовы `datetime.utcnow()` на seam. ВНИМАНИЕ: только точные
-   вхождения `datetime.utcnow()` — НЕ заменять префиксованные алиасы вроде
-   `_mb_datetime.utcnow()` тупым replace (в main.py это уже ловили и чинили,
-   см. историю: замена задевала `_tp_pss_datetime.utcnow()`).
-4. Обновить extraction-селфтесты: если тест извлекает функции по именам через
-   AST, добавить имя seam-функции в REAL_NAMES/WANTED-список; если тест строит
-   ns-словарь вручную — добавить биндинг seam-лямбды и убедиться, что
-   `timezone` есть в ns.
-5. Полный прогон tools/*_selftest*.py + mojibake-скан + allow_spend гейт.
+Все seam'ы имеют идентичный контракт: `datetime.now(timezone.utc)
+.replace(tzinfo=None)` — naive datetime в UTC, байт-в-байт совместимый
+со старым `datetime.utcnow()`, но без DeprecationWarning на Python 3.12+.
+Если понадобится добавить новый вызов времени — использовать seam
+своего модуля, НЕ `datetime.utcnow()`.
 
 ## 3. Известные грабли этого рефакторинга (для продолжения работ)
 
@@ -57,11 +62,24 @@ py_compile всех прод-файлов OK.
 
 ## 4. Pre-existing падения селфтестов (НЕ от рефакторинга)
 
-- `rc_scope_guard_selftest.py` — требует release-бэкап файла, которого нет
-  в этой рабочей копии (падал и до рефакторинга). Решить: либо положить
-  ожидаемый бэкап, либо скорректировать тест на skip при его отсутствии.
-- `startup_isolation_selftest.py` — падал в baseline до начала работ.
-  Требует отдельной диагностики (не блокирует деплой utcnow-патча).
+Финальный прогон этапа 2: 137/150 PASS. Все 13 падений — pre-existing
+(FAIL и в baseline до рефакторинга, сверено с прогоном ph7). НИ ОДНОЙ
+регрессии от utcnow-рефакторинга. Причины — отсутствие на этой рабочей
+машине артефактов, которые есть только на сервере/в release-сборке:
+
+- `rc_scope_guard`, `w3_1_scope_guard`, `w3_2_scope_guard`,
+  `w3_3_scope_guard`, `w3_3_b_scope_guard`, `w3_4_scope_guard`,
+  `w3_2_d6d7_correction_scope_guard` — ищут release-бэкапы / артефакты
+  по путям вида `C:\ALM_TPilot_AUDIT\...`, которых нет в рабочей копии.
+- `startup_isolation` — падал в baseline, требует отдельной диагностики.
+- `w3_2_business_date_fallback`, `w3_3_c1_reader_parity`,
+  `w1_proxy_guard_sweep_observability` — зависят от тех же отсутствующих
+  audit-артефактов.
+- `tg_health_peerflood_failclosed`, `tg_health_recovery` — pre-existing,
+  требуют окружения/фикстур, недоступных локально.
+
+Ни одно из этих падений не блокирует деплой utcnow-патча. На сервере, где
+audit-артефакты присутствуют, их надо перепрогнать для подтверждения.
 
 ## 5. Отложенные не-блокирующие задачи (из AGENTS.md, раздел 7)
 
