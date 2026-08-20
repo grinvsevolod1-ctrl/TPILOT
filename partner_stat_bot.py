@@ -3519,7 +3519,7 @@ def _main_buttons(buyer: Dict[str, Any] | None = None):  # type: ignore[override
         ]
         if buyer and int((buyer or {}).get("can_excel") or 0) == 1:
             rows.append([Button.inline("📦 Excel", b"excel_menu:main")])
-        rows.append([Button.inline("🔄 Обнов��ть", b"menu:main")])
+        rows.append([Button.inline("🔄 Обновить", b"menu:main")])
         return rows
     rows = [
         [Button.inline("📊 День", b"stats:today"), Button.inline("🌙 Долёты", b"flights:today")],
@@ -4855,7 +4855,7 @@ async def _rsva_callback(event):
             primary_key, reserve_key, target_date = parts[2], parts[3], parts[4]
             pair = _rsva_find_pair(source_key, primary_key, reserve_key)
             if not pair:
-                await event.answer("Эта пара резерва недоступна для ваш��го источника.", alert=True)
+                await event.answer("Эта пара резерва недоступна для вашего источника.", alert=True)
                 return
             if callable(_rsva_cancel):
                 try:
