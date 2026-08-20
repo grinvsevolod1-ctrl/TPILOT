@@ -15,3 +15,6 @@
 "*.zip" 
 tools/__pycache__/
 __pycache__/
+
+# timestamped safety backups (local only, never commit)
+*.bak_*
