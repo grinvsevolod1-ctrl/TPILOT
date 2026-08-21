@@ -552,28 +552,61 @@ async def _build_manager_session_client(manager_key: str, session_path: str, sou
     return _build_manager_telegram_client_from_row(dict(row), session_path, source=source)
 
 
-if API_ID <= 0 or not API_HASH:
-    raise RuntimeError("API_ID/API_HASH are not set. Check your --env file: " + str(ENV_FILE_USED))
+# IMPORTABILITY REFACTOR 20260820: the Telethon client construction, manager
+# proxy audit/resolution and root-handler registration below used to run at
+# module import time, so `import main` was impossible without valid creds, a
+# manager registry row and a session file. Those side effects now live in
+# _tp_bootstrap_runtime() and run ONLY from the __main__ entrypoint. The
+# import-time os.environ setup earlier in this module is intentionally left in
+# place -- lots of module-level code reads those env vars at import, so moving
+# them is out of scope for this low-risk change. Script behaviour
+# (`python main.py [manager]`) is unchanged: __main__ calls the bootstrap
+# before main().
+#
+# Module-level safe defaults so every name that used to be bound at import time
+# still exists for any call-time reference. No module-level code below reads
+# `client`; the single @client.on handler is registered inside the bootstrap.
+_RUNTIME_PROXY = None
+_RUNTIME_API_ID = API_ID
+_RUNTIME_API_HASH = API_HASH
+_RUNTIME_DEVICE_KWARGS = _TELETHON_DEVICE_KWARGS
+client = None
 
-if MANAGER_ARG_USED:
-    if not MANAGER_REGISTRY_ROW:
-        raise RuntimeError(f"manager registry row not found for {MANAGER_ARG_USED}")
-    _audit_manager_telethon_proxy("runtime", MANAGER_REGISTRY_ROW, SESSION_FILE)
-    _RUNTIME_PROXY = _resolve_manager_telethon_proxy(MANAGER_REGISTRY_ROW)
-else:
-    _RUNTIME_PROXY = None
 
-# TPILOT TDATA/SESSION IMPORT AUTH PROFILE 20260719: managers imported via direct
-# .session/tdata (managers.auth_profile=='tdesktop') MUST keep connecting under the same
-# Telegram Desktop API/device profile they were authorized under on EVERY runtime start, not
-# just the initial probe -- opentele UseCurrentSession reuses an existing auth_key, and its
-# continued validity is tied to the API app it was created under. Phone/code/2FA and QR
-# managers (auth_profile=='project', the default) are completely unaffected.
-if MANAGER_ARG_USED and str((MANAGER_REGISTRY_ROW or {}).get("auth_profile") or "project") == "tdesktop":
-    _RUNTIME_API_ID, _RUNTIME_API_HASH, _RUNTIME_DEVICE_KWARGS = TDIMPORT_API_ID, TDIMPORT_API_HASH, _TDIMPORT_DEVICE_KWARGS
-else:
-    _RUNTIME_API_ID, _RUNTIME_API_HASH, _RUNTIME_DEVICE_KWARGS = API_ID, API_HASH, _TELETHON_DEVICE_KWARGS
-client = TelegramClient(SESSION_FILE, _RUNTIME_API_ID, _RUNTIME_API_HASH, proxy=_RUNTIME_PROXY, **_RUNTIME_DEVICE_KWARGS)
+def _tp_bootstrap_runtime():
+    """Validate creds, resolve the manager proxy, build the Telethon client and
+    register the root NewMessage handler. Invoked only from the __main__ guard.
+    Returns the constructed client. Raises on missing creds / registry row,
+    exactly as the old import-time code did."""
+    global client, _RUNTIME_PROXY, _RUNTIME_API_ID, _RUNTIME_API_HASH, _RUNTIME_DEVICE_KWARGS
+
+    if API_ID <= 0 or not API_HASH:
+        raise RuntimeError("API_ID/API_HASH are not set. Check your --env file: " + str(ENV_FILE_USED))
+
+    if MANAGER_ARG_USED:
+        if not MANAGER_REGISTRY_ROW:
+            raise RuntimeError(f"manager registry row not found for {MANAGER_ARG_USED}")
+        _audit_manager_telethon_proxy("runtime", MANAGER_REGISTRY_ROW, SESSION_FILE)
+        _RUNTIME_PROXY = _resolve_manager_telethon_proxy(MANAGER_REGISTRY_ROW)
+    else:
+        _RUNTIME_PROXY = None
+
+    # TPILOT TDATA/SESSION IMPORT AUTH PROFILE 20260719: managers imported via direct
+    # .session/tdata (managers.auth_profile=='tdesktop') MUST keep connecting under the same
+    # Telegram Desktop API/device profile they were authorized under on EVERY runtime start, not
+    # just the initial probe -- opentele UseCurrentSession reuses an existing auth_key, and its
+    # continued validity is tied to the API app it was created under. Phone/code/2FA and QR
+    # managers (auth_profile=='project', the default) are completely unaffected.
+    if MANAGER_ARG_USED and str((MANAGER_REGISTRY_ROW or {}).get("auth_profile") or "project") == "tdesktop":
+        _RUNTIME_API_ID, _RUNTIME_API_HASH, _RUNTIME_DEVICE_KWARGS = TDIMPORT_API_ID, TDIMPORT_API_HASH, _TDIMPORT_DEVICE_KWARGS
+    else:
+        _RUNTIME_API_ID, _RUNTIME_API_HASH, _RUNTIME_DEVICE_KWARGS = API_ID, API_HASH, _TELETHON_DEVICE_KWARGS
+    client = TelegramClient(SESSION_FILE, _RUNTIME_API_ID, _RUNTIME_API_HASH, proxy=_RUNTIME_PROXY, **_RUNTIME_DEVICE_KWARGS)
+    # Register the root handler that used to be attached via @client.on at import.
+    client.add_event_handler(on_new_message, events.NewMessage)
+    return client
+
+
 SELF_USERNAME = ""
 SELF_USERNAME_DISPLAY = "_"
 PUBLIC_MANAGER_NAME = MANAGER_NAME
@@ -4414,7 +4447,9 @@ async def _handle_work_status_command(event: events.NewMessage.Event) -> bool:
     await client.send_message(event.chat_id, f"{key}: {str(st.get('status') or 'online')}")
     return True
 
-@client.on(events.NewMessage)
+# IMPORTABILITY REFACTOR 20260820: registration moved to _tp_bootstrap_runtime()
+# (client.add_event_handler) so this module has no import-time dependency on a
+# live `client`. The handler body is unchanged.
 async def on_new_message(event: events.NewMessage.Event) -> None:
     try:
         if CONTROLLER_MODE:
@@ -41459,6 +41494,9 @@ async def _panel_execute_command_text(  # type: ignore[override]
 
 if __name__ == "__main__":
     _tpilot_core_required_symbols_check()
+    # IMPORTABILITY REFACTOR 20260820: build the Telethon client + register the
+    # root handler here (was import-time). Must run before asyncio.run(main()).
+    _tp_bootstrap_runtime()
     if MANAGER_RUNTIME_KEY and not CONTROLLER_MODE:
         _m212a_write_start_status(MANAGER_RUNTIME_KEY, "starting")
     try:

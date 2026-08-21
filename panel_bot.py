@@ -3095,7 +3095,53 @@ def _title_for_menu(menu: str) -> Tuple[str, list]:
 # --- TPILOT PANEL DUPLICATES / FOLLOWUPS / PROXY UX UPDATE 20260507 END ---
 
 
-client = TelegramClient(PANEL_SESSION_FILE, API_ID, API_HASH)
+# IMPORTABILITY REFACTOR 20260820: building the real TelegramClient here made
+# `import panel_bot` impossible without valid API_ID/API_HASH (Telethon raises
+# in TelegramClient.__init__), which forced every selftest to AST-extract code
+# instead of importing it. The module has 68 `@client.on(...)` handler
+# decorators that run at import time, and Telethon dispatches handlers in
+# REGISTRATION ORDER, so that order must be preserved exactly.
+#
+# Solution: at import time `client` is a lightweight recorder that captures each
+# `@client.on(event)` registration (event + function) in source order without
+# needing creds. _pb_bootstrap_runtime() (called only from __main__) builds the
+# real client, replays the recorded registrations via add_event_handler -- which
+# is exactly what client.on() does internally -- and rebinds the global `client`
+# to the real one, so every handler body's call-time `client.*` use is unchanged.
+class _PanelDeferredClient:
+    """Import-time stand-in that records @client.on(...) registrations.
+
+    Only `.on()` is used against `client` at module import (verified: zero other
+    module-level client references). Any other attribute access is a bug (it
+    would mean something tried to use the live client before bootstrap), so we
+    deliberately do NOT proxy anything else."""
+
+    def __init__(self):
+        self._deferred_registrations = []
+
+    def on(self, event):
+        def _decorator(func):
+            self._deferred_registrations.append((event, func))
+            return func
+        return _decorator
+
+
+client = _PanelDeferredClient()
+
+
+def _pb_bootstrap_runtime():
+    """Build the real Telethon panel client and replay the handler
+    registrations recorded at import time, preserving source order. Invoked
+    only from the __main__ entrypoint, before main()."""
+    global client
+    _deferred = client
+    _real = TelegramClient(PANEL_SESSION_FILE, API_ID, API_HASH)
+    if isinstance(_deferred, _PanelDeferredClient):
+        for _event, _func in _deferred._deferred_registrations:
+            _real.add_event_handler(_func, _event)
+    client = _real
+    return _real
+
 
 async def _send_fresh_panel(chat_id: int, user_id: int = 0, *, delete_previous: bool = True) -> None:
     if delete_previous:
@@ -26161,7 +26207,8 @@ async def _hnv2_run_diag(chat_id: int, manager_key: str) -> None:
 
 
 if __name__ == "__main__":
-
-
+    # IMPORTABILITY REFACTOR 20260820: build the real Telethon client and replay
+    # the recorded @client.on handlers (was import-time). Must run before main().
+    _pb_bootstrap_runtime()
     asyncio.run(main())
 
