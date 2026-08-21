@@ -245,6 +245,41 @@ def validate_proxy_fields(
 
 
 # ---------------------------------------------------------------------------
+# Manager-row proxy value helpers (moved from main.py, extraction pass #1,
+# 2026-08-21). Pure / stdlib-only, no I/O -- same contract as before the
+# move. main.py re-imports these under their original `_proxy_*` names so
+# every existing call site stays byte-identical.
+# ---------------------------------------------------------------------------
+
+def proxy_type_norm(raw: Any) -> str:
+    t = str(raw or "").strip().lower()
+    if t in ("socks5", "sock5", "s5"):
+        return "socks5"
+    return ""
+
+
+def proxy_port_int(raw: Any) -> int:
+    try:
+        p = int(str(raw or "").strip())
+        return p if 1 <= p <= 65535 else 0
+    except Exception:
+        return 0
+
+
+def mask_secret(raw: Any) -> str:
+    return "****" if str(raw or "").strip() else "_"
+
+
+def proxy_login_display(raw: Any) -> str:
+    v = str(raw or "").strip()
+    return v if v else "_"
+
+
+def manager_proxy_enabled(row: Dict[str, Any]) -> bool:
+    return int((row or {}).get("proxy_enabled") or 0) == 1
+
+
+# ---------------------------------------------------------------------------
 # Telethon conversion (matches the structure TPilot's runtime code already
 # expects -- see main.py _build_telethon_proxy_from_row)
 # ---------------------------------------------------------------------------

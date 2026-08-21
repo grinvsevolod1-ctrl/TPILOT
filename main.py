@@ -32,64 +32,33 @@ try:
 except Exception:
     _p5_dbobs = None  # tracing must never block startup
 
-
-def _p5_begin_immediate_sync(con, *, source, function, db_path="", manager_key="", event_key=""):
-    """Fail-soft wrapper: identical behavior to con.execute("BEGIN IMMEDIATE")
-    when db_observability is unavailable or tracing is disabled."""
-    if _p5_dbobs is None:
+# _p5_* fail-soft wrappers (extraction pass #1, 2026-08-21): the actual
+# begin/commit/rollback logic now lives in db_observability.failsoft_*,
+# identical behavior to the previous inline defs. This branch only covers
+# "db_observability itself failed to import" -- the previous "tracing raised
+# internally" fallback is now inside failsoft_* in db_observability.py.
+if _p5_dbobs is not None:
+    _p5_begin_immediate_sync = _p5_dbobs.failsoft_begin_immediate_sync
+    _p5_commit_sync = _p5_dbobs.failsoft_commit_sync
+    _p5_rollback_sync = _p5_dbobs.failsoft_rollback_sync
+    _p5_begin_immediate_async = _p5_dbobs.failsoft_begin_immediate_async
+    _p5_commit_async = _p5_dbobs.failsoft_commit_async
+else:
+    def _p5_begin_immediate_sync(con, *, source, function, db_path="", manager_key="", event_key=""):
         con.execute("BEGIN IMMEDIATE")
         return None
-    try:
-        return _p5_dbobs.begin_immediate_sync(
-            con, source=source, function=function, db_path=db_path,
-            manager_key=manager_key, event_key=event_key,
-        )
-    except Exception:
-        con.execute("BEGIN IMMEDIATE")
-        return None
 
-
-def _p5_commit_sync(tx, con):
-    if _p5_dbobs is None or tx is None:
-        con.commit()
-        return
-    try:
-        _p5_dbobs.commit_sync(tx, con)
-    except Exception:
+    def _p5_commit_sync(tx, con):
         con.commit()
 
-
-def _p5_rollback_sync(tx, con, error=None):
-    if _p5_dbobs is None or tx is None:
-        con.rollback()
-        return
-    try:
-        _p5_dbobs.rollback_sync(tx, con, error=error)
-    except Exception:
+    def _p5_rollback_sync(tx, con, error=None):
         con.rollback()
 
-
-async def _p5_begin_immediate_async(db, *, source, function, db_path="", manager_key="", event_key=""):
-    if _p5_dbobs is None:
-        await db.execute("BEGIN IMMEDIATE")
-        return None
-    try:
-        return await _p5_dbobs.begin_immediate_async(
-            db, source=source, function=function, db_path=db_path,
-            manager_key=manager_key, event_key=event_key,
-        )
-    except Exception:
+    async def _p5_begin_immediate_async(db, *, source, function, db_path="", manager_key="", event_key=""):
         await db.execute("BEGIN IMMEDIATE")
         return None
 
-
-async def _p5_commit_async(tx, db):
-    if _p5_dbobs is None or tx is None:
-        await db.commit()
-        return
-    try:
-        await _p5_dbobs.commit_async(tx, db)
-    except Exception:
+    async def _p5_commit_async(tx, db):
         await db.commit()
 
 
@@ -333,32 +302,14 @@ MANAGER_ONBOARD_TIMEOUT_SEC = 20 * 60
 MANAGER_PHONE_COOLDOWN_SEC = 15 * 60
 
 
-def _proxy_type_norm(raw: Any) -> str:
-    t = str(raw or "").strip().lower()
-    if t in ("socks5", "sock5", "s5"):
-        return "socks5"
-    return ""
-
-
-def _proxy_port_int(raw: Any) -> int:
-    try:
-        p = int(str(raw or "").strip())
-        return p if 1 <= p <= 65535 else 0
-    except Exception:
-        return 0
-
-
-def _mask_secret(raw: Any) -> str:
-    return "****" if str(raw or "").strip() else "_"
-
-
-def _proxy_login_display(raw: Any) -> str:
-    v = str(raw or "").strip()
-    return v if v else "_"
-
-
-def _manager_proxy_enabled(row: Dict[str, Any]) -> bool:
-    return int((row or {}).get("proxy_enabled") or 0) == 1
+# Proxy value helpers moved to proxy_parser.py (extraction pass #1,
+# 2026-08-21). Aliased back to their original `_proxy_*` names so every
+# existing call site in this file stays byte-identical.
+_proxy_type_norm = proxy_parser.proxy_type_norm
+_proxy_port_int = proxy_parser.proxy_port_int
+_mask_secret = proxy_parser.mask_secret
+_proxy_login_display = proxy_parser.proxy_login_display
+_manager_proxy_enabled = proxy_parser.manager_proxy_enabled
 
 
 def _build_telethon_proxy_from_row(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -3176,7 +3127,7 @@ async def _handle_manager_proxy_command(chat_id: int, user_id: int, text: str) -
             return True
         if action == "OFF":
             await manager_set_fields(key, proxy_enabled=0, proxy_updated_at=_now_utc_iso())
-            await client.send_message(chat_id, f"✅ Proxy выключен для {key}.\nЧтобы применить к уже запущенному аккаунту, перезапустите менеджера: MANAGER STOP {key}, потом MANAGER START {key}.")
+            await client.send_message(chat_id, f"✅ Proxy выключен для {key}.\nЧтобы применить к уже запущенному аккаунту, перезапуст��те менеджера: MANAGER STOP {key}, потом MANAGER START {key}.")
             return True
         if action == "ON":
             if not str(row.get("proxy_host") or "").strip() or not _proxy_port_int(row.get("proxy_port")):
@@ -3416,7 +3367,7 @@ async def _handle_manager_plaintext(event: events.NewMessage.Event) -> bool:
         key = registry_normalize_manager_key(text[len("MANAGER ENABLE "):].strip())
         row = await manager_get(key)
         if not row or str(row.get("status") or "") == "archived":
-            await client.send_message(chat_id, f"Менеджер не найден: {key}")
+            await client.send_message(chat_id, f"Мен��джер не найден: {key}")
             return True
         await manager_set_fields(key, is_enabled=1, status="active")
         await client.send_message(chat_id, f"✅ ENABLE: {key}")
@@ -6024,7 +5975,7 @@ async def _handle_unanswered_notify_command(args: str = "") -> str:
         "/unanswered_notify on - включить автоуведомления в PanelBot",
         "/unanswered_notify off - выключить автоуведомления в PanelBot",
         "/unanswered all - показать всех вручную",
-        "/unanswered <manager_key> - показать по менеджеру",
+        "/unanswered <manager_key> - показать по менед��еру",
     ]).rstrip()
 # --- UNANSWERED PANEL NOTIFY TOGGLE END ---
 
@@ -7642,7 +7593,7 @@ async def _group_stats_text(group_key: str = "all") -> str:
         members = await _group_members(group_key)
         leads = await _structure_leads_for_managers(members)
         stats = _stats_for_leads_subset(leads)
-        lines = [f"👥 Группа менеджеров: {grp.get('name') or grp.get('group_key')}", f"Дата: {date_disp}", "", f"Статус: {'активна' if _nice_status(grp.get('status')) == 'active' else 'выключена'}"]
+        lines = [f"👥 Группа менеджеров: {grp.get('name') or grp.get('group_key')}", f"Дата: {date_disp}", "", f"Статус: {'а��тивна' if _nice_status(grp.get('status')) == 'active' else 'выключена'}"]
         lines.append("Менеджеры: " + (", ".join(labels.get(m, m) for m in members) if members else "не добавлены"))
         lines.append("")
         _append_compact_stats(lines, stats)
@@ -11049,7 +11000,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
     if cmd == "/followup":
         return {"ok": True, "result_text": await _handle_post_followup_command(args, user_id=requested_by)}
     if cmd == "/silent" and not callable(globals().get("_handle_silent_command")):
-        return {"ok": True, "result_text": "🔇 Тихий режим сейчас управляется через раздел 💬 Автоответы клиентам и ⚙️ Анкета."}
+        return {"ok": True, "result_text": "🔇 Тихий режим сейчас управляется через раздел 💬 Автоответы к��иентам и ⚙️ Анкета."}
     if callable(_TPILOT_202605_ORIG_PANEL_EXEC):
         return await _TPILOT_202605_ORIG_PANEL_EXEC(command_text, requested_by=requested_by)
     return {"ok": False, "error_text": f"Команда не поддерживается в панели: {cmd}"}
@@ -15279,7 +15230,7 @@ def _tp_report_v3_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         "ru_18_plus_city_unknown": "Россия, 18+, город не определён",
         "unclear": "ответ не разобран",
         "unclear_profile": "ответ не разобран",
-        "manual_liquid": "исправлено вручную: ликвид",
+        "manual_liquid": "исправ��ено вручную: ликвид",
         "manual_geo": "исправлено вручную: гео",
         "manual_trash": "исправлено вручную: трэш",
         "manual_na": "исправлено вручную: NA",
@@ -15299,7 +15250,7 @@ def _tp_report_v3_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         if bucket == "under18":
             return "нет 18 лет / 18+ не подтверждён"
         if bucket == "na":
-            return "не ответил на город и возраст"
+            return "не ответил на город и воз��аст"
         if bucket == "trash":
             return "трэш"
         return "_"
@@ -18159,7 +18110,7 @@ async def _tpe_handle_profile_command(args: str, *, user_id: int = 0) -> str:  #
             "/profile rules reload - обновить правила",
             "/lead profile <chat_id> - проверить конкретного лида",
             "/lead repair today dry - проверить сегодня",
-            "/lead repair apply <код_проверки> confirm - применить по коду",
+            "/lead repair apply <код_проверки> confirm - применить по код��",
         ])
     if action in ("status", "статус"):
         return await _tpac_profile_status_text()
@@ -20670,7 +20621,7 @@ async def _tp_hg_set_from_exception(manager_key: str, exc: Any, *, source: str) 
                 "error_source": source,
                 "action_required": (
                     "Подтверждено live-проверкой: аккаунт заблокирован/деактивирован Telegram. "
-                    "Не перезапускать и не перелогинивать -- заменить аккаунт через карточку менеджера."
+                    "Не перезапускать и не перелогинивать -- заменить аккаунт через карточку менеджер��."
                 ),
                 "seconds": 0,
             }
@@ -24927,7 +24878,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
             if not int(row.get("is_enabled") or 0) or int(row.get("manual_stopped") or 0):
                 return {"ok": False,
                         "error_text": f"Менеджер отключён: {mk}",
-                        "result_text": f"❌ Менеджер отключён: {mk}\nВключите перед перезапуском."}
+                        "result_text": f"��� Менеджер отключён: {mk}\nВключите перед перезапуском."}
             ok2, msg = await _spawn_manager_process(mk)
             print(f"[m2.12a] manager_restart key={mk} ok={ok2} msg={msg!r} by={requested_by}")
             if ok2:
@@ -33502,7 +33453,7 @@ async def _manager_relogin_begin(key: str, owner_user_id: int) -> Tuple[bool, st
         return False, f"Менеджер не найден: {key}", None
     status = str(row.get("status") or "").strip().lower()
     if status in ("archived", "deleted"):
-        return False, f"Менеджер архивирован/удалён, повторный вход недоступен: {key}", None
+        return False, f"Менеджер архивирован/удалён, повт��рный вход недоступен: {key}", None
     other_owner = await _manager_relogin_active_owner(key, exclude_owner=owner_user_id)
     if other_owner:
         return False, f"Повторный вход для {key} уже выполняется другим администратором. Попробуйте позже.", None
@@ -40211,7 +40162,7 @@ _HNV2_RECOMMENDED_ACTION = {
     HNV2_FAMILY_SESSION_UNAUTHORIZED: "Перелогиниться: Перезайти / Войти по QR / Вход на устройстве.",
     HNV2_FAMILY_PROXY_AUTH_FAILED: "Исправить данные прокси и проверить.",
     HNV2_FAMILY_WORKER_CRASH: "Перезапустить менеджера.",
-    HNV2_FAMILY_HEALTH_MISSING_STALE: "Провести health-check и проверить прокси.",
+    HNV2_FAMILY_HEALTH_MISSING_STALE: "Провести health-check и проверить п��окси.",
     HNV2_FAMILY_ACCOUNT_BLOCKED: (
         "Не перезапускать и не перелогинивать. Проверить подтверждённую "
         "блокировку и при необходимости заменить аккаунт через карточку."

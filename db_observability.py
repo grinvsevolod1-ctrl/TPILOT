@@ -469,6 +469,69 @@ async def traced_tx_async(db, *, source: str, function: str, db_path: str = "",
 
 
 # --------------------------------------------------------------------------
+# Fail-soft wrappers (moved from main.py `_p5_*`, extraction pass #1,
+# 2026-08-21). These are the ones a caller should import when it wants
+# tracing to be strictly best-effort: any internal error here falls back to
+# the plain sqlite3/aiosqlite call with identical behavior to tracing being
+# disabled. Distinct from begin_immediate_sync/commit_sync/etc. above, which
+# propagate real DB errors and are meant for callers that want that.
+# --------------------------------------------------------------------------
+
+def failsoft_begin_immediate_sync(con, *, source: str, function: str, db_path: str = "",
+                                   manager_key: str = "", event_key: str = "") -> Optional[TxTrace]:
+    try:
+        return begin_immediate_sync(
+            con, source=source, function=function, db_path=db_path,
+            manager_key=manager_key, event_key=event_key,
+        )
+    except Exception:
+        con.execute("BEGIN IMMEDIATE")
+        return None
+
+
+def failsoft_commit_sync(tx: Optional[TxTrace], con) -> None:
+    if tx is None:
+        con.commit()
+        return
+    try:
+        commit_sync(tx, con)
+    except Exception:
+        con.commit()
+
+
+def failsoft_rollback_sync(tx: Optional[TxTrace], con, error: Optional[BaseException] = None) -> None:
+    if tx is None:
+        con.rollback()
+        return
+    try:
+        rollback_sync(tx, con, error=error)
+    except Exception:
+        con.rollback()
+
+
+async def failsoft_begin_immediate_async(db, *, source: str, function: str, db_path: str = "",
+                                          manager_key: str = "", event_key: str = "") -> Optional[TxTrace]:
+    try:
+        return await begin_immediate_async(
+            db, source=source, function=function, db_path=db_path,
+            manager_key=manager_key, event_key=event_key,
+        )
+    except Exception:
+        await db.execute("BEGIN IMMEDIATE")
+        return None
+
+
+async def failsoft_commit_async(tx: Optional[TxTrace], db) -> None:
+    if tx is None:
+        await db.commit()
+        return
+    try:
+        await commit_async(tx, db)
+    except Exception:
+        await db.commit()
+
+
+# --------------------------------------------------------------------------
 # Event-loop stall probe (local/test diagnostic only -- not auto-started)
 # --------------------------------------------------------------------------
 
