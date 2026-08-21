@@ -1256,7 +1256,9 @@ async def run_deep_verification(
         return blob
 
     # --- enqueue one bizlink_list_telegram command per relevant manager ---
-    expires_at = (datetime.utcnow() + timedelta(minutes=18)).replace(microsecond=0).isoformat()
+    # utcnow refactor: naive-UTC seam (datetime.now(timezone.utc) stripped to
+    # naive) is byte-identical to the old datetime.utcnow() and deprecation-free.
+    expires_at = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=18)).replace(microsecond=0).isoformat()
     nonces: Dict[str, str] = {}
     for mk in relevant.keys():
         try:

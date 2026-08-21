@@ -17,7 +17,7 @@ import argparse
 import sqlite3
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -27,7 +27,9 @@ VERSION = "repair_reparse_profile_from_messages_v1_20260516"
 
 
 def now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    # utcnow refactor: naive-UTC seam, byte-identical to the old
+    # datetime.utcnow() output and deprecation-free on Python 3.12+.
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat()
 
 
 def table_exists(con: sqlite3.Connection, table: str) -> bool:

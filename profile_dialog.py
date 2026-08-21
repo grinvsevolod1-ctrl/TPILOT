@@ -10,7 +10,7 @@ and stores lightweight anti-repeat state in the manager SQLite DB.
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 import aiosqlite
@@ -21,7 +21,9 @@ CITY_LIMIT_NOTE = "город уточняли 2 раза, клиент не у�
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    # utcnow refactor: naive-UTC seam, byte-identical to the old
+    # datetime.utcnow() output and deprecation-free on Python 3.12+.
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat()
 
 
 def _norm(text: Any) -> str:
