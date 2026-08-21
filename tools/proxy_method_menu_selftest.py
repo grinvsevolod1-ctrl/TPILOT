@@ -1136,7 +1136,15 @@ async def test_29_30_temp_db_and_no_provider_call():
 # ======================================================================
 
 def test_31_static_client_decorator_order_guard():
-    print("\n-- 31: static guard -- every @client.on(...) decorator appears AFTER the client assignment --")
+    print("\n-- 31: static guard -- every @client.on(...) decorator appears AFTER the module-level client assignment --")
+    # IMPORTABILITY REFACTOR 20260820: `client` is now assigned the lightweight
+    # `_PanelDeferredClient()` recorder at module level (the real TelegramClient
+    # is built later in _pb_bootstrap_runtime(), only under __main__). The safety
+    # invariant this check guards is UNCHANGED in spirit: no @client.on(...)
+    # decorator may run before the module-level `client = ...` assignment exists,
+    # or it would hit a NameError at import. We simply no longer require the RHS
+    # to be a TelegramClient() call -- any module-level `client = <Call>` counts
+    # (both `_PanelDeferredClient()` and the historical `TelegramClient(...)`).
     tree = ast.parse(PANEL_SRC)
     client_assign_line = None
     for node in tree.body:
@@ -1144,7 +1152,7 @@ def test_31_static_client_decorator_order_guard():
                 and node.targets[0].id == "client" and isinstance(node.value, ast.Call):
             client_assign_line = node.lineno
             break
-    check("31a. module-level 'client = TelegramClient(...)' assignment was found", client_assign_line is not None, client_assign_line)
+    check("31a. module-level 'client = <Call>()' assignment was found (deferred recorder or TelegramClient)", client_assign_line is not None, client_assign_line)
 
     offenders = []
     for node in tree.body:
@@ -1212,13 +1220,30 @@ sys.modules["dotenv"] = fake_dotenv
 sys.path.insert(0, sys.argv[1])
 import panel_bot  # real file, real top-to-bottom execution order
 
-client = panel_bot.client
-assert isinstance(client, _FakeTelegramClient), "client was not the stubbed TelegramClient"
-assert "_pxm_callback" in client.registered, f"_pxm_callback never registered: {client.registered}"
-assert "_pxm_reveal_pin_input" in client.registered, f"_pxm_reveal_pin_input never registered: {client.registered}"
-assert "_ppool_reveal_pin_input" in client.registered, "existing ppool reveal handler missing"
-assert "_frompool_callback" in client.registered, "existing frompool callback missing"
-print("STARTUP_IMPORT_OK", len(client.registered), "handlers registered")
+# IMPORTABILITY REFACTOR 20260820: at import time panel_bot.client is the
+# lightweight _PanelDeferredClient recorder (NOT a TelegramClient) -- every
+# @client.on(...) decorator recorded its (event, func) pair in source order,
+# WITHOUT needing creds or a live client. The real client is only built when
+# __main__ calls _pb_bootstrap_runtime(). This check exercises BOTH stages.
+deferred = panel_bot.client
+assert type(deferred).__name__ == "_PanelDeferredClient", f"import-time client should be the deferred recorder, got {type(deferred).__name__}"
+recorded = [fn.__name__ for _ev, fn in deferred._deferred_registrations]
+for _name in ("_pxm_callback", "_pxm_reveal_pin_input", "_ppool_reveal_pin_input", "_frompool_callback"):
+    assert _name in recorded, f"{_name} never recorded at import: {recorded}"
+
+# Stage 2: bootstrap builds the real (stubbed) client and REPLAYS the recorded
+# registrations via add_event_handler in the SAME source order. Telethon
+# dispatches handlers in registration order, so order-preservation is the key
+# property. Give the fake client an add_event_handler the bootstrap can call.
+def _add_event_handler(self, fn, event):
+    self.registered.append(fn.__name__)
+_FakeTelegramClient.add_event_handler = _add_event_handler
+
+real = panel_bot._pb_bootstrap_runtime()
+assert isinstance(real, _FakeTelegramClient), "bootstrap did not build the stubbed TelegramClient"
+assert panel_bot.client is real, "global client was not rebound to the real client after bootstrap"
+assert real.registered == recorded, f"handler order not preserved: {real.registered} != {recorded}"
+print("STARTUP_IMPORT_OK", len(real.registered), "handlers registered")
 '''
     tmp = Path(tempfile.mkdtemp(prefix="pxm_startup_")) / "run_import_check.py"
     tmp.write_text(script, encoding="utf-8")
@@ -1229,8 +1254,8 @@ print("STARTUP_IMPORT_OK", len(client.registered), "handlers registered")
         )
         ok = proc.returncode == 0 and "STARTUP_IMPORT_OK" in proc.stdout
         detail = (proc.stdout + proc.stderr)[-2000:]
-        check("32a. panel_bot.py imports cleanly in true module order (no NameError/other startup exception)", ok, detail)
-        check("32b. this is a REAL execution, not the AST-extraction technique (proven by the actual NameError this exact check would have caught before the fix)", "NameError" not in proc.stderr or ok, proc.stderr[-500:])
+        check("32a. panel_bot.py imports cleanly in true module order, records handlers at import, and replays them in order on bootstrap (no NameError/other startup exception)", ok, detail)
+        check("32b. this is a REAL subprocess execution, not the AST-extraction technique (any import-order NameError would surface here in stderr)", "NameError" not in proc.stderr or ok, proc.stderr[-500:])
     finally:
         cleanup_env(tmp.parent)
 
