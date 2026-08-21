@@ -115,6 +115,7 @@ from manager_registry import (
     validate_manager_key,
 )
 import proxy_parser
+import text_format_helpers
 
 
 def _pick_env_file() -> str:
@@ -546,18 +547,9 @@ def _future_iso_max(seconds: int, minimum_seconds: int = 0) -> str:
     return _future_iso(max(int(seconds or 0), int(minimum_seconds or 0)))
 
 
-def _tp_normalize_phone_plus(raw: Any) -> str:
-    """TPILOT PHONE SELF-HEAL 20260719: canonical TPilot phone storage format
-    is a leading '+' followed by digits -- the format phone-login already
-    stores as-is (admin instructed "PHONE +79991234567"). Telethon's own
-    `me.phone` is digits-only (no leading '+'); this adds one WITHOUT
-    reformatting an already-'+'-prefixed value or touching digits otherwise,
-    so it never creates a second, conflicting stored format. Never logs its
-    input/output (pure string transform, no I/O)."""
-    s = str(raw or "").strip()
-    if not s:
-        return ""
-    return s if s.startswith("+") else f"+{s}"
+# _tp_normalize_phone_plus moved to text_format_helpers.py (extraction pass
+# #2, 2026-08-21); aliased back below via text_format_helpers.tp_normalize_phone_plus.
+_tp_normalize_phone_plus = text_format_helpers.tp_normalize_phone_plus
 
 
 def _kyiv_now() -> datetime:
@@ -570,48 +562,14 @@ def _kyiv_now() -> datetime:
     return _w3_now()
 
 
-def _parse_cmd(text: str) -> Tuple[str, str]:
-    t = (text or "").strip()
-    if not t.startswith("/"):
-        return "", ""
-    parts = t.split(maxsplit=1)
-    return parts[0].lower(), (parts[1].strip() if len(parts) > 1 else "")
-
-
-def _display_username(username: str) -> str:
-    u = str(username or "").strip()
-    if not u:
-        return "_"
-    return u if u.startswith("@") else "@" + u
-
-
-def _full_name(first_name: str = "", last_name: str = "") -> str:
-    return " ".join([x.strip() for x in [first_name or "", last_name or ""] if x and x.strip()]).strip()
-
-
-def _manager_label_from_row(row: dict) -> str:
-    display_name = str((row or {}).get("display_name") or (row or {}).get("manager_key") or "").strip()
-    username = str((row or {}).get("telegram_username") or "").strip()
-    label = f"{display_name} | @{username}" if username else f"{display_name} | username:none"
-    # DELETED MANAGER STATS RETENTION 20260711: mirrors the existing status=='deleted'
-    # convention already present in stats_engine.se_manager_label. Only ever fires for
-    # tombstone rows returned by _manager_rows_for_reporting (the only place that sets
-    # status='deleted') -- every live managers row uses 'new'/'active'/'archived', so
-    # this is a no-op for every other existing caller of this function.
-    if str((row or {}).get("status") or "").strip() == "deleted":
-        label += " (удалён)"
-    return label
-
-
-def _manager_status_label(row: dict) -> str:
-    status = str((row or {}).get("status") or "new")
-    enabled = int((row or {}).get("is_enabled") or 0)
-    manual_stopped = int((row or {}).get("manual_stopped") or 0)
-    if not enabled:
-        return f"{status}, disabled"
-    if manual_stopped:
-        return f"{status}, stopped"
-    return status
+# _parse_cmd, _display_username, _full_name, _manager_label_from_row,
+# _manager_status_label moved to text_format_helpers.py (extraction pass
+# #2, 2026-08-21) -- pure stdlib/dict-only helpers, no main.py globals.
+_parse_cmd = text_format_helpers.parse_cmd
+_display_username = text_format_helpers.display_username
+_full_name = text_format_helpers.full_name
+_manager_label_from_row = text_format_helpers.manager_label_from_row
+_manager_status_label = text_format_helpers.manager_status_label
 
 
 def _iso_to_local_hhmm(iso_value: str) -> str:
@@ -646,23 +604,10 @@ def _utc_iso_to_kyiv_dt(iso_value: str) -> datetime:
         return _kyiv_now()
 
 
-def _phone_clean(phone: str) -> str:
-    p = str(phone or "").strip()
-    if not p:
-        return ""
-    digits = re.sub(r"\D+", "", p)
-    if not digits:
-        return ""
-    if p.startswith("+"):
-        return "+" + digits
-    if len(digits) >= 10:
-        return "+" + digits
-    return digits
-
-
-def _display_unknown(value: Any) -> str:
-    v = str(value or "").strip()
-    return v if v else "не определено"
+# _phone_clean, _display_unknown moved to text_format_helpers.py
+# (extraction pass #2, 2026-08-21) -- pure stdlib helpers.
+_phone_clean = text_format_helpers.phone_clean
+_display_unknown = text_format_helpers.display_unknown
 
 
 def _remember_program_sent(chat_id: int, msg_id: int) -> None:
@@ -4639,7 +4584,7 @@ async def _build_stat_period_text(spec: Dict[str, Any]) -> str:
         lines.append(f"Дубликаты: {int(b['duplicates'])}")
         lines.append(f"Ответили возраст/гео: {int(b['profile_done'])}")
         lines.append(f"Ликвид: {int(b['liquid'])}")
-        lines.append(f"Неликвид: {int(b['nonliquid'])}")
+        lines.append(f"Не��иквид: {int(b['nonliquid'])}")
         lines.append(f"Не определено: {int(b['unknown'])}")
         _append_reason_lines(lines, b.get("reasons") or {})
         lines.append("")
@@ -8032,7 +7977,7 @@ def _score_label(score: int) -> str:
         return "🟡 средне"
     if s > 0:
         return "🔴 слабо"
-    return "⚪ нет данных"
+    return "⚪ нет да��ных"
 
 
 def _manager_quality_buckets(leads: List[Dict[str, Any]], manager_rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -11920,7 +11865,7 @@ async def _tpilot_proxy_check_v3_command(args: str, *, requested_by: int = 0) ->
 
     row = await manager_get(key)
     if not row or str(row.get("status") or "") == "archived":
-        return f"Менеджер не найден: {key}"
+        return f"Менеджер н�� найден: {key}"
 
     host = str(row.get("proxy_host") or "").strip()
     port = _proxy_port_int(row.get("proxy_port"))
@@ -12655,7 +12600,7 @@ def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[overri
         "",
         f"Proxy IP: {row.get('auth_proxy_ip') or 'не определено'}",
         f"Proxy Geo: {', '.join([x for x in [row.get('auth_proxy_country'), row.get('auth_proxy_region'), row.get('auth_proxy_city')] if str(x or '').strip()]) or 'не определено'}",
-        f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
+        f"Server IP: {row.get('auth_direct_ip') or 'не опреде��ено'}",
         f"Server Geo: {', '.join([x for x in [row.get('auth_direct_country'), row.get('auth_direct_region'), row.get('auth_direct_city')] if str(x or '').strip()]) or 'не определено'}",
         "",
         f"Auth Guard: {guard}",
@@ -15082,7 +15027,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:
             date_filter = _kyiv_now().date().isoformat()
         elif token in ("yesterday", "вчера"):
             date_filter = (_kyiv_now().date() - timedelta(days=1)).isoformat()
-        elif token not in ("all", "все"):
+        elif token not in ("all", "в��е"):
             try:
                 date_filter = _tp_parse_date_token(token).isoformat()  # type: ignore[name-defined]
             except Exception:
@@ -15580,7 +15525,7 @@ def _tp_report_v5_country_title(raw: Any) -> str:
         "кыргызстан": "Кыргызстан", "киргизия": "Кыргызстан", "беларусь": "Беларусь",
         "белоруссия": "Беларусь", "молдова": "Молдова", "таджикистан": "Таджикистан",
         "азербайджан": "Азербайджан", "армения": "Армения", "грузия": "Грузия",
-        "германия": "Германия", "индия": "Индия", "гана": "Гана", "таиланд": "Таиланд",
+        "герма��ия": "Германия", "индия": "Индия", "гана": "Гана", "таиланд": "Таиланд",
         "турция": "Турция", "польша": "Польша", "литва": "Литва", "латвия": "Латвия",
         "эстония": "Эстония", "израиль": "Израиль", "сша": "США", "оаэ": "ОАЭ",
     }
@@ -15598,7 +15543,7 @@ def _tp_report_v5_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         return "гео: " + _tp_report_v5_country_title(c)
     mapping = {
         "age_and_geo_missing": "не ответил на город и возраст",
-        "age_missing": "18+ не подтверждён",
+        "age_missing": "18+ не подт��ерждён",
         "geo_missing": "гео не определено",
         "under18": "нет 18 лет / 18+ не подтверждён",
         "_18": "нет 18 лет / 18+ не подтверждён",
@@ -17985,7 +17930,7 @@ def _tpac_rules_text(action: str = "show") -> str:
         f"📍 GEO_OK территории: {len(getattr(rules, 'geo_ru_special_locations', []) or [])}",
         "",
         "Файлы правил лежат в папке config.",
-        "После ручного изменения нажмите 🔄 Обновить правила.",
+        "После р��чного изменения нажмите 🔄 Обновить правила.",
     ]
     _tpac_log(f"rules {action}")
     return "\n".join(lines).rstrip()
@@ -20134,7 +20079,7 @@ def _tp_hg_build_alert_text(manager_key: str, row: Dict[str, Any]) -> str:
     else:
         title = "Session умерла, аккаунт забанен, разлогинен или Telegram не даёт работать."
     lines = [
-        "🛡 Telegram Health Alert",
+        "�� Telegram Health Alert",
         "",
         f"Статус: {_tp_hg_status_label(status)}",
         f"Аккаунт: {_tp_hg_manager_label_from_key(manager_key)}",
@@ -21561,7 +21506,7 @@ async def _tp_hg_mark(target: str, status: str, reason: str = "") -> str:  # typ
 
 async def _tp_hg_handle_command(args: str = "", *, user_id: int = 0) -> str:  # type: ignore[override]
     parts = [p for p in str(args or "").split() if p.strip()]
-    if not parts or parts[0].lower() in {"status", "show", "статус"}:
+    if not parts or parts[0].lower() in {"status", "show", "стату��"}:
         target = parts[1] if len(parts) >= 2 else "all"
         return await _tp_hg_format_status(target)
     action = parts[0].lower()
@@ -23808,7 +23753,7 @@ def _tp_qs_decide(row, *, source="rules"):  # type: ignore[override]
         raw = _tp_pa_str((row or {}).get("profile_answer_texts") or "")
         if not raw:
             # Do not claim that the bot asked the questionnaire when it did not.
-            reason = "Нет данных после первого сообщения клиента"
+            reason = "Нет данных пос��е первого сообщения клиента"
             if _tp_pa_int((row or {}).get("profile_question_sent"), 0) == 1:
                 reason = "Нет ответов клиента после вопроса анкеты"
             return {
@@ -24887,7 +24832,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
                     "result_text": f"❌ Не удалось перезапустить менеджера: {mk}\n{msg}"}
     except Exception as _m212a_cmd_exc:
         return {"ok": False, "error_text": repr(_m212a_cmd_exc),
-                "result_text": f"❌ Ошибка перезапуска: {_m212a_cmd_exc!r}"}
+                "result_text": f"❌ Ошибка перезапуск��: {_m212a_cmd_exc!r}"}
     if callable(_M212A_ORIG_PANEL_EXEC):
         try:
             return await _M212A_ORIG_PANEL_EXEC(command_text, requested_by=requested_by,
@@ -25798,7 +25743,7 @@ async def _manager_command_loop() -> None:  # type: ignore[override]
                     fw_sec = int(res.get("flood_wait_seconds") or 0)
                     abort_reason = str(res.get("abort_reason") or "")
                     if abort_reason:
-                        header = "⚠️ Удаление отменено"
+                        header = "��️ Удаление отменено"
                     elif ok:
                         header = "✅ Удаление завершено"
                     else:
@@ -35265,7 +35210,7 @@ async def replacement_ready_commit_preview(
     other = _repl_storage.replacement_get_by_new_key(key, db_path=db_path)
     if (other and str(other.get("operation_id")) != op
             and str(other.get("status")) not in _repl_storage.REPLACEMENT_TERMINAL_STATUSES):
-        return _replacement_result(False, "key_conflict", f"Ключ {key} занят другой операцией.", operation_id=op)
+        return _replacement_result(False, "key_conflict", f"Ключ {key} за��ят другой операцией.", operation_id=op)
 
     ok_adv = _repl_storage.replacement_advance(op, "identity_ok", "ready_commit", stage="ready_for_commit", db_path=db_path)
     if not ok_adv:
@@ -35398,7 +35343,7 @@ async def replacement_recover(
     op = str(operation_id or "").strip()
     op_row = _repl_storage.replacement_get(op, db_path=db_path)
     if not op_row:
-        return _replacement_result(False, "missing_operation", "Операция не найдена.", operation_id=op, next_step="unknown")
+        return _replacement_result(False, "missing_operation", "Операция не найде��а.", operation_id=op, next_step="unknown")
 
     status = str(op_row.get("status") or "")
     key = registry_normalize_manager_key(op_row.get("new_manager_key") or "")
