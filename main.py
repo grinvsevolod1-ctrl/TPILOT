@@ -1656,14 +1656,9 @@ async def _process_pending_geoage_events() -> None:
                 await asyncio.sleep(0.2)
 
 
-def _parse_utc_naive_dt(raw: str) -> Optional[datetime]:
-    try:
-        dt = datetime.fromisoformat(str(raw or ""))
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt.replace(microsecond=0)
-    except Exception:
-        return None
+# _parse_utc_naive_dt moved to text_format_helpers.py (extraction pass #3,
+# 2026-08-22) -- pure stdlib datetime parser.
+_parse_utc_naive_dt = text_format_helpers.parse_utc_naive_dt
 
 
 def _is_profile_day_window(now_local: Optional[datetime] = None) -> bool:
@@ -2001,14 +1996,11 @@ def _next_work_start_local(now: Optional[datetime] = None) -> datetime:
     return start
 
 
-def _parse_utc_naive(raw: str) -> Optional[datetime]:
-    try:
-        dt = datetime.fromisoformat(str(raw or ""))
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt.replace(microsecond=0)
-    except Exception:
-        return None
+# _parse_utc_naive moved to text_format_helpers.py (extraction pass #3,
+# 2026-08-22) -- pure stdlib datetime parser (identical body to
+# _parse_utc_naive_dt, kept as a separate alias since both names are used
+# by different call sites).
+_parse_utc_naive = text_format_helpers.parse_utc_naive
 
 
 def _choose_daily_reminder_text(last_text: str = "") -> str:
@@ -4622,7 +4614,7 @@ async def _export_period_xlsx(spec: Dict[str, Any]) -> str:
     ws.title = "leads"
     headers = [
         "№", "Дата", "Время", "Период", "Фильтр", "manager_key", "Аккаунт менеджера", "chat_id", "username", "Имя аккаунта", "Телефон", "Дубликат",
-        "Возраст", "Город", "Регион", "Страна", "Статус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
+        "Возраст", "Город", "Регион", "Страна", "С��атус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
     ]
     ws.append(headers)
     for cell in ws[1]:
@@ -10138,34 +10130,10 @@ TP_FOLLOWUP_START_HOUR = 7
 TP_FOLLOWUP_END_HOUR = 21
 
 
-def _format_wait_duration(value: Any) -> str:
-    try:
-        n = float(value or 0)
-    except Exception:
-        n = 0.0
-    minutes = int(round(n / 60.0)) if n > 600 else int(round(n))
-    if minutes <= 0:
-        return "0 мин"
-    h, m = divmod(minutes, 60)
-    d, h = divmod(h, 24)
-    parts = []
-    if d:
-        parts.append(f"{d} д")
-    if h:
-        parts.append(f"{h} ч")
-    if m or not parts:
-        parts.append(f"{m} мин")
-    return " ".join(parts)
-
-
-def _tp_utc_parse(raw: Any) -> Optional[datetime]:
-    try:
-        dt = datetime.fromisoformat(str(raw or ""))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0)
-    except Exception:
-        return None
+# _format_wait_duration, _tp_utc_parse moved to text_format_helpers.py
+# (extraction pass #3, 2026-08-22) -- pure stdlib duration/datetime helpers.
+_format_wait_duration = text_format_helpers.format_wait_duration
+_tp_utc_parse = text_format_helpers.tp_utc_parse
 
 
 def _tp_is_between_hours(local_dt: datetime, start_hour: int, end_hour: int) -> bool:
@@ -10999,7 +10967,7 @@ _CONTENT_TEXT_LABELS = {
     "nonliquid_country_template": "Шаблон nonliquid страна",
     "clarify_age": "Уточнение возраста",
     "clarify_geo": "Уточнение города",
-    "clarify_both": "Уточнение города и возраста",
+    "clarify_both": "Уточнение города и возрас��а",
     "profile_reminder_first": "Анкета дожим 1",
     "profile_reminder_second": "Анкета дожим 2",
     "profile_reminder_third": "Анкета дожим 3",
@@ -16602,7 +16570,7 @@ def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[overri
         _tpag_geo_line("Server Geo", {"country": row.get("auth_direct_country"), "region": row.get("auth_direct_region"), "city": row.get("auth_direct_city")}),
         "",
         f"Auth Guard: {guard}",
-        f"Проверено: {row.get('auth_guard_checked_at') or '_'}",
+        f"Прове��ено: {row.get('auth_guard_checked_at') or '_'}",
         f"Последний OK: {row.get('auth_guard_last_ok_at') or '_'}",
     ]
     try:
@@ -21500,7 +21468,7 @@ async def _tp_hg_mark(target: str, status: str, reason: str = "") -> str:  # typ
         f"Причина: {reason_s}",
         "",
         "Ручная отметка держится до команды /tghealth reset.",
-        "Уведомление отправляется только по 🟠 LIMITED и 🔴 BLOCKED.",
+        "Уведомление от��равляется только по 🟠 LIMITED и 🔴 BLOCKED.",
     ]).rstrip()
 
 
@@ -32110,7 +32078,7 @@ async def _prenew_autorenew_one(lease: Dict[str, Any]) -> None:
         title = "⚠️ Продление прокси не подтверждено"
         lines = [title, "", *header, "",
                  "Списание могло пройти, но Proxy-Seller пока не подтвердил новый срок.",
-                 "Повторное списание автоматически не выполняется.",
+                 "Повторное списание автоматически не выполн��ется.",
                  "",
                  "Что делать: синхронизируйте пул и проверьте прокси.",
                  "", f"lease_id: {lease_id}"]
@@ -36505,7 +36473,7 @@ async def _repl4_validate_new_runtime(op_row: Dict[str, Any], new_key: str) -> O
     if not perm_path or not os.path.exists(perm_path):
         return _repl4_result(False, "missing_permanent_session", "Постоянная сессия не найдена.", op, op_row, manual_recovery_required=True)
     if int(row.get("tg_user_id") or 0) != int(op_row.get("new_tg_user_id") or 0):
-        return _repl4_result(False, "identity_mismatch", "Идентификатор нового менеджера не совпадает.", op, op_row, manual_recovery_required=True)
+        return _repl4_result(False, "identity_mismatch", "Идентификатор нового мене��жера не совпадает.", op, op_row, manual_recovery_required=True)
     conflict_key = await _replacement_tg_user_conflict(int(row.get("tg_user_id") or 0))
     if conflict_key and conflict_key != new_key:
         return _repl4_result(False, "identity_conflict", "Конфликт Telegram-идентификатора.", op, op_row, manual_recovery_required=True)
