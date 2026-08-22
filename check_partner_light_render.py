@@ -1,4 +1,4 @@
-﻿import partner_stat_bot as p
+import partner_stat_bot as p
 
 uid = 8254783932
 

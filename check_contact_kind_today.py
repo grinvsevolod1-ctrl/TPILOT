@@ -1,15 +1,16 @@
-﻿import sqlite3
-import glob
+import sqlite3
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+import tpilot_paths
 
 today = datetime.now(ZoneInfo("Europe/Kyiv")).date().isoformat()
 
 print("DATE:", today)
 print()
 
-for p in glob.glob(r"C:\ALM_TPilot\runtime\managers\*\*.db"):
+for p in tpilot_paths.manager_db_paths():
     key = os.path.splitext(os.path.basename(p))[0]
     con = sqlite3.connect(p)
     try:

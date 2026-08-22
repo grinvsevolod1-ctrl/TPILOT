@@ -1,8 +1,9 @@
-﻿import sqlite3
-import glob
+import sqlite3
 import os
 
-for p in glob.glob(r"C:\ALM_TPilot\runtime\managers\*\*.db"):
+import tpilot_paths
+
+for p in tpilot_paths.manager_db_paths():
     key = os.path.splitext(os.path.basename(p))[0]
     con = sqlite3.connect(p)
     try:

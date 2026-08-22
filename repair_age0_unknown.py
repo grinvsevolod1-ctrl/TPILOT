@@ -12,15 +12,15 @@ age going forward. This script fixes the DATA already stored in daily_leads so o
 rows are consistent with the fixed logic without needing a re-parse.
 
 WARNING: back up the DB before running with --apply:
-    Copy-Item C:\\ALM_TPilot\\runtime\\managers\\dariass\\dariass.db `
-              C:\\ALM_TPilot\\runtime\\managers\\dariass\\dariass.db.bak_age0_<timestamp>
+    cp runtime/managers/dariass/dariass.db \\
+       runtime/managers/dariass/dariass.db.bak_age0_$(date +%Y%m%d_%H%M%S)
 
-Usage (on server, from C:\\ALM_TPilot):
-    .\\venv\\Scripts\\python.exe repair_age0_unknown.py          # dry-run (no writes)
-    .\\venv\\Scripts\\python.exe repair_age0_unknown.py --apply  # actually update
+Usage (from the deployment root, e.g. /opt/tpilot):
+    ./venv/bin/python repair_age0_unknown.py          # dry-run (no writes)
+    ./venv/bin/python repair_age0_unknown.py --apply  # actually update
 
-Local dry-run (adjust DB path below if needed):
-    python3.12 repair_age0_unknown.py
+The DB is always the one inside THIS tree (see DB_PATH below), so a dry-run from a
+checkout can never read -- and --apply can never write -- another deployment's data.
 """
 
 import os
@@ -29,11 +29,14 @@ import sqlite3
 
 MANAGER_KEY = "dariass"
 
-SERVER_DB = r"C:\ALM_TPilot\runtime\managers\dariass\dariass.db"
-LOCAL_DB = os.path.join(
-    os.path.dirname(__file__), "runtime", "managers", "dariass", "dariass.db"
-)
-DB_PATH = SERVER_DB if os.path.exists(SERVER_DB) else LOCAL_DB
+import tpilot_paths
+
+# UBUNTU MIGRATION STAGE 2: this used to prefer a hardcoded C:\ALM_TPilot path and
+# only fall back to the local tree. That ordering was a hazard even on Windows --
+# running the script from a checkout would silently repair the SERVER database
+# instead of the one next to it. The tree containing this file is now the single
+# source of truth, so --apply can only ever touch the DB of the tree it lives in.
+DB_PATH = str(tpilot_paths.manager_runtime_dir(MANAGER_KEY) / f"{MANAGER_KEY}.db")
 
 DRY_RUN = "--apply" not in sys.argv
 

@@ -1,8 +1,9 @@
-﻿import sqlite3
-import glob
+import sqlite3
 import os
 
-tpilot_db = r"C:\ALM_TPilot\db\data_tpilot.db"
+import tpilot_paths
+
+tpilot_db = str(tpilot_paths.require_db())
 
 con = sqlite3.connect(tpilot_db)
 try:
@@ -17,7 +18,7 @@ finally:
 print()
 print("=== MANAGER DBS ===")
 
-for p in glob.glob(r"C:\ALM_TPilot\runtime\managers\*\*.db"):
+for p in tpilot_paths.manager_db_paths():
     key = os.path.splitext(os.path.basename(p))[0]
     con = sqlite3.connect(p)
     try:

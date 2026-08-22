@@ -1,6 +1,8 @@
-﻿import sqlite3
+import sqlite3
 
-db = r"C:\ALM_TPilot\db\data_tpilot.db"
+import tpilot_paths
+
+db = str(tpilot_paths.require_db())
 con = sqlite3.connect(db)
 con.row_factory = sqlite3.Row
 

@@ -105,6 +105,9 @@ __all__ = [
     "systemd_restart",
     "stop_manager",
     "start_manager",
+    "running_manager_keys",
+    "start_script",
+    "stop_script",
 ]
 
 IS_WINDOWS = os.name == "nt"
@@ -810,7 +813,7 @@ def start_manager(
     if existing is None:
         return False, (
             "Не удалось проверить, запущен ли уже этот менеджер — запуск отменён, "
-            "чтобы не открыть вторую сессию."
+            "чтобы не открыть вто��ую сессию."
         )
     if existing:
         return False, "Менеджер уже запущен — повторный запуск отменён (защита .session)."
@@ -854,3 +857,138 @@ def start_manager(
                 log_handle.close()
             except Exception:
                 pass
+
+
+def running_manager_keys(*, base_dir: Any) -> Optional[List[str]]:
+    """Every manager key with at least one live runtime, or None if the scan
+    failed.
+
+    None is NOT an empty list. `stop_all` relies on that distinction: reporting
+    "no managers were running" after a failed scan would leave live Telethon
+    sessions behind while telling the operator the stack was cleanly stopped."""
+    procs = list_python_processes(base_dir=base_dir)
+    if procs is None:
+        return None
+    return sorted(count_managers_by_key(procs, base_dir))
+
+
+def start_script(
+    script_name: str,
+    *,
+    base_dir: Any,
+    args: Optional[Sequence[str]] = None,
+    log_path: Any = None,
+    python_exe: Any = None,
+) -> Tuple[bool, str]:
+    """Start a service script (`panel_bot.py`, `health_server.py`, ...) detached.
+
+    This is the no-systemd fallback only; on a normal Ubuntu deployment the unit
+    files own these processes. Unlike `start_manager` there is no .session to
+    corrupt here, so the duplicate check lives in the caller (tpilot_ctl), which
+    can report it more precisely."""
+    base = Path(str(base_dir or "."))
+    entrypoint = base / str(script_name)
+    if not entrypoint.exists():
+        return False, f"Не найден {entrypoint}"
+
+    argv: List[str] = [str(python_exe or venv_python(base)), str(entrypoint)]
+    argv += [str(a) for a in (args or [])]
+
+    log_handle = None
+    try:
+        if log_path:
+            target = Path(str(log_path))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            log_handle = target.open("a", encoding="utf-8")
+        stream = log_handle if log_handle is not None else subprocess.DEVNULL
+
+        popen_kwargs: Dict[str, Any] = {
+            "cwd": str(base),
+            "stdout": stream,
+            "stderr": stream,
+            "stdin": subprocess.DEVNULL,
+        }
+        if IS_WINDOWS:
+            flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+            if flags:
+                popen_kwargs["creationflags"] = flags
+        else:
+            popen_kwargs["start_new_session"] = True
+
+        subprocess.Popen(argv, **popen_kwargs)  # noqa: S603 -- fixed argv, no shell
+        return True, "OK"
+    except Exception as exc:
+        return False, f"Ошибка запуска: {exc!r}"
+    finally:
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
+
+
+def stop_script(
+    script_name: str,
+    *,
+    base_dir: Any,
+    exclude_manager_flag: bool = False,
+    timeout_sec: float = _DEFAULT_STOP_TIMEOUT,
+) -> Tuple[bool, str]:
+    """Stop a service script and VERIFY it is gone, mirroring `stop_manager`.
+
+    `exclude_manager_flag=True` is required for the controller: it runs the same
+    `main.py` as every manager runtime, so without it a "stop the controller"
+    request would sweep all managers with it."""
+    needle = norm_path(script_name)
+    if not needle:
+        return False, "Пустое имя скрипта."
+
+    procs = list_python_processes(base_dir=base_dir)
+    if procs is None:
+        return False, "Не удалось прочитать список процессов — остановка не подтверждена."
+
+    pids: List[int] = []
+    matched_without_pid = False
+    for proc in filter_project_procs(procs, base_dir):
+        cmd = norm_path(proc.get("cmd", ""))
+        if needle not in cmd:
+            continue
+        if exclude_manager_flag and manager_key_from_cmdline(cmd):
+            continue
+        raw = str(proc.get("pid") or "").strip()
+        if raw.isdigit():
+            pids.append(int(raw))
+        else:
+            # Same rule as find_manager_procs: a row we matched but could not
+            # attribute a pid to still proves something is running, so we must
+            # not report a confident clean stop.
+            matched_without_pid = True
+
+    if not pids:
+        if matched_without_pid:
+            return False, "Процесс найден, но его PID не читается — остановка не подтверждена."
+        return True, "OK"
+
+    for pid in pids:
+        _terminate_pid(pid)
+
+    grace_deadline = time.monotonic() + max(1.0, timeout_sec - 3.0)
+    while time.monotonic() < grace_deadline:
+        if not any(_pid_alive(pid) for pid in pids):
+            return True, "OK"
+        time.sleep(0.25)
+
+    survivors = [pid for pid in pids if _pid_alive(pid)]
+    for pid in survivors:
+        _kill_pid(pid)
+
+    hard_deadline = time.monotonic() + 3.0
+    while time.monotonic() < hard_deadline:
+        if not any(_pid_alive(pid) for pid in survivors):
+            return True, "OK (SIGKILL)"
+        time.sleep(0.25)
+
+    still = [pid for pid in survivors if _pid_alive(pid)]
+    if still:
+        return False, f"Процессы не завершились даже после SIGKILL: {still}"
+    return True, "OK (SIGKILL)"

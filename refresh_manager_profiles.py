@@ -5,7 +5,12 @@ from pathlib import Path
 from dotenv import dotenv_values
 from telethon import TelegramClient
 
-root = Path(r"C:\ALM_TPilot")
+import tpilot_paths
+
+# UBUNTU MIGRATION STAGE 2: was Path(r"C:\ALM_TPilot"), which made this script
+# unusable anywhere but the old Windows server. Derived from the repo location
+# instead, with a TPILOT_ROOT override for inspecting a relocated tree.
+root = tpilot_paths.ROOT
 env = dotenv_values(root / ".env.TPilot")
 
 api_id = int(env.get("API_ID") or 0)

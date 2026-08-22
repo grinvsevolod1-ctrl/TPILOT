@@ -890,8 +890,21 @@ def check_manager_today(
     }
 
     # Process (per-manager main.py --manager <key>).
+    #
+    # UBUNTU MIGRATION STAGE 2: the remediation used to name restart_everything.bat,
+    # which no longer exists (and restarting the WHOLE stack was never the right
+    # advice for one dead manager anyway). The per-manager command is both correct
+    # and far less disruptive.
+    #
+    # Only `is False` triggers this. `None` means the scan itself was unreliable and
+    # must stay silent -- that conflation is what made this report cry wolf about
+    # every manager on Linux.
     if process_running is False:
-        out["issues"].append({"kind": "process", "text": "процесс менеджера не найден", "fix": "перезапустить через restart_everything.bat"})
+        out["issues"].append({
+            "kind": "process",
+            "text": "процесс менеджера не найден",
+            "fix": f"tpilot-ctl restart-manager {mk}",
+        })
 
     # Session/account health -- read-only, last known status only.
     hs = str((health_row or {}).get("health_status") or "unknown").strip().lower()
