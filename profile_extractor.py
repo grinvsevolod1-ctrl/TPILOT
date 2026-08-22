@@ -334,45 +334,6 @@ def _special_geo(text: str, rules: RuleSet) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _parse_geo_safe(text: str, rules: RuleSet) -> Dict[str, Any]:
-    raw = str(text or "").strip()
-    if not raw:
-        return {"city": None, "region": None, "country": None, "geo_source": "", "geo_confidence": "none", "geo_note": "", "geo_evidence_text": ""}
-    # Special GEO_OK must beat UA locations.
-    sp = _special_geo(raw, rules)
-    if sp:
-        return sp
-
-    # Do not route pure age / work chatter to geo parser.
-    if _looks_like_age_message(raw) and not _has_geo_context(raw):
-        # Allow explicit country with age, e.g. "Россия 18", "Казахстан 25".
-        low = _key(raw)
-        if not re.search(r"\b(россия|рф|казахстан|украина|беларусь|узбекистан|молдова|таджикистан|азербайджан|кыргызстан|киргизия)\b", low):
-            return {"city": None, "region": None, "country": None, "geo_source": "age_message_skip_geo", "geo_confidence": "none", "geo_note": "", "geo_evidence_text": ""}
-    if _is_interest_text(raw) and not _has_geo_context(raw) and not re.search(r"\b(россия|рф|казахстан|украина|беларусь|узбекистан|молдова|таджикистан|азербайджан|кыргызстан|киргизия)\b", _key(raw)):
-        return {"city": None, "region": None, "country": None, "geo_source": "interest_skip_geo", "geo_confidence": "none", "geo_note": "", "geo_evidence_text": ""}
-
-    if _router is None or not hasattr(_router, "parse_geo"):
-        return {"city": None, "region": None, "country": None, "geo_source": "", "geo_confidence": "none", "geo_note": "", "geo_evidence_text": ""}
-    got = _router.parse_geo(raw) or {}
-    country = got.get("country")
-    city = got.get("city")
-    # City blacklist guard.
-    if city and _key(city) in {_key(x) for x in rules.city_blacklist}:
-        return {"city": None, "region": None, "country": None, "geo_source": "city_blacklist", "geo_confidence": "none", "geo_note": "blocked_city_candidate", "geo_evidence_text": ""}
-    if country:
-        return {
-            "city": city,
-            "region": got.get("region"),
-            "country": country,
-            "geo_source": got.get("source") or "router",
-            "geo_confidence": got.get("confidence") or "medium",
-            "geo_note": got.get("note") or "",
-            "geo_evidence_text": raw,
-        }
-    return {"city": None, "region": None, "country": None, "geo_source": got.get("source") or "", "geo_confidence": got.get("confidence") or "none", "geo_note": got.get("note") or "", "geo_evidence_text": ""}
-
-
 def _as_bool(raw: Any) -> Optional[bool]:
     if raw is None:
         return None
