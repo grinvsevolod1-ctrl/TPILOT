@@ -97,7 +97,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -196,6 +196,13 @@ SINGLE_NAMES = {
     "TP_HG_VERIFY_IDENTITY_MISMATCH", "TP_HG_VERIFY_ACCOUNT_DEACTIVATED_CONFIRMED",
     "TP_HG_VERIFY_ACCOUNT_BANNED_CONFIRMED", "TP_HG_VERIFY_NETWORK_OR_PROXY_PROBLEM",
     "TP_HG_VERIFY_UNKNOWN",
+    # STAGE 3: the utcnow refactor (2026-08-16) replaced bare datetime.utcnow() calls
+    # throughout main.py with the _tp_utc_now() clock seam. Extracted bodies therefore
+    # call it, and every harness that did not know about it broke at once with
+    # "NameError: name '_tp_utc_now'". It is a pure, side-effect-free clock helper
+    # (main.py line 15), so extract the REAL one rather than stubbing a clock -- the
+    # naive-UTC contract is exactly what the timestamp assertions here depend on.
+    "_tp_utc_now",
 }
 # Names with a stacked override chain in main.py -- only the LAST top-level
 # def is runtime-active; earlier ones are shadowed dead code (see CLAUDE.md
@@ -366,7 +373,9 @@ def build_main_ns(db_path: str, fake_client: FakeClient, *, manager_key: str = "
 
     ns: Dict[str, Any] = {
         "Any": Any, "Dict": Dict, "Optional": Optional, "Tuple": Tuple, "List": List,
-        "datetime": datetime, "timedelta": timedelta,
+        # timezone: required by the real _tp_utc_now() (utcnow refactor 2026-08-16),
+        # which builds an aware UTC datetime and then drops the tzinfo.
+        "datetime": datetime, "timedelta": timedelta, "timezone": timezone,
         "re": re, "os": os, "asyncio": asyncio, "time": __import__("time"),
         "aiosqlite": _aiosqlite,
         "_tp_hg_sqlite3": sqlite3,
