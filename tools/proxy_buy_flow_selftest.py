@@ -299,17 +299,13 @@ def main() -> int:
     # 9. Existing manual proxy flow still works -- regression via AST
     #    extraction (main.py/panel_bot.py cannot be imported standalone).
     # ------------------------------------------------------------------
-    def extract_and_exec(path: str, names: set[str], extra_ns: dict):
-        src = open(path, encoding="utf-8-sig").read()
-        tree = ast.parse(src)
-        nodes = [n for n in tree.body if getattr(n, "name", None) in names]
-        if len(nodes) != len(names):
-            found = {getattr(n, "name", None) for n in nodes}
-            raise AssertionError(f"expected {names}, found {found} in {path}")
-        module_src = "\n\n".join(ast.unparse(n) for n in nodes)
-        ns = dict(extra_ns)
-        exec(compile(module_src, f"<{path}>", "exec"), ns)
-        return ns
+    # STAGE 3: use the shared harness (tools/ast_extract.py) instead of a private
+    # def-only copy. _proxy_type_norm / _proxy_port_int are now module-level aliases of
+    # proxy_parser helpers rather than `def`s in main.py, which this local extractor
+    # could not see -- it failed with "expected {...}, found {...}". The shared version
+    # resolves aliases AND applies last-wins for main.py's stacked override defs (the
+    # local copy collected every occurrence, so a duplicated name broke its len check).
+    from ast_extract import extract_and_exec
 
     import re as _re
 

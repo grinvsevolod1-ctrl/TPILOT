@@ -223,33 +223,65 @@ bash -n deploy/install_ubuntu.sh && bash deploy/install_ubuntu.sh --dry-run
 Always also: mojibake scan (search `Ð`, `Ñ`, `â€`) in changed files; allow_spend audit;
 show diff/summary before owner approval.
 
-KNOWN PRE-EXISTING selftest failures (verified against a clean `git archive HEAD` tree —
-do NOT attribute these to a new patch, and do not "fix" them as part of an unrelated
-change): `proxy_buy_flow`, `manager_relogin`, `deleted_manager_stats_retention`,
-`identity_sync_ira`, `liquid_ru_locations_parity`, `non_liquid_locations_parity`,
-`manager_replacement_adminbot`, `manager_replacement_backend`,
-`manager_replacement_commit`, `prepared_accounts_offline_import`.
-When touching a failing area, re-verify against HEAD before and after.
+### Selftest harness (Stage 3 — all 10 formerly failing selftests now pass)
 
-Diagnosed causes (these are STALE TEST HARNESSES, not product bugs — the product code
-was refactored correctly and the AST-extraction harnesses were not updated):
+The 10 long-standing failures were STALE TEST HARNESSES, not product bugs: the product
+code had been refactored correctly and the AST-extraction harnesses were never updated.
+All are fixed; the causes are recorded because they will recur on the next refactor.
 
-1. **Un-injected dependency in the exec namespace.** The harness AST-extracts a function
-   and `exec`s it, but the extracted code now references a module the namespace does not
-   provide → `NameError: name 'text_format_helpers' / 'proxy_parser' / '_db_conn'`.
-   Affects `manager_relogin`, `identity_sync_ira`, `manager_replacement_adminbot`,
-   `manager_replacement_backend`. Fix = add the module to the namespace dict; this is
-   exactly the fix applied to `startup_isolation_selftest` (`process_control`).
-2. **Helper moved out of `main.py` into a module and re-bound by assignment**
-   (e.g. `_manager_label_from_row = text_format_helpers.manager_label_from_row`). The
-   harness only accepts a top-level `def`, so it reports "could not find ... as top-level
-   defs". Affects `deleted_manager_stats_retention`, `proxy_buy_flow`. Fix = teach
-   `extract_and_exec` to resolve module-level aliases, not just `def`s.
-3. **Missing ground-truth artifact.** `liquid_ru_locations_parity` /
-   `non_liquid_locations_parity` need a `*.bak_datamove_*` backup file to diff against;
-   it is absent from a sanitized checkout. Environmental, not a code defect.
-4. `prepared_accounts_offline_import` fails 17 real checks (session install/rollback) and
-   is the only one NOT yet root-caused — investigate before trusting that area.
+**`tools/ast_extract.py` is now the shared AST harness. Use it — do not write a new
+private copy.** 102 of 154 selftests still carry their own copy; migrate opportunistically
+when touching one. It handles the three shapes a private copy always gets wrong:
+
+1. **Module-level alias, not a `def`.** When a helper moves into a module and is re-bound
+   (`_manager_label_from_row = text_format_helpers.manager_label_from_row`), a def-only
+   extractor reports "could not find ...". Affected `deleted_manager_stats_retention`,
+   `proxy_buy_flow`.
+2. **Un-injected module in the exec namespace.** Extracted `main.py` code reaches modules
+   through module-level `import` aliases, which name-based extraction never captures →
+   `NameError: text_format_helpers / proxy_parser`. `safe_module_ns()` seeds them all;
+   splat it FIRST so explicit fakes still win. Affected `manager_relogin`,
+   `manager_replacement_{adminbot,backend,commit}`. (`identity_sync_ira` was the same
+   shape but a real `storage._db_conn` dependency, bound explicitly.)
+3. **Last-wins.** `extract_nodes` takes the LAST top-level definition, matching Python and
+   the override convention in §4. Private copies that collect every occurrence break on
+   any duplicated name. Accepts `str` or `Path`.
+
+Ground truth for `liquid_ru_locations_parity` / `non_liquid_locations_parity` (267k
+records) is recovered from **git history** — commit 5e13c32 untracked the
+`*.bak_datamove_*` artifacts on purpose, but the blobs remain reachable. Do NOT re-add
+those 20 MB files to the working tree.
+
+**`prepared_accounts_offline_import`: 17 failures, one root cause — and a live hazard.**
+`tdata_import/session_inspector.py` hardcoded schema `7` (telethon==1.42.0). Telethon
+1.44 writes schema **8**, so on any host resolving a newer Telethon EVERY prepared-account
+import fails with "unsupported schema version 8 (need 7)" — a message that blames the
+operator's session file, not the dependency. The constant is now derived from the
+installed Telethon (fallback 7), and the comparison stays EXACT on purpose: accepting
+">= 7" would let an unknown future schema into session installation, where a wrong
+install is unrecoverable without re-login.
+
+The real danger is on disk: **Telethon migrates an older `.session` IN PLACE on first
+open** (`SQLiteSession.__init__` → `_upgrade_database` + `save`). All live sessions are
+schema 7, so a Telethon upgrade is a one-way migration of live credentials, recoverable
+only from a backup. `tpilot-ctl doctor` now names every stale session and warns before
+managers start; `install_ubuntu.sh` reports the same agreement at install time. **Back up
+`runtime/managers/*/` before any Telethon upgrade.**
+
+### Override chains: navigate, do not "clean up"
+
+`main.py` has 63 duplicated top-level names (139 shadowed defs, worst:
+`_panel_execute_command_text` ×35); `panel_bot.py` has 35 (65 shadowed). These are NOT
+dead code — every duplicated name participates in delegation (325 `globals().get()`
+captures in `main.py`), so a shadowed def is still reachable as a fallback and deleting
+one silently drops behaviour.
+
+- `python tools/override_map.py <name>` — every definition, which one is ACTIVE, and the
+  delegation captures. Use this instead of `grep -n "def name" | tail -1`.
+- `python tools/override_map.py --stats` — whole-file picture.
+- `tools/override_chain_selftest.py` pins the counts, so a "duplicate cleanup" that drops
+  a shadowed def fails loudly (mutation-verified). Update the baseline only with a
+  deliberate, explained change.
 
 ## 10. Deployment process
 

@@ -114,12 +114,18 @@ def _referenced_names(nodes: Iterable[ast.AST]) -> set[str]:
     return seen
 
 
-def extract_nodes(path: Path, names: set[str]) -> dict[str, ast.AST]:
+def extract_nodes(path: Path | str, names: set[str]) -> dict[str, ast.AST]:
     """Return the ACTIVE top-level node for each requested name.
 
     Later definitions overwrite earlier ones, matching Python's own semantics and the
     override-chain convention in main.py / panel_bot.py.
+
+    `path` accepts str as well as Path: the existing selftests call this with
+    str(BASE_DIR / "main.py"), and 100+ of them still carry a private copy of this
+    harness that they will be migrated off one at a time. Coercing here means adopting
+    the shared version never requires touching their call sites.
     """
+    path = Path(path)
     tree = ast.parse(path.read_text(encoding="utf-8-sig"))
     picked: dict[str, ast.AST] = {}
     for node in tree.body:
@@ -136,7 +142,7 @@ def extract_nodes(path: Path, names: set[str]) -> dict[str, ast.AST]:
 
 
 def extract_and_exec(
-    path: Path,
+    path: Path | str,
     names: set[str],
     extra_ns: dict[str, Any] | None = None,
     *,
@@ -148,6 +154,7 @@ def extract_and_exec(
     (that is how the proxy selftests inject a no-spend provider).
     """
     extra_ns = dict(extra_ns or {})
+    path = Path(path)  # accept str call sites; path.name is used in messages below
     picked = extract_nodes(path, names)
 
     missing = names - set(picked)
