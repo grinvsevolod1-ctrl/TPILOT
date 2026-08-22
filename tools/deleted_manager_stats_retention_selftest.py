@@ -98,21 +98,11 @@ def body_src_without_docstring(node) -> str:
     return ast.unparse(node2)
 
 
-def extract_and_exec(path: Path, names: set[str], extra_ns: dict) -> dict:
-    """AST-extract the LAST (active) def of each requested name and exec into a
-    seeded namespace -- same technique as the other tools/*_selftest.py files."""
-    tree = ast.parse(path.read_text(encoding="utf-8-sig"))
-    picked: dict = {}
-    for node in tree.body:
-        if getattr(node, "name", None) in names:
-            picked[node.name] = node  # later defs overwrite earlier -> last wins
-    missing = names - set(picked)
-    if missing:
-        raise AssertionError(f"could not find {missing} as top-level defs in {path}")
-    module_src = "\n\n".join(ast.unparse(picked[n]) for n in sorted(picked))
-    ns = dict(extra_ns)
-    exec(compile(module_src, f"<{path.name}>", "exec"), ns)
-    return ns
+from ast_extract import extract_and_exec  # noqa: E402
+# UBUNTU MIGRATION STAGE 3: the private copy of this extractor understood only a
+# top-level `def`, so it broke when _manager_label_from_row was (correctly) moved into
+# text_format_helpers and re-bound by assignment. The shared harness understands that
+# shape and auto-injects the module, so the same refactor no longer reads as a failure.
 
 
 def iso(dt: datetime) -> str:

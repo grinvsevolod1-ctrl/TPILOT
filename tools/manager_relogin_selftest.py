@@ -42,6 +42,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+import ast_extract  # noqa: E402  (shared AST harness, lives next to this file)
+
 FAILURES: list[str] = []
 
 
@@ -314,6 +316,10 @@ def build_main_ns(db_path: str, base_dir: Path, *, script: dict = None, os_modul
     module_src = "\n\n".join(ast.unparse(n) for n in nodes)
 
     ns = {
+        # STAGE 3: seed every side-effect-free project module the extracted main.py code
+        # may reference through a module-level import alias (text_format_helpers,
+        # proxy_parser, ...). Splatted FIRST so the explicit fakes below always win.
+        **ast_extract.safe_module_ns(),
         "os": os_module or os,
         "asyncio": asyncio,
         "shutil": shutil,

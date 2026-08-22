@@ -58,6 +58,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+import ast_extract  # noqa: E402  (shared AST harness, lives next to this file)
+
 FAILURES: list[str] = []
 
 
@@ -593,6 +595,10 @@ def build_main_ns(db_path: str, base_dir: Path, *, script: dict = None, fast_dea
     module_src = "\n\n".join(ast.unparse(n) for n in nodes)
 
     ns = {
+        # STAGE 3: seed side-effect-free project modules reached through module-level
+        # import aliases in the extracted main.py code (this test hit it as
+        # NameError: proxy_parser). Splatted first; fakes below win.
+        **ast_extract.safe_module_ns(),
         "os": os,
         "shutil": shutil,
         "re": __import__("re"),
