@@ -498,6 +498,10 @@ def build_relogin_commit_ns(db_path: str, base_dir: Path) -> dict:
     client_factory = make_relogin_client_factory({"pass_sign_in": "ok"}, calls)
 
     ns = {
+        # STAGE 3: seed side-effect-free project modules reached through main.py's
+        # module-level import aliases (NameError: proxy_parser). First, so the
+        # explicit fakes below win.
+        **ast_extract.safe_module_ns(),
         "os": os, "asyncio": asyncio, "Path": Path, "shutil": __import__("shutil"),
         "datetime": datetime, "timedelta": timedelta, "timezone": timezone,
         "Optional": None, "Dict": dict, "Any": object,
@@ -551,6 +555,10 @@ def build_promote_ns(db_path: str, base_dir: Path, *, script: dict = None) -> di
     client_factory = make_replace_client_factory(script or {"pass_sign_in": "ok"}, calls)
 
     ns = {
+        # STAGE 3: seed side-effect-free project modules reached through main.py's
+        # module-level import aliases (NameError: proxy_parser). First, so the
+        # explicit fakes below win.
+        **ast_extract.safe_module_ns(),
         "os": os, "asyncio": asyncio, "Path": Path,
         "Optional": None, "Dict": dict, "Any": object,
         "BASE_DIR": base_dir, "TPILOT_DB_PATH": db_path,
@@ -1092,6 +1100,11 @@ def main() -> int:
             nodes = _extract_by_names(MAIN_SRC, SIGNIN_NAMES)
             module_src = "\n\n".join(ast.unparse(n) for n in nodes)
             ns = {
+                # STAGE 3: seed side-effect-free project modules that extracted main.py
+                # code reaches through module-level import aliases (this path hit it as
+                # NameError: proxy_parser). Splatted FIRST so the explicit bindings
+                # below -- including the storage fakes and the DB guard -- still win.
+                **ast_extract.safe_module_ns(),
                 "os": os, "asyncio": asyncio, "aiosqlite": _aiosqlite2, "Path": Path,
                 "datetime": datetime, "timedelta": timedelta, "timezone": timezone,
                 "Optional": None, "Dict": dict, "Any": object,
