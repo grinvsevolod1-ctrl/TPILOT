@@ -1,6 +1,6 @@
-﻿import asyncio
+import asyncio
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import dotenv_values
 from telethon import TelegramClient
@@ -13,7 +13,9 @@ api_hash = (env.get("API_HASH") or "").strip()
 db_path = root / "db" / "data_tpilot.db"
 
 def now_iso():
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    # utcnow refactor: naive-UTC seam, byte-identical to the old
+    # datetime.utcnow() output and deprecation-free on Python 3.12+.
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat()
 
 async def refresh_one(key):
     session_path = root / "runtime" / "managers" / key / f"{key}.session"
