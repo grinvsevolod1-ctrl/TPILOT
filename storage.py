@@ -10246,8 +10246,9 @@ def ensure_w3_schedule_versioning(db_path=None):
     defense in 06 6.7; layer 3 is the writer helpers below). Idempotent
     (CREATE ... IF NOT EXISTS throughout). Never touches any legacy table. Callers
     invoke this explicitly -- nothing in this module calls it at import time, and no
-    process-startup path in the project calls it either (scope guard: see
-    tools/w3_1_scope_guard_selftest.py)."""
+    process-startup path in the project calls it either (verified at W3.1 audit time by
+    tools/w3_1_scope_guard_selftest.py; that one-shot guard was retired 2026-08-22 with
+    its unrecoverable Windows baseline -- the no-startup-call property itself stands)."""
     con = _bsl_connect(db_path)
     try:
         con.executescript("""
@@ -11532,9 +11533,11 @@ def w3_resolve_schedule_batch(manager_keys, business_date=None, **kw):
 # dimension, the stats dimension, or any call to w3_tz()/w3_local_at() -- the work-day
 # decision consumes only a caller-supplied business_date string and needs neither zone
 # nor instant (05_CANONICAL_RESOLVER_CONTRACT.md 5.4/5.6). Equivalence to the full
-# resolver's is_working_day is asserted by tools/w3_3_c1_reader_parity_selftest.py over
-# the whole scenario matrix, so this can never silently drift into a second
-# implementation. See the W3.3 plan freeze S9 for the exact degradation and
+# resolver's is_working_day was asserted at W3.3 audit time by
+# tools/w3_3_c1_reader_parity_selftest.py over the whole scenario matrix (guard retired
+# 2026-08-22 with its unrecoverable Windows baseline; the equivalence obligation on
+# anyone editing either implementation remains). See the W3.3 plan freeze S9 for the
+# exact degradation and
 # ensure-memo contracts these three functions implement.
 
 _W3_C1_ENSURE_TABLES = (
@@ -11615,10 +11618,12 @@ def _c1_legacy_list_working_on_date(work_date, db_path=None):
     this function's name, parameter-list rendering, docstring and the indentation of
     the relocated statements differ from the pre-edit active definition -- no
     statement reorder, no renamed local, no changed literal, no added/removed branch,
-    no added except, no changed return shape. Proof: tools/w3_3_c1_reader_parity_selftest.py
-    P1 (normalized AST equality), P2 (exact SQL-string multiset equality), P3
-    (branch/return-shape inventory) and P4 (behavioral parity), all run against the
-    pre-edit definition extracted from the external backup. This is also the sole
+    no added except, no changed return shape. Proven at W3.3 audit time by
+    tools/w3_3_c1_reader_parity_selftest.py P1 (normalized AST equality), P2 (exact
+    SQL-string multiset equality), P3 (branch/return-shape inventory) and P4 (behavioral
+    parity), all run against the pre-edit definition extracted from the external backup
+    (guard and backup retired 2026-08-22; the contract on future edits remains binding).
+    This is also the sole
     whole-function degradation target for the new public body above and the single
     place the legacy R1 SQL/decision logic exists in this module."""
     wd = str(work_date or "").strip()
