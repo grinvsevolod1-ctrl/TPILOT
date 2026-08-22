@@ -4,30 +4,37 @@ repair_darias_metadata.py  — TPILOT HISTSTATS M2.6H
 One-time repair: copy metadata rows from old key 'darias' -> new key 'dariass'.
 Runs against the PRODUCTION central DB on the server.
 
-Usage (on server, from C:\ALM_TPilot):
-    .\venv\Scripts\python.exe repair_darias_metadata.py          # dry-run (no writes)
-    .\venv\Scripts\python.exe repair_darias_metadata.py --apply  # actually migrate
+Usage (from the deployment root, e.g. /opt/tpilot):
+    ./venv/bin/python repair_darias_metadata.py          # dry-run (no writes)
+    ./venv/bin/python repair_darias_metadata.py --apply  # actually migrate
 
-Local dry-run (adjust DB_PATH below):
-    python3.12 repair_darias_metadata.py
+The DB is always the central DB of THIS tree, so a dry-run from a checkout can
+never read -- and --apply can never write -- another deployment's data.
 """
 
 import os
 import sys
 import sqlite3
 
+import tpilot_paths
+
 # ── Config ───────────────────────────────────────────────────────────────────
 OLD_KEY = "darias"
 NEW_KEY = "dariass"
 
-# Server path — adjust if needed
-SERVER_DB = r"C:\ALM_TPilot\db\data_tpilot.db"
-LOCAL_DB = os.path.join(os.path.dirname(__file__), "db", "data_tpilot.db")
-DB_PATH = SERVER_DB if os.path.exists(SERVER_DB) else LOCAL_DB
+# UBUNTU MIGRATION STAGE 2: this used to prefer a hardcoded C:\ALM_TPilot path and
+# only fall back to the local tree. That ordering was a hazard even on Windows --
+# running the script from a checkout would silently migrate the SERVER database
+# instead of the one next to it. Resolved from this tree only (TPILOT_DB_PATH /
+# TPILOT_ROOT still override, which is how a deliberate off-tree run is done).
+DB_PATH = str(tpilot_paths.tpilot_db())
 
 DRY_RUN = "--apply" not in sys.argv
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+REQUIRED_TABLES = ("managers", "manager_work_schedule_days")
+
 
 def connect():
     if not os.path.exists(DB_PATH):
@@ -35,6 +42,22 @@ def connect():
         sys.exit(1)
     con = sqlite3.connect(DB_PATH, timeout=30)
     con.row_factory = sqlite3.Row
+
+    # UBUNTU MIGRATION STAGE 2: fail with a diagnosis instead of a traceback.
+    # Now that DB_PATH is derived from the tree rather than hardcoded, the most
+    # likely mistake is pointing this at the WRONG tree (a sanitized copy, a
+    # fresh checkout). "no such table: managers" deep inside show_existing()
+    # reads like a code bug; naming the file and the missing table makes the
+    # actual cause obvious -- and it stops --apply before it writes anything.
+    present = {r["name"] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    missing = [t for t in REQUIRED_TABLES if t not in present]
+    if missing:
+        print(f"[ERROR] DB at {DB_PATH} is missing table(s): {', '.join(missing)}")
+        print("        This is not the production central DB (or it predates those tables).")
+        print("        Set TPILOT_ROOT=/path/to/deployment to target the right tree.")
+        con.close()
+        sys.exit(1)
     return con
 
 
