@@ -23,20 +23,28 @@ Components (all in one folder, one shared codebase):
 
 ## 2. Paths
 
-* Old local dev path (previous PC): `C:\Users\annam\Desktop\ALM_TPilot`
-* New local dev path (this PC): `C:\Users\PROFESSOR\Desktop\ALM_TPilot`
-* Production/server path: `C:\ALM_TPilot`
-* Production DB on server: `C:\ALM_TPilot\db\data_tpilot.db`
+**Never hardcode an absolute path in Python.** Use `tpilot_paths` (`ROOT`, `tpilot_db()`,
+`require_db()`, `manager_db_paths()`, `manager_runtime_dir()`), which derives everything
+from the tree the file lives in and honours the `TPILOT_ROOT` / `TPILOT_DB_PATH`
+overrides. A hardcoded path that "prefers the server and falls back to local" is a bug,
+not a convenience: running such a script from a checkout silently reads or writes the
+PRODUCTION database.
 
-The local tree is a **sanitized relocated copy** of the server, not the live system:
+* Ubuntu deployment root: `/opt/tpilot` (installer default, `--dir` overrides)
+* Deployment DB: `<root>/db/data_tpilot.db`
+* Legacy Windows paths (`C:\ALM_TPilot`, `C:\Users\...\ALM_TPilot`) are historical only.
 
-* Secrets in `.env.TPilot` were redacted on the old PC (empty token values). Uncertain
-  whether the new PC copy has them redacted too — verify before assuming misconfiguration.
-* The bundled `venv\` was built on the server host and does NOT run locally — use the
-  system `python3.12` for local py_compile/tests.
-* Session files and DB in the local copy are stale copies, not production state.
+A dev checkout is a **sanitized copy**, not the live system:
 
-This project is **not a git repository**. Safety = timestamped file backups
+* `.env.TPilot` may hold redacted/empty token values — verify before assuming
+  misconfiguration.
+* A `venv/` copied from another host does NOT run; build it locally
+  (`python3.12 -m venv venv && ./venv/bin/pip install -r requirements.txt`).
+* The DB and `.session` files in a checkout are stale copies. A sanitized copy has a
+  REDUCED schema (~17 tables, no `managers`), so scripts may legitimately report missing
+  tables — that is the copy, not a defect.
+
+The server tree is **not** a git repository. Safety there = timestamped file backups
 (`<file>.py.bak_<patch>_<YYYYMMDD_HHMMSS>` created BEFORE editing), py_compile,
 selftests, explicit validation reports.
 
@@ -59,6 +67,20 @@ Active code:
   raises `SpendGuardError`).
 * proxy_parser.py — proxy string parsing/masking.
 * tools/*_selftest.py — offline selftests (temp SQLite + fake providers, no network).
+
+Platform/ops layer (Ubuntu migration, Stages 1–2):
+
+* process_control.py — THE single source of truth for "is this process alive": process
+  listing (psutil → /proc → `ps -eo ... -ww`), manager-key extraction from argv, verified
+  stop (systemd → SIGTERM → SIGKILL, always re-checked), start. Four separate consumers
+  used to answer this question differently; never reintroduce a local copy of this logic.
+* manager_launcher.py — manager startup with the session-isolation contract (see §6) and
+  the `start_status.json` result protocol.
+* tpilot_ctl.py — the operator CLI (`tpilot-ctl`), replaces all 30 deleted `.bat`/`.ps1`
+  scripts. Delegates to systemd when present, falls back to direct process control.
+* tpilot_paths.py — path resolution; see §2.
+* deploy/ — `install_ubuntu.sh` (idempotent installer) and `systemd/` (8 units +
+  `tpilot.target`, with `tpilot-manager@.service` templated per manager key).
 
 Backups/old copies are NOT active code (main_beka03.06.py, *_cursor_copy.py, *.bak_*).
 Never edit or run them unless explicitly asked.
@@ -175,61 +197,82 @@ files only → 8) deploy with server backup → 9) restart + logs → 10) manual
 
 ## 9. Validation before any deploy
 
-Local (new PC):
-
 ```
-cd C:\Users\PROFESSOR\Desktop\ALM_TPilot
-python3.12 -m py_compile main.py panel_bot.py panel_bridge.py storage.py manager_registry.py stats_engine.py partner_stat_bot.py manager_bot.py
+cd /path/to/checkout
+./venv/bin/python -m py_compile main.py panel_bot.py panel_bridge.py storage.py \
+  manager_registry.py stats_engine.py partner_stat_bot.py manager_bot.py \
+  process_control.py preflight_check.py soft_watchdog_pinger.py health_server.py \
+  manager_launcher.py tpilot_ctl.py tpilot_paths.py
 ```
 
 For proxy work also run the offline selftests (temp SQLite + fake providers, no network,
 no spend):
 
 ```
-python3.12 tools\proxy_pool_selftest.py
-python3.12 tools\proxy_buy_flow_selftest.py
-python3.12 tools\proxy_renew_flow_selftest.py
-python3.12 tools\proxy_leases_selftest.py
-python3.12 tools\proxy_parser_selftest.py
-python3.12 tools\proxy_provider_selftest.py
+for t in tools/proxy_*_selftest.py; do ./venv/bin/python "$t"; done
+```
+
+For any change to process control, startup, or the deploy layer:
+
+```
+./venv/bin/python tools/process_control_selftest.py
+./venv/bin/python tools/manager_launcher_selftest.py
+bash -n deploy/install_ubuntu.sh && bash deploy/install_ubuntu.sh --dry-run
 ```
 
 Always also: mojibake scan (search `Ð`, `Ñ`, `â€`) in changed files; allow_spend audit;
 show diff/summary before owner approval.
 
+KNOWN PRE-EXISTING selftest failures (verified against a clean `git archive HEAD` tree —
+do NOT attribute these to a new patch, and do not "fix" them as part of an unrelated
+change): `proxy_buy_flow`, `manager_relogin`, `deleted_manager_stats_retention`,
+`identity_sync_ira`, `liquid_ru_locations_parity`, `non_liquid_locations_parity`,
+`manager_replacement_adminbot`, `manager_replacement_backend`,
+`manager_replacement_commit`, `prepared_accounts_offline_import`. Most fail because they
+AST-extract a helper from `main.py` that is no longer defined at module top level.
+When touching a failing area, re-verify against HEAD before and after.
+
 ## 10. Deployment process
 
-Local packaging (changed files only):
+First-time install on a new Ubuntu host:
 
 ```
-cd C:\Users\PROFESSOR\Desktop\ALM_TPilot
-Compress-Archive -Path .\main.py,.\panel_bot.py,.\storage.py -DestinationPath "$env:USERPROFILE\Desktop\patch_name.zip" -Force
+sudo bash deploy/install_ubuntu.sh --dry-run    # review the plan first
+sudo bash deploy/install_ubuntu.sh
 ```
 
-Manual transfer of the zip to the server Desktop. Then ONE PowerShell block on server:
+The installer is idempotent and never overwrites `.env.TPilot`, the DB, or `.session`
+files. It creates the `tpilot` service user, the venv, 8 systemd units, and the
+`tpilot-ctl` command.
+
+Updating an existing deployment:
 
 ```
-cd C:\ALM_TPilot
-$ts = Get-Date -Format yyyyMMdd_HHmmss
-mkdir ".backups\patch_$ts" | Out-Null
-Copy-Item .\main.py,.\panel_bot.py,.\storage.py ".backups\patch_$ts"
-Expand-Archive -Path "$env:USERPROFILE\Desktop\patch_name.zip" -DestinationPath C:\ALM_TPilot -Force
-.\venv\Scripts\python.exe -m py_compile main.py panel_bot.py panel_bridge.py storage.py manager_registry.py stats_engine.py partner_stat_bot.py manager_bot.py
-.\stop_everything.bat
-.\start_everything.bat
+cd /opt/tpilot
+sudo -u tpilot git pull                     # or rsync the changed files
+sudo -u tpilot ./venv/bin/python -m py_compile <changed files>   # see §9
+sudo tpilot-ctl restart-all
 ```
 
 Checks after restart:
 
 ```
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'ALM_TPilot' -and $_.CommandLine -match 'python' } | Select-Object ProcessId, CommandLine
-Get-Content .\logs\panel_bot.err.log -Tail 40
-Get-Content .\logs\manager_bot.err.log -Tail 40
+tpilot-ctl status
+tpilot-ctl doctor
+journalctl -u tpilot-panel-bot -n 40
+journalctl -u tpilot-manager@<key> -n 40 -f
 ```
 
-If only PanelBot changed: stop its process safely, then `.\start_panel_bot.bat`.
-Duplicate Python process pairs are normal (venv launcher + AppData child) — do not kill
-the child separately. On server use `.\venv\Scripts\python.exe`; locally use `python3.12`.
+If only PanelBot changed: `sudo systemctl restart tpilot-panel-bot`.
+
+Rollback: systemd keeps the previous unit files, but code rollback is still manual —
+take a timestamped copy of changed files before overwriting them (§2 backup rule still
+applies; there is no git history on the server).
+
+NOTE: the old Windows rule "duplicate Python process pairs are normal (venv launcher +
+AppData child), do not kill the child separately" is Windows-only and is enforced in code
+by `process_control.collapse_launcher_children`. On Linux a manager process is NOT a
+launcher pair, and every listed manager PID is real.
 
 ## 11. Protected files and folders
 

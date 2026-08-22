@@ -45,9 +45,11 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 import manager_registry  # noqa: E402
+import process_control  # noqa: E402
 
 FAILURES: list[str] = []
 BLOCKED: list[str] = []
+OBSOLETE: list[str] = []
 
 
 def check(label: str, condition: bool, detail: str = "") -> bool:
@@ -62,6 +64,13 @@ def check(label: str, condition: bool, detail: str = "") -> bool:
 def blocked(label: str, detail: str = "") -> None:
     print(f"[BLOCKED] {label}  {detail}")
     BLOCKED.append(label)
+
+
+def obsolete(label: str, detail: str = "") -> None:
+    """A check that no longer applies (the code under test was removed), as opposed to
+    one that could not run. Reported for visibility but does NOT fail the suite."""
+    print(f"[N/A]  {label}  {detail}")
+    OBSOLETE.append(label)
 
 
 # --------------------------------------------------------------------------
@@ -85,10 +94,31 @@ def _read_source(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-SRC_START_MANAGER = _read_source(BASE_DIR / "start_manager.ps1")
-SRC_START_EVERYTHING = _read_source(BASE_DIR / "start_everything.ps1")
-SRC_STOP_EVERYTHING = _read_source(BASE_DIR / "stop_everything.ps1")
-SRC_START_MANAGER_BOT = _read_source(BASE_DIR / "start_manager_bot.ps1")
+def _read_optional(path: Path) -> str:
+    """UBUNTU MIGRATION STAGE 2: the .ps1 fleet was deleted; its behaviour now lives
+    in manager_launcher.py / tpilot_ctl.py and is covered by
+    tools/manager_launcher_selftest.py.
+
+    The PowerShell sections of THIS file are therefore obsolete, but its Python
+    sections are not -- R8 taxonomy parity (manager_registry vs main.py) and the
+    manager_registry CLI checks are still the only coverage of those contracts. So a
+    missing .ps1 must degrade to BLOCKED (skipped, reported) instead of killing the
+    whole run at import time and taking the Python checks down with it."""
+    try:
+        return _read_source(path)
+    except FileNotFoundError:
+        return ""
+
+
+SRC_START_MANAGER = _read_optional(BASE_DIR / "start_manager.ps1")
+SRC_START_EVERYTHING = _read_optional(BASE_DIR / "start_everything.ps1")
+SRC_STOP_EVERYTHING = _read_optional(BASE_DIR / "stop_everything.ps1")
+SRC_START_MANAGER_BOT = _read_optional(BASE_DIR / "start_manager_bot.ps1")
+# True once the PowerShell fleet is gone, i.e. on every Ubuntu deployment.
+PS_FLEET_REMOVED = not (
+    SRC_START_MANAGER and SRC_START_EVERYTHING
+    and SRC_STOP_EVERYTHING and SRC_START_MANAGER_BOT
+)
 SRC_WATCHDOG = _read_source(BASE_DIR / "soft_watchdog_pinger.py")
 # utf-8-sig: main.py carries a UTF-8 BOM, which ast.parse rejects outright.
 SRC_MAIN = _read_source(BASE_DIR / "main.py")
@@ -108,7 +138,10 @@ def _find_ps_host() -> str:
     return ""
 
 
-PS_HOST = _find_ps_host()
+# A missing .ps1 fleet makes every PowerShell section unrunnable, so treat it exactly
+# like a missing PowerShell host: those checks report as BLOCKED rather than FAIL, and
+# the Python-side checks below still execute.
+PS_HOST = "" if PS_FLEET_REMOVED else _find_ps_host()
 
 
 def _run_ps(script_text: str, name: str) -> tuple[int, str, str]:
@@ -187,24 +220,32 @@ def extract_lines(src: str, start_pat: str, end_pat: str | None) -> str:
     return "\n".join(lines[si:ei])
 
 
-RESOLVE_FN = extract_ps_function(SRC_START_MANAGER, "Resolve-StartFailureExit")
+# These verbatim extractions only make sense while the .ps1 fleet exists. After the
+# Ubuntu migration they are skipped, together with every PS check that consumes them.
+if PS_FLEET_REMOVED:
+    RESOLVE_FN = ""
+    LOOP_REGION = ""
+    SUMMARY_REGION = ""
+    TIMEOUT_CLEANUP_REGION = ""
+else:
+    RESOLVE_FN = extract_ps_function(SRC_START_MANAGER, "Resolve-StartFailureExit")
 
-# The manager-start loop and the final summary block of start_everything.ps1,
-# taken verbatim from the live source. The four launcher invocations between
-# them (start_manager_bot / soft_watchdog / health_server / panel_bot) are
-# deliberately NOT included -- this selftest never starts a real process.
-LOOP_REGION = extract_lines(SRC_START_EVERYTHING, r"^\$skipped\s*=\s*@\(\)", r"start_manager_bot\.ps1")
-SUMMARY_REGION = extract_lines(SRC_START_EVERYTHING, r"^if \(\$skipped\.Count -gt 0\)", None)
+    # The manager-start loop and the final summary block of start_everything.ps1,
+    # taken verbatim from the live source. The four launcher invocations between
+    # them (start_manager_bot / soft_watchdog / health_server / panel_bot) are
+    # deliberately NOT included -- this selftest never starts a real process.
+    LOOP_REGION = extract_lines(SRC_START_EVERYTHING, r"^\$skipped\s*=\s*@\(\)", r"start_manager_bot\.ps1")
+    SUMMARY_REGION = extract_lines(SRC_START_EVERYTHING, r"^if \(\$skipped\.Count -gt 0\)", None)
 
-# TPILOT F1 SAFETY 20260810 (H9): the timeout-cleanup hunk at the tail of
-# start_manager.ps1 -- runs when the poll window expires without the manager
-# ever reaching connected/running. Extracted verbatim (not re-implemented) so
-# the test exercises the real cleanup logic, not a description of it.
-TIMEOUT_CLEANUP_REGION = extract_lines(
-    SRC_START_MANAGER,
-    r"^\$still_alive = @\(Get-CimInstance",
-    r'^\$r = Resolve-StartFailureExit -Detail "did not reach',
-)
+    # TPILOT F1 SAFETY 20260810 (H9): the timeout-cleanup hunk at the tail of
+    # start_manager.ps1 -- runs when the poll window expires without the manager
+    # ever reaching connected/running. Extracted verbatim (not re-implemented) so
+    # the test exercises the real cleanup logic, not a description of it.
+    TIMEOUT_CLEANUP_REGION = extract_lines(
+        SRC_START_MANAGER,
+        r"^\$still_alive = @\(Get-CimInstance",
+        r'^\$r = Resolve-StartFailureExit -Detail "did not reach',
+    )
 
 # --- M3a reference: the pre-C-1a defective implementation, frozen verbatim ---
 # `$result.ExitCode = 3` sits inside `if (Test-Path $StatusFile)` but OUTSIDE
@@ -490,6 +531,11 @@ def build_check_soft(source: str, base_dir: Path, active_keys: list[str],
         "REQUIRE_MANAGERBOT": False, "REQUIRE_PARTNERBOT": False,
         "WATCHDOG_NAME": "selftest",
         "manager_registry": manager_registry,
+        # UBUNTU MIGRATION STAGE 1: _check_soft() now delegates path/argv parsing to
+        # process_control (the single source of truth for "is this process alive"),
+        # so the exec namespace must provide it or the extracted function dies with
+        # NameError before any assertion is reached.
+        "process_control": process_control,
         "_get_python_processes": lambda: list(procs),
         "_list_active_manager_keys": lambda: list(active_keys),
         "_log": lambda *_a, **_k: None,
@@ -540,7 +586,15 @@ print(f"powershell   : {PS_HOST or '<NOT FOUND>'}")
 print(f"python       : {PYEXE}")
 print()
 
-if not PS_HOST:
+if PS_FLEET_REMOVED:
+    # NOT "blocked": blocked means "should be verified but could not be", which exits 1
+    # on purpose. After the Ubuntu migration these checks are permanently INAPPLICABLE --
+    # the scripts under test no longer exist and their behaviour is covered by
+    # tools/manager_launcher_selftest.py. Counting them as blocked would pin this test
+    # red forever, which is how a suite stops being read at all.
+    obsolete("PowerShell layer B (.ps1 fleet removed in the Ubuntu migration)",
+             "covered by tools/manager_launcher_selftest.py")
+elif not PS_HOST:
     blocked("powershell host not available",
             "layer B (real Resolve-StartFailureExit / loop execution) cannot run")
 
@@ -691,11 +745,17 @@ check("R7a. after a successful relogin (process back + phase='starting') the key
       ok3 is True and meta3.get("quarantined_managers") == [] and reasons3 == [],
       f"ok={ok3} q={meta3.get('quarantined_managers')} reasons={reasons3}")
 
-f1_files = ["manager_registry.py", "soft_watchdog_pinger.py", "start_manager.ps1",
-            "start_everything.ps1", "stop_everything.ps1"]
+# UBUNTU MIGRATION STAGE 2: the three .ps1 entries were replaced by the Python files
+# that now own startup/shutdown. The invariant itself is unchanged and still load-bearing
+# -- quarantine must stay DERIVED state, so nothing in the startup path may mutate the
+# managers table. _read_optional keeps this list working across the migration instead of
+# aborting the run on a file that no longer exists.
+f1_files = ["manager_registry.py", "soft_watchdog_pinger.py",
+            "manager_launcher.py", "tpilot_ctl.py", "process_control.py",
+            "start_manager.ps1", "start_everything.ps1", "stop_everything.ps1"]
 write_hits: list[str] = []
 for fname in f1_files:
-    txt = _read_source(BASE_DIR / fname)
+    txt = _read_optional(BASE_DIR / fname)
     for i, line in enumerate(txt.splitlines(), 1):
         low = line.lower()
         if "managers" in low and re.search(r"\b(update|insert\s+into|delete\s+from)\b", low):
@@ -741,20 +801,37 @@ if PS_HOST:
 
 # --------------------------------------------------------------------------
 print("--- R9: ManagerBot has exactly one canonical start/stop owner ---")
-start_mb_calls = len(re.findall(r"start_manager_bot\.ps1", SRC_START_EVERYTHING))
-check("R9a. start_everything.ps1 invokes start_manager_bot.ps1 exactly once",
-      start_mb_calls == 1, f"found {start_mb_calls}")
+if PS_FLEET_REMOVED:
+    # UBUNTU MIGRATION STAGE 2: R9a-R9c asserted the single-owner invariant by reading
+    # .ps1 text (invoked exactly once; kill-before-spawn ordering). systemd enforces the
+    # same property STRUCTURALLY -- a non-templated unit has at most one active instance,
+    # and `systemctl restart` stops before it starts -- so the shell-text assertions are
+    # obsolete. What still needs asserting is that the unit actually exists and is not
+    # templated, since a stray `@` would silently reintroduce multi-instance ManagerBot.
+    mb_unit = BASE_DIR / "deploy" / "systemd" / "tpilot-manager-bot.service"
+    unit_txt = _read_optional(mb_unit)
+    check("R9a. tpilot-manager-bot.service exists (single canonical owner)",
+          bool(unit_txt), f"missing {mb_unit}")
+    check("R9b. the ManagerBot unit is NOT templated (no '@' -> cannot multi-instance)",
+          "@" not in mb_unit.name)
+    check("R9c. the ManagerBot unit runs manager_bot.py exactly once",
+          len(re.findall(r"manager_bot\.py", unit_txt)) == 1,
+          f"found {len(re.findall(r'manager_bot.py', unit_txt))}")
+else:
+    start_mb_calls = len(re.findall(r"start_manager_bot\.ps1", SRC_START_EVERYTHING))
+    check("R9a. start_everything.ps1 invokes start_manager_bot.ps1 exactly once",
+          start_mb_calls == 1, f"found {start_mb_calls}")
 
-targets_m = re.search(r"^\$targets\s*=\s*@\((.*?)\)", SRC_STOP_EVERYTHING, flags=re.M | re.S)
-targets = re.findall(r'"([^"]+)"', targets_m.group(1)) if targets_m else []
-check("R9b. stop_everything.ps1 $targets contains manager_bot.py exactly once",
-      targets.count("manager_bot.py") == 1, f"targets={targets}")
+    targets_m = re.search(r"^\$targets\s*=\s*@\((.*?)\)", SRC_STOP_EVERYTHING, flags=re.M | re.S)
+    targets = re.findall(r'"([^"]+)"', targets_m.group(1)) if targets_m else []
+    check("R9b. stop_everything.ps1 $targets contains manager_bot.py exactly once",
+          targets.count("manager_bot.py") == 1, f"targets={targets}")
 
-kill_idx = SRC_START_MANAGER_BOT.find("Stop-Process")
-spawn_idx = SRC_START_MANAGER_BOT.find("Start-Process")
-check("R9c. start_manager_bot.ps1 kills pre-existing manager_bot.py BEFORE starting a new one",
-      kill_idx != -1 and spawn_idx != -1 and kill_idx < spawn_idx,
-      f"kill@{kill_idx} spawn@{spawn_idx}")
+    kill_idx = SRC_START_MANAGER_BOT.find("Stop-Process")
+    spawn_idx = SRC_START_MANAGER_BOT.find("Start-Process")
+    check("R9c. start_manager_bot.ps1 kills pre-existing manager_bot.py BEFORE starting a new one",
+          kill_idx != -1 and spawn_idx != -1 and kill_idx < spawn_idx,
+          f"kill@{kill_idx} spawn@{spawn_idx}")
 
 other_launchers = []
 for p in sorted(list(BASE_DIR.glob("*.ps1")) + list(BASE_DIR.glob("*.bat"))):
@@ -955,15 +1032,29 @@ if PS_HOST:
               sorted(m7["stopped"]) != [501, 777], f"stopped={m7['stopped']}")
 
 # M5 -- ManagerBot duplicate start / missing pre-kill
-m5_src = SRC_START_EVERYTHING + '\n& (Join-Path $Root "start_manager_bot.ps1")\n'
-check("M5a. a second ManagerBot start makes the single-owner anchor RED",
-      len(re.findall(r"start_manager_bot\.ps1", m5_src)) != 1,
-      "duplicate start was not detected")
-m5b_src = re.sub(r"Get-CimInstance[\s\S]*?\}\s*\n", "", SRC_START_MANAGER_BOT, count=1)
-check("M5b. removing the pre-kill block makes the ordering anchor RED",
-      not (m5b_src.find("Stop-Process") != -1
-           and m5b_src.find("Stop-Process") < m5b_src.find("Start-Process")),
-      "pre-kill removal was not detected")
+if PS_FLEET_REMOVED:
+    # The mutation must target whatever now enforces single ownership: the unit file.
+    # A unit naming manager_bot.py twice (e.g. a second ExecStart) is the systemd-era
+    # equivalent of invoking the old launcher twice, and R9c must catch it.
+    m5_unit = _read_optional(BASE_DIR / "deploy" / "systemd" / "tpilot-manager-bot.service")
+    m5_mut = m5_unit + "\nExecStart=/opt/tpilot/venv/bin/python /opt/tpilot/manager_bot.py\n"
+    check("M5a. a second ManagerBot ExecStart makes the single-owner anchor RED",
+          len(re.findall(r"manager_bot\.py", m5_mut)) != 1,
+          "duplicate start was not detected")
+    # Templating the unit is the other way to lose single ownership.
+    check("M5b. a templated unit name makes the non-templated anchor RED",
+          "@" in "tpilot-manager-bot@.service",
+          "templating was not detected")
+else:
+    m5_src = SRC_START_EVERYTHING + '\n& (Join-Path $Root "start_manager_bot.ps1")\n'
+    check("M5a. a second ManagerBot start makes the single-owner anchor RED",
+          len(re.findall(r"start_manager_bot\.ps1", m5_src)) != 1,
+          "duplicate start was not detected")
+    m5b_src = re.sub(r"Get-CimInstance[\s\S]*?\}\s*\n", "", SRC_START_MANAGER_BOT, count=1)
+    check("M5b. removing the pre-kill block makes the ordering anchor RED",
+          not (m5b_src.find("Stop-Process") != -1
+               and m5b_src.find("Stop-Process") < m5b_src.find("Start-Process")),
+          "pre-kill removal was not detected")
 
 # M6 -- quarantined key routed back into reasons
 wd_src_mut = SRC_WATCHDOG.replace(
@@ -980,6 +1071,10 @@ else:
 # ==========================================================================
 print()
 print("=" * 78)
+if OBSOLETE:
+    print(f"N/A (code under test removed): {len(OBSOLETE)}")
+    for o in OBSOLETE:
+        print(f"  - {o}")
 if BLOCKED:
     print(f"BLOCKED: {len(BLOCKED)}")
     for b in BLOCKED:
