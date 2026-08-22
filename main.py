@@ -1715,7 +1715,7 @@ async def _process_auto_offline() -> None:
         if current_status == "online" and now_local >= no_show_local and now_local < work_end_local and not manual_today and not manual_online_today:
             changed = await _set_manager_work_status(key, "no_show", user_id=0, source="no_show")
             if changed:
-                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего времени.")
+                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего вре��ени.")
             continue
 
         # Inactivity: ordinary online is checked in the work window; forced worknow is checked even at night.
@@ -8221,7 +8221,7 @@ async def _funnel_sources_text(date_token: str = "") -> str:
             continue
         lines.append(str(b.get("label") or key))
         lines.append(f"Лидов: {int(b.get('total') or 0)}")
-        lines.append(f"Новые: {int(b.get('new') or 0)} | Дубли: {int(b.get('duplicates') or 0)}")
+        lines.append(f"Новые: {int(b.get('new') or 0)} | Дуб��и: {int(b.get('duplicates') or 0)}")
         lines.append(f"Анкету дали: {int(b.get('profile_done') or 0)}")
         lines.append(f"Ликвид: {int(b.get('liquid') or 0)} | Неликвид: {int(b.get('nonliquid') or 0)} | NA: {int(b.get('na') or 0)} | TRASH: {int(b.get('trash') or 0)}")
         lines.append(f"Качество источника: {_funnel_quality_ratio(b)}%")
@@ -8394,6 +8394,9 @@ async def _ensure_partner_tables() -> None:
         try:
             await db.execute("CREATE INDEX IF NOT EXISTS partner_lead_events_source_idx ON partner_lead_events(source_key, id);")
             await db.execute("CREATE INDEX IF NOT EXISTS partner_lead_events_created_idx ON partner_lead_events(created_at);")
+            # perf (patch perf_idx): chat_id was scanned (no index) on a table that
+            # grows with every lead event. Verified against PRAGMA index_list.
+            await db.execute("CREATE INDEX IF NOT EXISTS partner_lead_events_chat_idx ON partner_lead_events(chat_id);")
         except Exception:
             pass
         await db.execute("""
@@ -11278,7 +11281,7 @@ def _content_variant_add(category: str, text: str, *, user_id: int = 0) -> str:
     _content_ensure_variant_category(category)
     cap = _CONTENT_VARIANT_CATEGORY_CAPS.get(category)
     if cap and len(_content_variant_rows(category)) >= cap:
-        return f"⚠️ Достигнут лимит {cap} текстов для категории {category}. Удалите или измените существующий вариант."
+        return f"⚠️ Дости��нут лимит {cap} текстов для категории {category}. Удалите или измените существующий вариант."
     con = _content_connect()
     try:
         now = _content_now_iso()
@@ -14907,7 +14910,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:
             "",
             "/lead status <chat_id> - показать качество лида",
             "/lead fix <chat_id> liquid|geo|-18|under18|trash|na [причина] - ручное исправление",
-            "/lead repair today|yesterday|all|ДД.ММ.ГГ - пересчитать статусы",
+            "/lead repair today|yesterday|all|ДД.ММ.ГГ - пересчита��ь статусы",
         ]).rstrip()
     if action == "status":
         if len(parts) < 2:
@@ -21191,7 +21194,7 @@ async def _tp_hg_run_self_check(*, source: str = "periodic_self_check") -> Dict[
                 error_class=str(classified.get("error_class") or "DialogCheckError"),
                 error_text=str(classified.get("error_text") or repr(e)),
                 error_source=f"{source}_get_dialogs",
-                action_required="Лёгкая проверка диалогов дала ошибку. Наблюдать, уведомление не отправляется.",
+                action_required="Лёгкая проверка диалогов дала ошибку. Наблюдать, уведомление не отпра��ляется.",
                 cooldown_seconds=int(classified.get("seconds") or 0),
             )
             return {"ok": True, "status": row.get("health_status"), "text": str(row.get("error_text") or "warning"), "row": row, "live_probe_ok": True}
@@ -25290,7 +25293,7 @@ async def _queue_bizlink_create_one_for_manager(
             return False, str(
                 (row or {}).get("error_text")
                 or (row or {}).get("result_text")
-                or f"{mk}: ошибка создания бизнес-ссылки"
+                or f"{mk}: ошибка соз��ания бизнес-ссылки"
             )
         await asyncio.sleep(1.0)
     return False, (
@@ -27697,7 +27700,7 @@ async def _queue_bizlink_delete_tpilot_for_manager(
     # Check expiry
     now_iso = _tp_utc_now().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
-        return False, "Preview истёк (>5 мин). Создайте новый."
+        return False, "Preview ис��ёк (>5 мин). Создайте новый."
 
     # Atomic consume — prevents double execution
     if not callable(_bsd3a_preview_consume):
@@ -28189,7 +28192,7 @@ async def _queue_bizlink_delete_telegram_for_manager(
         return False, "Это подтверждение уже было использовано (single-use)."
     now_iso = _tp_utc_now().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
-        return False, "Preview истёк (>5 мин). Создайте новый."
+        return False, "Preview истё�� (>5 мин). Создайте новый."
 
     if not callable(_bsd3a_preview_consume):
         return False, "Модуль storage недоступен."
@@ -36404,7 +36407,7 @@ async def _manager_runtime_ready_once(
     if not ping_tgid:
         return _fail("session_unauthorized", "runtime_ping не вернул Telegram id.", "ping")
     if stored_tgid and ping_tgid != stored_tgid:
-        return _fail("telegram_identity_mismatch", f"runtime_ping id {ping_tgid} != реестр {stored_tgid}.", "ping")
+        return _fail("telegram_identity_mismatch", f"runtime_ping id {ping_tgid} != ��еестр {stored_tgid}.", "ping")
     if expected_tgid and ping_tgid != expected_tgid:
         return _fail("telegram_identity_mismatch", f"runtime_ping id {ping_tgid} != ожидаемый {expected_tgid}.", "ping")
 

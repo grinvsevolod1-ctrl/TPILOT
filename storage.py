@@ -55,6 +55,64 @@ DB_PATH = (os.getenv("DB_PATH") or DEFAULT_DB_PATH)
 DEFAULT_QUEUE_DB_PATH = os.path.join(os.path.dirname(__file__), "db", "data_tpilot.db")
 QUEUE_DB_PATH = (os.getenv("TPILOT_DB_PATH") or os.getenv("QUEUE_DB_PATH") or DEFAULT_QUEUE_DB_PATH)
 
+# --- perf/reliability: shared connection settings (patch perf_conn, 2026-08-22) ---
+# Before this helper each aiosqlite.connect() site used per-connection defaults,
+# which meant busy_timeout=0 on 87 of 88 sites. With the controller + N manager
+# runtimes + 3 bots all writing one SQLite file, that surfaces as spurious
+# "database is locked" instead of a short wait.
+#
+# busy_timeout and synchronous are PER-CONNECTION and must be re-applied on every
+# connect; journal_mode=WAL is persisted in the DB file, so it is applied once per
+# path to avoid paying for a redundant PRAGMA on every single query.
+_DB_BUSY_TIMEOUT_MS = max(0, int(os.getenv("DB_BUSY_TIMEOUT_MS") or "5000"))
+_DB_WAL_DONE: set = set()
+
+
+async def _db_apply_pragmas(db: aiosqlite.Connection, path: str) -> None:
+    """Fail-soft PRAGMA setup: a PRAGMA failure must never break the caller's query."""
+    try:
+        await db.execute(f"PRAGMA busy_timeout={int(_DB_BUSY_TIMEOUT_MS)}")
+    except Exception:
+        pass
+    if path not in _DB_WAL_DONE:
+        # Mark first: a locked/failing PRAGMA must not turn into a retry storm.
+        _DB_WAL_DONE.add(path)
+        try:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            pass
+
+
+@contextlib.asynccontextmanager
+async def _db_conn(path: Optional[str] = None):
+    """Drop-in replacement for `aiosqlite.connect(path)` that applies shared PRAGMAs.
+
+    Call sites keep the exact same shape: `async with _db_conn(DB_PATH) as db:`
+    """
+    p = path or DB_PATH
+    async with aiosqlite.connect(p) as db:
+        await _db_apply_pragmas(db, p)
+        yield db
+
+
+def _db_conn_sync(path: Optional[str] = None, *, timeout: float = 30.0) -> sqlite3.Connection:
+    """Synchronous counterpart used by the sqlite3-based helpers in this module."""
+    p = path or DB_PATH
+    con = sqlite3.connect(p, timeout=timeout)
+    try:
+        con.execute(f"PRAGMA busy_timeout={int(_DB_BUSY_TIMEOUT_MS)}")
+    except Exception:
+        pass
+    if p not in _DB_WAL_DONE:
+        _DB_WAL_DONE.add(p)
+        try:
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            pass
+    return con
+
 
 def _utc_now() -> datetime:
     """Naive-UTC clock seam (utcnow refactor, 2026-08-16).
@@ -89,7 +147,7 @@ async def init_db() -> None:
     # NOTE: keep migrations idempotent (prod SQLite).
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute("PRAGMA journal_mode=WAL;")
 
         leads_sql = "\n".join([
@@ -341,6 +399,13 @@ async def init_db() -> None:
         except Exception:
             pass
         try:
+            # perf (patch perf_idx): tg_user_id had no index despite being a hot
+            # lookup key. Verified unindexed via PRAGMA index_list; managers is
+            # low-write, so the added INSERT cost is negligible.
+            await db.execute("CREATE INDEX IF NOT EXISTS managers_tg_user_idx ON managers(tg_user_id);")
+        except Exception:
+            pass
+        try:
             await db.execute("CREATE INDEX IF NOT EXISTS manager_commands_target_status_idx ON manager_commands(target_key, status, available_at, created_at);")
         except Exception:
             pass
@@ -384,7 +449,7 @@ async def upsert_lead(
     now = _now_iso()
     first_seen_iso = (first_seen_iso or now)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(
             "INSERT OR IGNORE INTO leads(chat_id, username, full_name, first_seen, last_seen) VALUES(?,?,?,?,?)",
             (chat_id, username, full_name, first_seen_iso if set_first_seen else None, now),
@@ -411,7 +476,7 @@ async def upsert_lead(
 
 
 async def get_lead(chat_id: int) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM leads WHERE chat_id=?", (chat_id,))
         row = await cur.fetchone()
@@ -444,7 +509,7 @@ async def set_lead_fields(chat_id: int, **fields: Any) -> None:
     sql = "UPDATE leads SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE chat_id=?"
     vals.append(chat_id)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(sql, tuple(vals))
 
         # If send_disabled was set here -> cleanup followups so they don't "wake up" later
@@ -466,7 +531,7 @@ async def set_manual(chat_id: int, manual: int) -> None:
 
 
 async def list_manual_chats(limit: int = 30) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
             "SELECT chat_id, username, full_name, last_seen, city, country FROM leads WHERE manual=1 ORDER BY last_seen DESC LIMIT ?",
@@ -478,7 +543,7 @@ async def list_manual_chats(limit: int = 30) -> List[Dict[str, Any]]:
 
 async def add_message(chat_id: int, direction: str, text: str) -> None:
     ts = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(
             "INSERT INTO messages(chat_id, direction, text, ts) VALUES(?,?,?,?)",
             (int(chat_id), str(direction), str(text or ""), ts),
@@ -488,7 +553,7 @@ async def add_message(chat_id: int, direction: str, text: str) -> None:
 
 async def list_afterhours_pending(limit: int = 500) -> List[int]:
     # Return chat_ids that first wrote вне рабочего времени and are pending for /add.
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         cur = await db.execute(
             "SELECT chat_id FROM leads WHERE afterhours_pending=1 AND afterhours_sent=0 AND first_seen IS NOT NULL ORDER BY first_seen ASC LIMIT ?",
             (int(limit),),
@@ -498,7 +563,7 @@ async def list_afterhours_pending(limit: int = 500) -> List[int]:
 
 
 async def mark_afterhours_sent(chat_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(
             "UPDATE leads SET afterhours_pending=0, afterhours_sent=1 WHERE chat_id=?",
             (int(chat_id),),
@@ -507,7 +572,7 @@ async def mark_afterhours_sent(chat_id: int) -> None:
 
 
 async def clear_afterhours_pending(chat_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(
             "UPDATE leads SET afterhours_pending=0 WHERE chat_id=?",
             (int(chat_id),),
@@ -559,7 +624,7 @@ async def _maybe_fix_first_seen(db: aiosqlite.Connection) -> None:
 
 
 async def get_last_bot_reply(chat_id: int) -> Optional[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         cur = await db.execute(
             "SELECT text FROM messages WHERE chat_id=? AND direction LIKE 'out%' ORDER BY id DESC LIMIT 1",
             (int(chat_id),),
@@ -576,7 +641,7 @@ async def _ensure_settings_table(db: aiosqlite.Connection) -> None:
 
 
 async def set_setting(key: str, value: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _ensure_settings_table(db)
         await db.execute(
             "INSERT INTO settings(key, value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -586,7 +651,7 @@ async def set_setting(key: str, value: str) -> None:
 
 
 async def get_setting(key: str) -> Optional[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _ensure_settings_table(db)
         cur = await db.execute("SELECT value FROM settings WHERE key=?", (str(key),))
         row = await cur.fetchone()
@@ -621,7 +686,7 @@ async def get_last_active_chat_id() -> Optional[int]:
 
 
 async def ensure_followup(chat_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(
             "INSERT OR IGNORE INTO followups(chat_id, phase, step, attempts) VALUES(?,?,?,?)",
             (int(chat_id), "", 0, 0),
@@ -630,7 +695,7 @@ async def ensure_followup(chat_id: int) -> None:
 
 
 async def get_followup(chat_id: int) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM followups WHERE chat_id=?", (int(chat_id),))
         row = await cur.fetchone()
@@ -644,14 +709,14 @@ async def set_followup_fields(chat_id: int, **fields: Any) -> None:
     vals = [fields[k] for k in keys]
     sql = "UPDATE followups SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE chat_id=?"
     vals.append(int(chat_id))
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(sql, tuple(vals))
         await db.commit()
 
 
 async def get_due_followups(now_iso: str) -> List[int]:
     # Returns list of chat_id where next_run <= now_iso (ISO strings).
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         cur = await db.execute(
             "SELECT chat_id FROM followups WHERE next_run IS NOT NULL AND next_run<>'' AND next_run<=?",
             (str(now_iso),),
@@ -664,7 +729,7 @@ async def get_due_followups(now_iso: str) -> List[int]:
 async def set_send_disabled(chat_id: int, reason: str) -> None:
     # Sets send_disabled=1 and clears ALL followups for this chat_id.
     now = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await db.execute(
             "UPDATE leads SET send_disabled=1, send_disabled_reason=?, send_disabled_at=? WHERE chat_id=?",
             (str(reason or ""), now, int(chat_id)),
@@ -803,7 +868,7 @@ async def stats_today_kyiv(work_start_hour: int = 8, work_end_hour: int = 17) ->
     work_start_iso = _to_utc_iso(work_start_local)
     work_end_iso = _to_utc_iso(work_end_local)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         work = await _stat_bucket_for_window(db, start_iso=work_start_iso, end_iso=work_end_iso)
         afterhours = await _stat_bucket_for_window(
             db,
@@ -856,7 +921,7 @@ async def stats_flights_kyiv(*, start_hour: int = 17, end_hour: int = 8) -> Dict
     start_iso = _to_utc_iso(start_local)
     end_iso = _to_utc_iso(end_local)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         flights = await _stat_bucket_for_window(db, start_iso=start_iso, end_iso=end_iso)
 
     return {
@@ -885,7 +950,7 @@ async def fetch_messages_for_export(
         params.extend([int(x) for x in exclude_chat_ids])
     sql += " ORDER BY chat_id, id"
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         cur = await db.execute(sql, tuple(params))
         rows = await cur.fetchall()
         return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
@@ -893,7 +958,7 @@ async def fetch_messages_for_export(
 
 # --- multi-instance helpers ---
 async def get_setting_from_db(db_path: str, key: str):
-    async with aiosqlite.connect(db_path) as db:
+    async with _db_conn(db_path) as db:
         cur = await db.execute("SELECT value FROM settings WHERE key=?", (str(key),))
         row = await cur.fetchone()
         return row[0] if row else None
@@ -919,7 +984,7 @@ async def stats_today_kyiv_for_db(db_path: str, work_start_hour: int = 8, work_e
     work_start_iso = _to_utc_iso(work_start_local)
     work_end_iso = _to_utc_iso(work_end_local)
 
-    async with aiosqlite.connect(db_path) as db:
+    async with _db_conn(db_path) as db:
         work = await _stat_bucket_for_window(db, start_iso=work_start_iso, end_iso=work_end_iso)
         afterhours = await _stat_bucket_for_window(
             db,
@@ -983,7 +1048,7 @@ async def _manager_table_ready(db: aiosqlite.Connection) -> None:
 
 
 async def manager_get(manager_key: str) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM managers WHERE manager_key=?", (str(manager_key or ''),))
@@ -992,7 +1057,7 @@ async def manager_get(manager_key: str) -> Optional[Dict[str, Any]]:
 
 
 async def manager_list_rows(*, include_removed: bool = False, only_enabled: Optional[bool] = None, only_active: Optional[bool] = None) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         db.row_factory = aiosqlite.Row
         parts = []
@@ -1017,7 +1082,7 @@ async def manager_list_rows(*, include_removed: bool = False, only_enabled: Opti
 
 async def manager_add(*, manager_key: str, display_name: str, phone: str, status: str, session_path: str, db_path: str, workdir: str, log_path: str, is_enabled: int = 1, owner_user_id: Optional[int] = None, role: Optional[str] = None) -> None:
     now = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute(
             "INSERT INTO managers(manager_key, display_name, phone, status, session_path, db_path, workdir, log_path, is_enabled, manual_stopped, owner_user_id, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -1048,7 +1113,7 @@ async def manager_set_fields(manager_key: str, **fields: Any) -> None:
     vals = [fields[k] for k in keys]
     sql = "UPDATE managers SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE manager_key=?"
     vals.append(str(manager_key))
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute(sql, tuple(vals))
         await db.commit()
@@ -1065,7 +1130,7 @@ async def manager_soft_remove(manager_key: str) -> None:
 
 
 async def manager_find_by_owner(owner_user_id: int) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM managers WHERE owner_user_id=? AND COALESCE(status,'')!='archived' ORDER BY id DESC LIMIT 1", (int(owner_user_id),))
@@ -1082,7 +1147,7 @@ async def manager_update_profile_in_db(db_path: str, manager_key: str, **fields:
     vals = [fields[k] for k in keys]
     sql = "UPDATE managers SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE manager_key=?"
     vals.append(str(manager_key))
-    async with aiosqlite.connect(db_path) as db:
+    async with _db_conn(db_path) as db:
         await _manager_table_ready(db)
         await db.execute(sql, tuple(vals))
         await db.commit()
@@ -1115,7 +1180,7 @@ async def manager_sync_telegram_profile_in_db(
     key = str(manager_key or '').strip()
     if not key:
         return
-    async with aiosqlite.connect(db_path) as db:
+    async with _db_conn(db_path) as db:
         await _manager_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -1160,7 +1225,7 @@ async def manager_sync_telegram_profile_in_db(
 
 async def manager_save_onboarding(owner_user_id: int, *, manager_key: str, step: str, phone: str = '', phone_code_hash: str = '', tmp_session_path: str = '', expires_at: str = '', next_code_allowed_at: str = '', last_code_sent_at: str = '', last_send_error: str = '', proxy_type: str = '', proxy_host: str = '', proxy_port: Optional[int] = None, proxy_username: str = '', proxy_password: str = '', proxy_enabled: int = 0, proxy_bypass_allowed: int = 0, proxy_mode: str = '') -> None:
     now = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute(
             "INSERT INTO manager_onboarding(owner_user_id, manager_key, step, phone, phone_code_hash, tmp_session_path, created_at, expires_at, next_code_allowed_at, last_code_sent_at, last_send_error, proxy_type, proxy_host, proxy_port, proxy_username, proxy_password, proxy_enabled, proxy_bypass_allowed, proxy_mode)"
@@ -1174,7 +1239,7 @@ async def manager_save_onboarding(owner_user_id: int, *, manager_key: str, step:
 
 
 async def manager_get_onboarding(owner_user_id: int) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM manager_onboarding WHERE owner_user_id=?", (int(owner_user_id),))
@@ -1183,21 +1248,21 @@ async def manager_get_onboarding(owner_user_id: int) -> Optional[Dict[str, Any]]
 
 
 async def manager_delete_onboarding(owner_user_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute("DELETE FROM manager_onboarding WHERE owner_user_id=?", (int(owner_user_id),))
         await db.commit()
 
 
 async def manager_delete_onboarding_by_key(manager_key: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute("DELETE FROM manager_onboarding WHERE manager_key=?", (str(manager_key or ''),))
         await db.commit()
 
 
 async def manager_list_pending() -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM manager_onboarding ORDER BY created_at ASC")
@@ -1207,7 +1272,7 @@ async def manager_list_pending() -> List[Dict[str, Any]]:
 
 async def manager_clear_expired_onboarding(now_iso: Optional[str] = None) -> int:
     now_iso = str(now_iso or _now_iso())
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         cur = await db.execute("DELETE FROM manager_onboarding WHERE COALESCE(expires_at,'') != '' AND expires_at < ?", (now_iso,))
         await db.commit()
@@ -1219,7 +1284,7 @@ async def manager_clear_expired_onboarding(now_iso: Optional[str] = None) -> int
 
 async def manager_create_auth_session(user_id: int, expires_at: str) -> None:
     now = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute(
             "INSERT INTO manager_auth_sessions(user_id, expires_at, created_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET expires_at=excluded.expires_at, created_at=excluded.created_at",
@@ -1230,7 +1295,7 @@ async def manager_create_auth_session(user_id: int, expires_at: str) -> None:
 
 async def manager_has_auth_session(user_id: int, now_iso: Optional[str] = None) -> bool:
     now_iso = str(now_iso or _now_iso())
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         cur = await db.execute("SELECT expires_at FROM manager_auth_sessions WHERE user_id=?", (int(user_id),))
         row = await cur.fetchone()
@@ -1241,7 +1306,7 @@ async def manager_has_auth_session(user_id: int, now_iso: Optional[str] = None) 
 
 
 async def manager_delete_auth_session(user_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _manager_table_ready(db)
         await db.execute("DELETE FROM manager_auth_sessions WHERE user_id=?", (int(user_id),))
         await db.commit()
@@ -1262,7 +1327,7 @@ async def _access_tables_ready(db: aiosqlite.Connection) -> None:
 
 
 async def access_get_user(tg_user_id: int) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM access_users WHERE tg_user_id=?", (int(tg_user_id),))
@@ -1271,7 +1336,7 @@ async def access_get_user(tg_user_id: int) -> Optional[Dict[str, Any]]:
 
 
 async def access_list_users(*, include_disabled: bool = True) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         db.row_factory = aiosqlite.Row
         sql = "SELECT * FROM access_users"
@@ -1285,7 +1350,7 @@ async def access_list_users(*, include_disabled: bool = True) -> List[Dict[str, 
 
 async def access_upsert_user(*, tg_user_id: int, access_level: int, scope_mode: str, display_name: str = '', username: str = '', is_enabled: int = 1, created_by: Optional[int] = None) -> None:
     now = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         await db.execute(
             "INSERT INTO access_users(tg_user_id, display_name, username, access_level, scope_mode, is_enabled, created_by, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(tg_user_id) DO UPDATE SET display_name=excluded.display_name, username=excluded.username, access_level=excluded.access_level, scope_mode=excluded.scope_mode, is_enabled=excluded.is_enabled, updated_at=excluded.updated_at",
@@ -1303,14 +1368,14 @@ async def access_set_user_fields(tg_user_id: int, **fields: Any) -> None:
     vals = [fields[k] for k in keys]
     sql = "UPDATE access_users SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE tg_user_id=?"
     vals.append(int(tg_user_id))
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         await db.execute(sql, tuple(vals))
         await db.commit()
 
 
 async def access_remove_user(tg_user_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         await db.execute("DELETE FROM access_targets WHERE tg_user_id=?", (int(tg_user_id),))
         await db.execute("DELETE FROM access_users WHERE tg_user_id=?", (int(tg_user_id),))
@@ -1318,7 +1383,7 @@ async def access_remove_user(tg_user_id: int) -> None:
 
 
 async def access_list_targets(tg_user_id: int) -> List[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         cur = await db.execute("SELECT manager_key FROM access_targets WHERE tg_user_id=? ORDER BY manager_key ASC", (int(tg_user_id),))
         rows = await cur.fetchall()
@@ -1327,14 +1392,14 @@ async def access_list_targets(tg_user_id: int) -> List[str]:
 
 async def access_add_target(tg_user_id: int, manager_key: str) -> None:
     now = _now_iso()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         await db.execute("INSERT OR IGNORE INTO access_targets(tg_user_id, manager_key, created_at) VALUES(?,?,?)", (int(tg_user_id), str(manager_key or '').strip(), now))
         await db.commit()
 
 
 async def access_remove_target(tg_user_id: int, manager_key: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_conn(DB_PATH) as db:
         await _access_tables_ready(db)
         await db.execute("DELETE FROM access_targets WHERE tg_user_id=? AND manager_key=?", (int(tg_user_id), str(manager_key or '').strip()))
         await db.commit()
@@ -1413,7 +1478,7 @@ async def manager_queue_put(
     os.makedirs(os.path.dirname(qdb), exist_ok=True)
     nonce_v = str(nonce or _queue_make_nonce())
     created_at = _queue_now_iso()
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         await db.execute(
             "INSERT INTO manager_commands(nonce, target_key, command, args, payload_json, created_by, status, created_at, available_at, expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
@@ -1446,7 +1511,7 @@ async def manager_queue_take_next(
     now_iso = _queue_now_iso()
     stale_cutoff = (_utc_now() - timedelta(seconds=max(1, int(stale_after_sec or 30)))).replace(microsecond=0).isoformat()
 
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         db.row_factory = aiosqlite.Row
         await db.execute("PRAGMA busy_timeout=5000;")
@@ -1500,7 +1565,7 @@ async def manager_queue_finish(
 ) -> None:
     qdb = _queue_db_path(db_path)
     finished_at = _queue_now_iso()
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         await db.execute(
             "UPDATE manager_commands SET status=?, worker_key=?, finished_at=?, result_ok=?, result_text=?, result_json=?, error_text=? WHERE nonce=?",
@@ -1520,7 +1585,7 @@ async def manager_queue_finish(
 
 async def manager_queue_get(nonce: str, *, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     qdb = _queue_db_path(db_path)
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM manager_commands WHERE nonce=?", (str(nonce or ""),))
@@ -1537,7 +1602,7 @@ async def manager_queue_list_ready(
     qdb = _queue_db_path(db_path)
     key = str(manager_key or "").strip()
     now_iso = _queue_now_iso()
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -1559,7 +1624,7 @@ async def manager_queue_list_ready(
 async def manager_queue_mark_timeouts(*, now_iso: Optional[str] = None, db_path: Optional[str] = None) -> int:
     qdb = _queue_db_path(db_path)
     now_v = str(now_iso or _queue_now_iso())
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         cur = await db.execute(
             "UPDATE manager_commands SET status='timeout', finished_at=?, error_text=CASE WHEN COALESCE(error_text,'')='' THEN 'timeout' ELSE error_text END WHERE status IN ('new','processing') AND COALESCE(expires_at,'')<>'' AND expires_at<=?",
@@ -1584,7 +1649,7 @@ async def manager_queue_finalize_all_for_manager(
     qdb = _queue_db_path(db_path)
     now_v = _queue_now_iso()
     key = str(manager_key or "").strip()
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         cur = await db.execute(
             "UPDATE manager_commands SET status='timeout', finished_at=?,"
@@ -1606,7 +1671,7 @@ async def manager_queue_cleanup_finished(
 ) -> int:
     qdb = _queue_db_path(db_path)
     cutoff = (_utc_now() - timedelta(seconds=max(60, int(older_than_sec or 86400)))).replace(microsecond=0).isoformat()
-    async with aiosqlite.connect(qdb) as db:
+    async with _db_conn(qdb) as db:
         await _manager_queue_ready(db)
         cur = await db.execute(
             "DELETE FROM manager_commands WHERE status IN ('done','error','timeout') AND COALESCE(finished_at,'')<>'' AND finished_at<?",
@@ -1657,10 +1722,17 @@ def _bsl_connect(db_path: Optional[str] = None) -> _bsl_sqlite3.Connection:
         os.makedirs(parent, exist_ok=True)
     con = _bsl_sqlite3.connect(path, timeout=30)
     con.row_factory = _bsl_sqlite3.Row
-    try:
-        con.execute("PRAGMA journal_mode=WAL;")
-    except Exception:
-        pass
+    if path not in _DB_WAL_DONE:
+        # Mark first: a locked/failing PRAGMA must not turn into a retry storm.
+        _DB_WAL_DONE.add(path)
+        try:
+            con.execute("PRAGMA journal_mode=WAL;")
+            # perf (patch perf_conn): NORMAL drops the per-commit fsync that
+            # FULL forces. Safe under WAL -- a crash can lose the last commits
+            # but never corrupts the DB file.
+            con.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            pass
     return con
 
 
@@ -6554,7 +6626,7 @@ async def proxy_lease_create(
     manager proxy_username/proxy_password columns) -- never logged here."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute(
             "INSERT INTO proxy_leases("
@@ -6586,7 +6658,7 @@ async def proxy_lease_create(
 
 async def proxy_lease_get(lease_id: int, *, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM proxy_leases WHERE id=?", (int(lease_id),))
@@ -6603,7 +6675,7 @@ async def proxy_lease_get_for_manager(manager_key: str, *, db_path: Optional[str
     key = str(manager_key or "").strip()
     if not key:
         return None
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         lease_id: Optional[int] = None
@@ -6640,7 +6712,7 @@ async def proxy_lease_assign_to_manager(lease_id: int, manager_key: str, *, db_p
     if not key or not lease_id:
         return False
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute("SELECT id FROM proxy_leases WHERE id=?", (int(lease_id),))
         if not await cur.fetchone():
@@ -6673,7 +6745,7 @@ async def proxy_lease_update_check(
     for building that string safely."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         await db.execute(
             "UPDATE proxy_leases SET last_check_at=?, last_check_ok=?, last_check_status=?, updated_at=? WHERE id=?",
@@ -6693,7 +6765,7 @@ async def proxy_lease_update_renew(
     caller explicitly provides a confirmed new value (never guesses)."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         if new_expires_at:
             await db.execute(
@@ -6725,7 +6797,7 @@ async def proxy_lease_update_provider_identity(
     identity and would insert an orphaned duplicate if used for this)."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         if provider_order_id:
             await db.execute(
@@ -6751,7 +6823,7 @@ async def proxy_lease_list_expiring(
     the same format as created_at/updated_at -- caller picks the horizon,
     e.g. now+24h, and does the timezone math)."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         sql = "SELECT * FROM proxy_leases WHERE COALESCE(expires_at,'') != '' AND expires_at <= ?"
@@ -6767,7 +6839,7 @@ async def proxy_lease_list_expiring(
 async def proxy_lease_set_status(lease_id: int, status: str, *, db_path: Optional[str] = None) -> None:
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         await db.execute(
             "UPDATE proxy_leases SET status=?, updated_at=? WHERE id=?",
@@ -6786,7 +6858,7 @@ async def proxy_lease_list_all(*, db_path: Optional[str] = None) -> List[Dict[st
     controller callers are responsible for masking secrets before any
     Telegram message or log line."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM proxy_leases ORDER BY id ASC")
@@ -6810,7 +6882,7 @@ async def proxy_lease_get_by_provider_proxy_id(
     pid = str(provider_proxy_id or "").strip()
     if not pid:
         return None
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -6832,7 +6904,7 @@ async def proxy_lease_unassign(lease_id: int, *, db_path: Optional[str] = None) 
     lease id doesn't exist."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM proxy_leases WHERE id=?", (int(lease_id),))
@@ -6892,7 +6964,7 @@ async def proxy_lease_upsert_from_provider(
     if not pid:
         raise ValueError("provider_proxy_id is required")
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute(
             "SELECT id, login, password, expires_at FROM proxy_leases WHERE provider_type=? AND provider_proxy_id=? LIMIT 1",
@@ -6995,7 +7067,7 @@ async def proxy_renew_notify_log_ready(*, db_path: Optional[str] = None) -> None
     """Idempotent schema init for proxy_renew_notify_log -- callable on
     its own (mirrors _proxy_leases_table_ready's public-wrapper style)."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renew_notify_log_table_ready(db)
 
 
@@ -7023,7 +7095,7 @@ async def proxy_renew_notify_mark_once(
     duplicate."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renew_notify_log_table_ready(db)
         try:
             await db.execute(
@@ -7049,7 +7121,7 @@ async def proxy_renew_notify_purge_old(before_date: str, *, db_path: Optional[st
     (an ISO YYYY-MM-DD string, exclusive comparison via <). Returns the
     number of rows deleted. Never raises."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renew_notify_log_table_ready(db)
         try:
             cur = await db.execute(
@@ -7068,7 +7140,7 @@ async def proxy_lease_set_auto_renew(lease_id: int, enabled: bool, *, db_path: O
     lease id doesn't exist."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute("SELECT id FROM proxy_leases WHERE id=?", (int(lease_id),))
         if not await cur.fetchone():
@@ -7113,7 +7185,7 @@ async def proxy_lifecycle_event_add(
     updates/deletes; never stores secrets. Returns the new event id."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute(
             "INSERT INTO proxy_lifecycle_events("
@@ -7164,7 +7236,7 @@ async def proxy_lease_set_provider_state(
     sets.append("updated_at=?")
     vals.append(now)
     vals.append(int(lease_id))
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute("SELECT id FROM proxy_leases WHERE id=?", (int(lease_id),))
         if not await cur.fetchone():
@@ -7217,7 +7289,7 @@ async def proxy_lease_set_lifecycle(
     if from_state is not None:
         sql += " AND lifecycle_status=?"
         vals.append(str(from_state))
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         cur = await db.execute(sql, tuple(vals))
         await db.commit()
@@ -7228,7 +7300,7 @@ async def proxy_lifecycle_list_actionable(*, db_path: Optional[str] = None) -> L
     """Return every lease currently in an actionable mismatch state
     (enable_required or disable_required), oldest first. Read-only."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -7241,7 +7313,7 @@ async def proxy_lifecycle_list_actionable(*, db_path: Optional[str] = None) -> L
 async def proxy_lifecycle_events_for_lease(lease_id: int, *, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return the append-only audit history for one lease, oldest first."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_leases_table_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -7454,7 +7526,7 @@ async def proxy_renewal_op_create(
     never calls the provider."""
     dbp = db_path or DB_PATH
     now = _now_iso()
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         try:
             cur = await db.execute(
@@ -7525,7 +7597,7 @@ async def proxy_renewal_op_advance(
     vals.append(int(op_id))
     if from_status is not None:
         sql += " AND status=?"; vals.append(str(from_status))
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         cur = await db.execute(sql, tuple(vals))
         await db.commit()
@@ -7552,7 +7624,7 @@ async def proxy_renewal_op_delete_pending(op_id: int, *, db_path: Optional[str] 
     instead, never a delete. Returns True only if a row was actually
     deleted."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         cur = await db.execute(
             "DELETE FROM proxy_renewal_ops WHERE id=? AND status='pending'", (int(op_id),),
@@ -7563,7 +7635,7 @@ async def proxy_renewal_op_delete_pending(op_id: int, *, db_path: Optional[str] 
 
 async def proxy_renewal_op_get(op_id: int, *, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM proxy_renewal_ops WHERE id=?", (int(op_id),))
@@ -7574,7 +7646,7 @@ async def proxy_renewal_op_get(op_id: int, *, db_path: Optional[str] = None) -> 
 async def proxy_renewal_op_active_for_lease(lease_id: int, *, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """The lease's currently-active op (if any), used for restart reconcile."""
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -7591,7 +7663,7 @@ async def proxy_renewal_ops_by_status(statuses: Sequence[str], *, db_path: Optio
     st = [str(s) for s in (statuses or []) if s]
     if not st:
         return []
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         placeholders = ",".join("?" for _ in st)
@@ -7610,7 +7682,7 @@ async def proxy_renewal_daily_spend_total(day_prefix: str, *, db_path: Optional[
     prefix = str(day_prefix or "")[:10]
     if not prefix:
         return 0.0
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -7629,7 +7701,7 @@ async def proxy_renewal_daily_spend_total(day_prefix: str, *, db_path: Optional[
 
 async def proxy_renewal_config_get(*, db_path: Optional[str] = None) -> Dict[str, Any]:
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM proxy_renewal_config WHERE id=1")
@@ -7656,7 +7728,7 @@ async def proxy_renewal_config_set(*, db_path: Optional[str] = None, **fields: A
     sets.append("updated_at=?")
     vals.append(_now_iso())
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         await db.execute("UPDATE proxy_renewal_config SET " + ", ".join(sets) + " WHERE id=1", tuple(vals))
         await db.commit()
@@ -7665,7 +7737,7 @@ async def proxy_renewal_config_set(*, db_path: Optional[str] = None, **fields: A
 
 async def proxy_balance_alert_state_get(*, db_path: Optional[str] = None) -> Dict[str, Any]:
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute("SELECT * FROM proxy_balance_alert_state WHERE id=1")
@@ -7689,7 +7761,7 @@ async def proxy_balance_alert_state_set(*, db_path: Optional[str] = None, **fiel
     sets.append("updated_at=?")
     vals.append(_now_iso())
     dbp = db_path or DB_PATH
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         await db.execute("UPDATE proxy_balance_alert_state SET " + ", ".join(sets) + " WHERE id=1", tuple(vals))
         await db.commit()
@@ -7717,7 +7789,7 @@ async def proxy_balance_snapshot_write(*, value: float, db_path: Optional[str] =
     dbp = db_path or DB_PATH
     now = _now_iso()
     rounded = round(float(value), 2)
-    async with aiosqlite.connect(dbp) as db:
+    async with _db_conn(dbp) as db:
         await _proxy_renewal_tables_ready(db)
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
