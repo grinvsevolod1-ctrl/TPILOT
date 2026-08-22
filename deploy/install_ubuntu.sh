@@ -56,8 +56,19 @@ run() {
 # 0. Preconditions
 # ---------------------------------------------------------------------------
 [[ "$DRY_RUN" == "1" || "$(id -u)" == "0" ]] || die "must run as root (use sudo)"
-command -v systemctl >/dev/null 2>&1 || die "systemd is required"
 [[ -f "${REPO_DIR}/main.py" ]] || die "main.py not found in ${REPO_DIR}"
+
+# systemd is required to INSTALL, but --dry-run must stay runnable anywhere
+# (CI, a container, a dev laptop) -- its whole job is to let the operator review
+# the plan before touching a host, so it must not be gated on the host being the
+# final target.
+if ! command -v systemctl >/dev/null 2>&1; then
+  if [[ "$DRY_RUN" == "1" ]]; then
+    warn "systemd not present here; unit activation is only PRINTED (dry run)"
+  else
+    die "systemd is required"
+  fi
+fi
 
 log "repo:   ${REPO_DIR}"
 log "target: ${TPILOT_DIR}"
