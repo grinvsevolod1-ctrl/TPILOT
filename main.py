@@ -114,6 +114,7 @@ from manager_registry import (
     normalize_manager_key as registry_normalize_manager_key,
     validate_manager_key,
 )
+import process_control
 import proxy_parser
 import text_format_helpers
 
@@ -1715,7 +1716,7 @@ async def _process_auto_offline() -> None:
         if current_status == "online" and now_local >= no_show_local and now_local < work_end_local and not manual_today and not manual_online_today:
             changed = await _set_manager_work_status(key, "no_show", user_id=0, source="no_show")
             if changed:
-                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего времени.")
+                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего вре��ени.")
             continue
 
         # Inactivity: ordinary online is checked in the work window; forced worknow is checked even at night.
@@ -2628,74 +2629,90 @@ def _manager_auth_audit_log(event: str, manager_key: str, **fields: Any) -> None
 
 
 async def _manager_process_running(manager_key: str) -> bool:
+    """Whether a live `--manager <key>` runtime exists.
+
+    UBUNTU MIGRATION STAGE 1: delegates to process_control, which fixes the
+    long-standing POSIX bug here -- the old `pgrep -f "main.py --manager <key>"`
+    pattern could NEVER match, because _spawn_manager_process launches
+    `main.py --env <file> --manager <key>` and the `--env` pair sits between the
+    two halves of that literal pattern. Every manager therefore always looked
+    stopped on Linux, and the guard in _onboarding_stop_running_for_key that
+    exists to prevent two Telethon clients from opening one `.session` silently
+    passed. process_control matches `--manager` positionally instead.
+
+    Blocking process/systemd reads run in a worker thread so a slow scan cannot
+    stall the controller's event loop.
+
+    UNKNOWN policy: process_control returns None when the scan itself could not
+    be trusted. This wrapper maps None to True (= assume running), because every
+    caller uses the answer to decide whether it is safe to start ANOTHER runtime
+    or open a second client on the same session file. Guessing "running" costs a
+    skipped start; guessing "stopped" corrupts a session."""
     key = registry_normalize_manager_key(manager_key or "")
     if not key:
         return False
-    if sys.platform.startswith("win"):
-        script = (
-            "$k='%s'; "
-            "$p = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like ('*main.py*--manager*' + $k + '*') }; "
-            "if ($p) { Write-Output '1' }"
-        ) % key
-        try:
-            cp = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], cwd=str(BASE_DIR), capture_output=True, text=True)
-            return bool((cp.stdout or "").strip())
-        except Exception:
-            return False
     try:
-        cp = subprocess.run(["pgrep", "-f", f"main.py --manager {key}"], cwd=str(BASE_DIR), capture_output=True, text=True)
-        return cp.returncode == 0 and bool((cp.stdout or "").strip())
+        state = await asyncio.to_thread(
+            process_control.manager_process_running, key, base_dir=BASE_DIR
+        )
     except Exception:
-        return False
+        return True  # unknown -> fail safe, never claim a false "stopped"
+    return True if state is None else bool(state)
 
 
 async def _stop_manager_process(manager_key: str, *, silent: bool = False) -> Tuple[bool, str]:
+    """Stop a manager runtime and VERIFY it is gone.
+
+    UBUNTU MIGRATION STAGE 1: the old implementation returned (True, "OK")
+    whenever the kill command merely executed, without ever re-checking, so a
+    no-op `pkill` (see the pattern bug above) reported success. process_control
+    escalates systemd stop -> SIGTERM -> SIGKILL and re-scans, returning False
+    if anything survives. The graceful signal matters: Telethon must close its
+    SQLite session cleanly."""
     key = registry_normalize_manager_key(manager_key or "")
     if not key:
         return False, "Пустой ключ."
-    if sys.platform.startswith("win"):
-        script = (
-            "$k='%s'; "
-            "Get-CimInstance Win32_Process | "
-            "Where-Object { $_.CommandLine -like ('*main.py*--manager*' + $k + '*') } | "
-            "ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }"
-        ) % key
-        try:
-            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], cwd=str(BASE_DIR), capture_output=True, text=True)
-            return True, "OK"
-        except Exception as e:
-            return False, f"Ошибка остановки: {e!r}"
     try:
-        subprocess.run(["pkill", "-f", f"main.py --manager {key}"], cwd=str(BASE_DIR), check=False)
-        return True, "OK"
+        return await asyncio.to_thread(
+            process_control.stop_manager, key, base_dir=BASE_DIR
+        )
     except Exception as e:
         return False, f"Ошибка остановки: {e!r}"
 
 
 async def _spawn_manager_process(manager_key: str) -> Tuple[bool, str]:
+    """Start a manager runtime, replacing any existing one for the same key.
+
+    UBUNTU MIGRATION STAGE 1: process_control prefers the systemd templated unit
+    `tpilot-manager@<key>.service` (auto-restart, journald, resource limits) and
+    falls back to a detached Popen when systemd is unavailable. The Windows
+    `start_manager.bat` path is gone -- the same argv is now used on every
+    platform, which is also what makes the process table parseable.
+
+    The pre-emptive stop is now CHECKED: if the old runtime cannot be confirmed
+    dead we refuse to start a second one, instead of racing two Telethon clients
+    onto one `.session`."""
     key = registry_normalize_manager_key(manager_key or "")
     row = await manager_get(key)
     if not row:
         return False, "Менеджер не найден."
     paths = _manager_runtime_paths_for_key(key)
     os.makedirs(paths["root"], exist_ok=True)
-    await _stop_manager_process(key, silent=True)
-    if sys.platform.startswith("win"):
-        bat = BASE_DIR / "start_manager.bat"
-        if not bat.exists():
-            return False, f"Не найден {bat}"
-        try:
-            kwargs: Dict[str, Any] = {"cwd": str(BASE_DIR)}
-            if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
-                kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP")
-            subprocess.Popen(["cmd", "/c", str(bat), key], **kwargs)
-            return True, "OK"
-        except Exception as e:
-            return False, f"Ошибка запуска: {e!r}"
+
+    stop_ok, stop_msg = await _stop_manager_process(key, silent=True)
+    if not stop_ok:
+        return False, (
+            "Не удалось остановить предыдущий процесс менеджера перед запуском — "
+            f"новый не стартовал, чтобы не открыть вторую сессию: {stop_msg}"
+        )
     try:
-        logf = open(paths["log_path"], "a", encoding="utf-8")
-        subprocess.Popen([sys.executable, str(BASE_DIR / "main.py"), "--env", ENV_FILE_USED, "--manager", key], cwd=str(BASE_DIR), stdout=logf, stderr=logf, start_new_session=True)
-        return True, "OK"
+        return await asyncio.to_thread(
+            process_control.start_manager,
+            key,
+            base_dir=BASE_DIR,
+            env_file=ENV_FILE_USED,
+            log_path=paths["log_path"],
+        )
     except Exception as e:
         return False, f"Ошибка запуска: {e!r}"
 
@@ -2723,7 +2740,7 @@ async def _onboarding_stop_running_for_key(manager_key: str) -> Tuple[bool, str]
             f"Остановите его вручную и повторите: MANAGER STOP {key}"
         )
     try:
-        await asyncio.sleep(2.0)  # let Windows release the .session file lock
+        await asyncio.sleep(2.0)  # let the OS release the .session file lock
     except Exception:
         pass
     _manager_auth_audit_log("stop_before_auth", key, ok=1)
@@ -4256,7 +4273,7 @@ async def _handle_work_status_command(event: events.NewMessage.Event) -> bool:
             st_value = "offline"
         st = await _set_manager_work_status(key, st_value, user_id=sender_id, source='manual')
         icon = "☀️" if st_value == "worknow" else ("🟢" if st_value == "online" else ("🌙" if st_value == "dayoff" else "🔴"))
-        note = "\nДневное приветствие и анкета включены прямо сейчас." if st_value == "worknow" else ""
+        note = "\nДневное приветствие �� анкета включены прямо сейчас." if st_value == "worknow" else ""
         await client.send_message(event.chat_id, f"{icon} {key}: {st.get('status')}{note}")
         return True
 
@@ -7201,7 +7218,7 @@ async def _handle_baseline_command(args: str, *, user_id: int = 0) -> str:
             st = await _baseline_status_for_db(str(r.get("db_path") or ""))
             latest = str(st.get("latest") or "")
             latest_disp = _iso_to_local_hhmm(latest) if latest else "_"
-            lines.append(f"{key}: {int(st.get('count') or 0)} старых чатов | обновлено {latest_disp}")
+            lines.append(f"{key}: {int(st.get('count') or 0)} старых ч��тов | обновлено {latest_disp}")
         return chr(10).join(lines).rstrip()
 
     if action == "clear":
@@ -8005,7 +8022,7 @@ async def _quality_losses_text(date_token: str = "") -> str:
     b = _quality_bucket_empty("all")
     for lead in leads:
         _quality_bucket_add(b, lead)
-    lines = [f"📉 Потери лидов | {_quality_date_header(d)}", ""]
+    lines = [f"📉 Потери лидо�� | {_quality_date_header(d)}", ""]
     lines.append(f"Всего лидов: {int(b.get('total') or 0)}")
     lines.append(f"Не ответил менеджер: {int(b.get('not_answered') or 0)}")
     lines.append(f"Не дали город/возраст: {int(b.get('na') or 0)}")
@@ -8163,7 +8180,7 @@ async def _funnel_sources_text(date_token: str = "") -> str:
         lines.append(str(b.get("label") or key))
         lines.append(f"Лидов: {int(b.get('total') or 0)}")
         lines.append(f"Новые: {int(b.get('new') or 0)} | Дубли: {int(b.get('duplicates') or 0)}")
-        lines.append(f"Анкету дали: {int(b.get('profile_done') or 0)}")
+        lines.append(f"Анкету дал��: {int(b.get('profile_done') or 0)}")
         lines.append(f"Ликвид: {int(b.get('liquid') or 0)} | Неликвид: {int(b.get('nonliquid') or 0)} | NA: {int(b.get('na') or 0)} | TRASH: {int(b.get('trash') or 0)}")
         lines.append(f"Качество источника: {_funnel_quality_ratio(b)}%")
         lines.append("")
@@ -10805,7 +10822,7 @@ async def _tp_export_duplicates_excel(args: str = "31d") -> Tuple[bool, str, str
     wb = Workbook()
     ws = wb.active
     ws.title = "duplicates"
-    headers = ["chat_id блока", "№ обращения", "Дата", "Время", "manager_key", "Аккаунт менеджера", "username клиента", "Имя клиента", "Телефон", "Источник", "Статус", "Возраст", "Город", "Страна"]
+    headers = ["chat_id блока", "№ обращения", "Дата", "Время", "manager_key", "Аккаунт менеджера", "username к��иента", "Имя клиента", "Телефон", "Источник", "Статус", "Возраст", "Город", "Страна"]
     ws.append(headers)
     for c in ws[1]:
         c.font = Font(bold=True)
@@ -17838,7 +17855,7 @@ def _tpac_rules_text(action: str = "show") -> str:
         "",
         f"🚫 Чёрный список городов: {len(getattr(rules, 'city_blacklist', []) or [])}",
         f"🔞 Запретные фразы возраста: {len(getattr(rules, 'age_negative_phrases', []) or [])}",
-        f"✅ Подтверждающие фразы возраста: {len(getattr(rules, 'age_positive_phrases', []) or [])}",
+        f"✅ Подтверждающие фразы возра��та: {len(getattr(rules, 'age_positive_phrases', []) or [])}",
         f"📍 GEO_OK территории: {len(getattr(rules, 'geo_ru_special_locations', []) or [])}",
         "",
         "Файлы правил лежат в папке config.",
@@ -31815,7 +31832,7 @@ async def _handle_proxy_renew_confirm_command(args: str) -> str:
     if not lease or str(lease.get("status") or "") != "active":
         return _pbuy_json.dumps({
             "ok": False, "error": "lease_not_found", "message": f"Активный lease не найден: {lease_id}",
-            "reason": "Активная аренда прокси не найдена.", "action": "Обновите список прокси и повторите попытку.",
+            "reason": "Активная аренда прокси не найден��.", "action": "Обновите список прокси и повторите попытку.",
         }, ensure_ascii=False)
 
     provider_proxy_id = lease.get("provider_proxy_id")
@@ -31849,7 +31866,7 @@ async def _handle_proxy_renew_confirm_command(args: str) -> str:
     if block:
         return _pbuy_json.dumps({
             "ok": False, "error": "blocked", "message": block,
-            "reason": block, "action": "Проверьте настройки автопродления (лимиты/баланс/пауза).",
+            "reason": block, "action": "Проверьте настройки автопродления (лимиты/бала��с/пауза).",
         }, ensure_ascii=False)
 
     result = await _renewal_wrapped_execute(lease, source="panel_renew_confirm", actor_user_id=None)
@@ -33616,7 +33633,7 @@ async def _manager_relogin_commit(key: str, owner_user_id: int, *, phone_hint: s
         except Exception:
             pass
         try:
-            await asyncio.sleep(2.0)  # let Windows release the .session file lock
+            await asyncio.sleep(2.0)  # let the OS release the .session file lock
         except Exception:
             pass
 

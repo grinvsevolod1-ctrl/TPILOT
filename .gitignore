@@ -1,20 +1,37 @@
-"venv/" 
-"__pycache__/" 
-"*.pyc" 
-"*.log" 
-".env" 
-".env.TPilot" 
-"venv/" 
-"__pycache__/" 
-"*.pyc" 
-"*.log" 
-".env" 
-".env.TPilot" 
-"logs/" 
-"*.rar" 
-"*.zip" 
-tools/__pycache__/
-__pycache__/
+# NOTE: git treats quotes in .gitignore as LITERAL characters. The previous
+# version of this file wrote every pattern as "venv/" (with quotes), so none of
+# them ever matched -- the venv, secrets and logs were only untracked by luck.
+# Patterns below are unquoted and therefore actually effective.
 
-# timestamped safety backups (local only, never commit)
+# --- virtualenvs / bytecode ---
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+
+# --- runtime state (host-specific, never portable) ---
+logs/
+*.log
+runtime/
+db/*.db
+db/*.db-wal
+db/*.db-shm
+db/*.db-journal
+*.session
+*.session-journal
+
+# --- timestamped safety backups (local only, never commit) ---
 *.bak_*
+*_cursor_copy.py
+
+# --- archives / editor noise ---
+*.rar
+*.zip
+.idea/
+.vscode/
+.DS_Store

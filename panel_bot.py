@@ -25,6 +25,7 @@ except Exception:
     segno = None
 
 from manager_registry import list_manager_rows_from_db_sync, normalize_manager_key, build_manager_paths, mask_phone
+import process_control
 from panel_bridge import get_panel_command, submit_panel_command, scrub_panel_command_result
 import proxy_parser
 
@@ -1165,8 +1166,8 @@ def _load_status_file() -> Dict[str, Any]:
 
 
 def _get_python_processes() -> "list | None":
-    """Live process-list scan (PowerShell CIM on Windows, `ps aux`
-    elsewhere).
+    """Live process-list scan, delegated to process_control (psutil / `/proc` /
+    `ps -eo ... -ww` on POSIX, PowerShell CIM on Windows).
 
     N5.4.6 (RF1, independent-review fix): the contract used to conflate
     "scan ran and found nothing" with "scan failed/timed out/produced
@@ -1184,48 +1185,23 @@ def _get_python_processes() -> "list | None":
     _pb_service_scan_cached/_pb_manager_process_running/_pb_service_proc_
     running already implemented the correct None-means-unknown handling
     (their docstrings said so); this was the one place actually violating
-    it."""
-    if os.name == "nt":
-        ps = (
-            "Get-CimInstance Win32_Process | "
-            "Where-Object { $_.Name -like 'python*' -and $_.CommandLine } | "
-            "Select-Object ProcessId,ParentProcessId,Name,CommandLine | "
-            "ConvertTo-Json -Compress"
-        )
-        try:
-            cp = subprocess.run(
-                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                cwd=str(BASE_DIR), capture_output=True, text=True, timeout=10,
-            )
-        except Exception:
-            return None  # scan itself failed/unavailable (timeout, spawn error, ...)
-        raw = (cp.stdout or "").strip()
-        if not raw:
-            if cp.returncode != 0:
-                return None  # PowerShell errored, nothing usable on stdout
-            return []  # successful run, genuinely nothing matched
-        try:
-            data = json.loads(raw)
-        except Exception:
-            return None  # malformed/unparseable output -- untrustworthy
-        if isinstance(data, dict):
-            data = [data]
-        out = []
-        for row in data or []:
-            out.append({
-                "pid": str(row.get("ProcessId", "")),
-                "ppid": str(row.get("ParentProcessId", "")),
-                "name": str(row.get("Name", "")),
-                "cmd": str(row.get("CommandLine", "")),
-            })
-        return out
-    try:
-        cp = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=10)
-    except Exception:
-        return None
-    if cp.returncode != 0 and not (cp.stdout or "").strip():
-        return None
-    return [{"pid": "", "ppid": "", "name": "python", "cmd": line} for line in (cp.stdout or "").splitlines() if "python" in line]
+    it.
+
+    UBUNTU MIGRATION STAGE 1: the platform-specific bodies moved into
+    process_control (single source of truth, shared with main.py,
+    preflight_check.py and soft_watchdog_pinger.py). The tri-state contract
+    documented above is preserved EXACTLY -- it is now enforced in one place
+    instead of four.
+
+    That move also fixes the POSIX branch, which used `ps aux`: that column
+    layout truncates `args` to the output width, so with a realistic absolute
+    venv path the `--manager <key>` tail was cut off and every manager rendered
+    as a false 🔴 process_down on Ubuntu -- the same class of incident RF1 fixed
+    for Windows. process_control reads psutil / `/proc` / `ps -eo ... -ww`, none
+    of which truncate, and it also fills in the real `pid`/`ppid` that the old
+    `ps aux` parser left blank (they are what lets duplicate-runtime detection
+    work at all)."""
+    return process_control.list_python_processes(base_dir=BASE_DIR)
 
 
 def _scan_process_state() -> Dict[str, Any]:
@@ -1239,24 +1215,16 @@ def _scan_process_state() -> Dict[str, Any]:
     # consumed correctly downstream via _pb_service_scan_cached/
     # _pb_manager_process_running (the actual N5.4.2 resolver path).
     procs = procs or []
-    base_norm = _norm_path(str(BASE_DIR))
-    tpilot_ok = False
-    watchdog_ok = False
-    manager_procs_by_key: Dict[str, int] = {}
-
-    for p in procs:
-        cmd = _norm_path(p.get("cmd", ""))
-        if base_norm not in cmd:
-            continue
-        if "main.py" in cmd:
-            if "--manager" not in cmd:
-                tpilot_ok = True
-            m = re.search(r"--manager\s+([a-z0-9_-]+)", cmd, flags=re.I)
-            if m:
-                key = m.group(1).lower()
-                manager_procs_by_key[key] = manager_procs_by_key.get(key, 0) + 1
-        if "soft_watchdog_pinger.py" in cmd:
-            watchdog_ok = True
+    # UBUNTU MIGRATION STAGE 1: counting now goes through
+    # process_control.count_managers_by_key, which collapses interpreter
+    # launcher parent/child pairs (identical command line) before counting.
+    # Without that collapse a Windows venv launcher counted every manager
+    # twice, which read as a duplicate-runtime incident.
+    manager_procs_by_key: Dict[str, int] = process_control.count_managers_by_key(procs, BASE_DIR)
+    tpilot_ok = bool(process_control.script_process_running(
+        "main.py", base_dir=BASE_DIR, procs=procs, exclude_manager_flag=True))
+    watchdog_ok = bool(process_control.script_process_running(
+        "soft_watchdog_pinger.py", base_dir=BASE_DIR, procs=procs))
 
     active_keys = [str(r.get("manager_key") or "").strip().lower() for r in _manager_rows() if str(r.get("manager_key") or "").strip()]
     manager_running = sum(1 for k in active_keys if manager_procs_by_key.get(k, 0) > 0)
@@ -1972,7 +1940,7 @@ def _manager_admin_detail_text(row: dict) -> str:
         f"Остановлен вручную: {stopped}",
         f"Прокси: {proxy}",
         "",
-        "Кнопки разделены по смыслу. Включение всегда слева, выключение или остановка справа.",
+        "Кнопки разделены по смыслу. Включ��ние всегда слева, выключение или остановка справа.",
         "Опасные действия выполняются только через пароль и обязательный backup.",
     ]).rstrip()
 
@@ -4920,7 +4888,7 @@ def _content_editor_menu():
 
 
 def _content_texts_menu():
-    rows = [[Button.inline("📋 Список текстов", b"cmd:/content text list")]]
+    rows = [[Button.inline("📋 Список те��стов", b"cmd:/content text list")]]
     for key, label in _CONTENT_TEXT_BUTTONS:
         rows.append([Button.inline(f"✏️ {label}", f"wiz:content_text:{key}".encode()), Button.inline("♻️", f"cmd:/content text reset {key}".encode())])
     rows.append([Button.inline("⬅️ Назад", b"menu:content")])
@@ -4945,7 +4913,7 @@ def _content_profile_menu():
 
 def _content_cat_menu(cat: str):
     return [
-        [Button.inline("📋 Показать варианты", f"cmd:/content variant list {cat}".encode())],
+        [Button.inline("📋 ��оказать варианты", f"cmd:/content variant list {cat}".encode())],
         [Button.inline("➕ Добавить", f"wiz:content_variant_add:{cat}".encode())],
         [Button.inline("✏️ Изменить номер", f"wiz:content_variant_set:{cat}".encode())],
         [Button.inline("🔁 Вкл/выкл номер", f"wiz:content_variant_toggle:{cat}".encode())],
@@ -5637,7 +5605,7 @@ _HNV2_UNSAFE_ACTION_PREFIXES = (
 # family with zero buttons (e.g. worker_crash's only action IS restart).
 _HNV2_SAFE_DIAG_FALLBACK = [
     ("🩺 Проверить", "cmd:/tghealth check {k}"),
-    ("🌐 Проверить прокси", "cmd:/manager_proxy_check {k}"),
+    ("🌐 Проверить ��рокси", "cmd:/manager_proxy_check {k}"),
 ]
 
 
@@ -6516,7 +6484,7 @@ async def _tp_panel_v5_bulk_callback(event):
     data = (event.data or b"").decode("utf-8", errors="ignore")
     parts = data.split(":")
     if len(parts) < 4:
-        await _pb_safe_answer(event, "Неверная команда", alert=True)
+        await _pb_safe_answer(event, "Неверная ��оманда", alert=True)
         return
     _prefix, step, kind, action = parts[:4]
     if step == "ask":
@@ -6695,7 +6663,7 @@ def _tpac_profile_check_menu():
         [Button.inline("🧪 Быстрый тест", b"cmd:/profile test"), Button.inline("🧪 Полный тест", b"cmd:/profile test full")],
         [Button.inline("📋 Показать правила", b"cmd:/profile rules show"), Button.inline("🔄 Обновить правила", b"cmd:/profile rules reload")],
         [Button.inline("🧾 Проверить лида", b"wiz:profile_lead:start")],
-        [Button.inline("🔎 Проверить сегодня", b"cmd:/lead repair today dry"), Button.inline("🔎 Проверить вчера", b"cmd:/lead repair yesterday dry")],
+        [Button.inline("🔎 Проверить с��годня", b"cmd:/lead repair today dry"), Button.inline("🔎 Проверить вчера", b"cmd:/lead repair yesterday dry")],
         [Button.inline("📅 Проверить период", b"wiz:profile_period:start")],
         [Button.inline("⚠️ Применить проверку", b"wiz:profile_apply:start")],
         # N5.3 (D8): this screen is opened from the canonical Автоматизация
@@ -8824,22 +8792,20 @@ def _pb_manager_process_running(procs: "list | None", manager_key: str) -> "bool
     """Same --manager <key> detection rule as _scan_process_state's
     manager_processes map, but reads the SHARED 60s-cached scan
     (_pb_service_scan_cached) -- no per-manager PowerShell call. None
-    (=no scan data) mirrors the existing fail-open policy."""
+    (=no scan data) mirrors the existing fail-open policy.
+
+    UBUNTU MIGRATION STAGE 1: the detection rule itself now lives in
+    process_control, so the panel, the controller, the watchdog and the
+    preflight report can no longer disagree about whether a manager is up.
+    `procs` is passed through explicitly, which keeps this on the shared 60s
+    cache -- no per-manager subprocess and no per-render systemctl call."""
     if procs is None:
         return None
     key = normalize_manager_key(manager_key or "")
     if not key:
         return None
     try:
-        base_norm = _norm_path(str(BASE_DIR))
-        for p in procs:
-            cmd = _norm_path(p.get("cmd", ""))
-            if base_norm not in cmd or "main.py" not in cmd:
-                continue
-            m = re.search(r"--manager\s+([a-z0-9_-]+)", cmd, flags=re.I)
-            if m and m.group(1).lower() == key:
-                return True
-        return False
+        return process_control.manager_process_running(key, base_dir=BASE_DIR, procs=procs)
     except Exception:
         return None
 
@@ -11782,7 +11748,7 @@ def _replace_committing_text(stage: str = "") -> str:
     lines = ["🔄 Выполняется замена аккаунта", ""]
     if detail:
         lines.append(detail)
-    lines.append("Старый аккаунт останется рабочим до полного завершения.")
+    lines.append("Старый аккаунт о��танется рабочим до полного завершения.")
     return "\n".join(lines)
 
 
@@ -12695,7 +12661,7 @@ def _bizlinks_templates_text() -> str:
         text = str(r.get("message_text") or "")
         preview = _bsl_template_preview(text)
         lines.append(f"{n}. {preview}")
-    lines += ["", "Нажмите номер для редактирования."]
+    lines += ["", "На��мите номер для редактирования."]
     return "\n".join(lines).rstrip()
 
 
@@ -13193,7 +13159,7 @@ def _bizlinks_batch_pick_mgr_text() -> str:
         + "\n\n\U0001f4e6 Создать 15 ссылок\n\n"
         + f"Дата: {tomorrow}\n\n"
         + "Выберите менеджера.\n"
-        + "Будет создано до 15 бизнес-ссылок (слоты 1–15).\n"
+        + "Будет создано до 15 б��знес-ссылок (слоты 1–15).\n"
         + "Уже созданные слоты будут пропущены.\n"
         + "Требуется Telegram Business или Premium."
     )
@@ -14810,7 +14776,7 @@ def _g3b_format_preview_text(
         lines.append("  ❓ Не распознано: {}".format(unclassified_count))
     lines.append("")
     if foreign_count > 0:
-        lines.append("Будет удалено ({} чужих/ручных):".format(foreign_count))
+        lines.append("Будет удален�� ({} чужих/ручных):".format(foreign_count))
         shown = foreign_items[:30]
         for it in shown:
             url = str(it.get("url") or "")
@@ -17913,7 +17879,7 @@ def _bdd_progress_text(progress: dict) -> str:
         # Running well past the per-manager estimate almost always means tg_limit's own
         # cleanup/expired-slug handling is doing extra work inside the delete primitive.
         remaining_min = max(1, (int(_BDD_CMD_HARD_TIMEOUT_SEC - mgr_elapsed) + 59) // 60)
-        remaining_line = f"Осталось примерно: дольше обычного, до {remaining_min} мин"
+        remaining_line = f"Осталось примерн��: дольше обычного, до {remaining_min} мин"
         stage = "удаляю ссылки (дольше обычного)"
     else:
         current_remaining = max(estimate - mgr_elapsed, 10) if mgr_started_at else estimate
@@ -18907,7 +18873,7 @@ def _nm_automation_screen() -> Tuple[str, list]:
     ]
     return _nm_screen(
         "🤖 АВТОМАТИЗАЦИЯ",
-        "Админ-бот → Новое меню → Автоматизация",
+        "Админ-бот → Новое меню → Автоматиз��ция",
         "Внутри: автоответы, автодожимы, тексты, задержки, аварийная тишина (полный запрет "
         "авто-сообщений), приветствия, автоанкета, проверка анкет, LLM-наблюдения (read-only), "
         "глобальный переключатель LLM и автоматические статусы (оба требуют подтверждения).",

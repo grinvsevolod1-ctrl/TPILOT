@@ -36,6 +36,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import process_control
 import storage
 from manager_registry import list_manager_rows_from_db_sync, normalize_manager_key
 
@@ -168,37 +169,34 @@ def _utc_iso_to_kyiv_hm(value: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def _norm_path(s: str) -> str:
-    return str(s or "").replace("\\", "/").lower()
+    return process_control.norm_path(s)
 
 
 def _scan_python_processes(timeout_sec: float = 12.0) -> List[Dict[str, str]]:
     """Read-only enumeration of running python processes and their command
-    lines. Never raises; returns [] on any failure (including non-Windows
-    platforms, where this project does not run in production)."""
-    if not sys.platform.startswith("win"):
-        return []
-    ps_cmd = (
-        "Get-CimInstance Win32_Process | "
-        "Where-Object { $_.Name -like 'python*' -and $_.CommandLine } | "
-        "Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress"
-    )
-    try:
-        cp = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
-            cwd=str(BASE_DIR), capture_output=True, text=True, timeout=timeout_sec,
-        )
-        raw = (cp.stdout or "").strip()
-        if not raw:
-            return []
-        data = json.loads(raw)
-        if isinstance(data, dict):
-            data = [data]
-        return [
-            {"pid": str(row.get("ProcessId", "")), "cmd": str(row.get("CommandLine", ""))}
-            for row in (data or [])
-        ]
-    except Exception:
-        return []
+    lines. Never raises; returns [] on any failure.
+
+    UBUNTU MIGRATION STAGE 1: this used to open with
+    `if not sys.platform.startswith("win"): return []`, on the assumption that
+    "this project does not run in production" on non-Windows. That assumption is
+    what made the preflight report useless on Ubuntu: with an empty process
+    list, every service and every manager was reported dead and the remediation
+    text told the operator to run `restart_everything.bat`. Enumeration is now
+    delegated to process_control, which works on both platforms.
+
+    The [] return is kept for this caller: unlike the panel, the preflight
+    report has no tri-state rendering, so an untrustworthy scan (None) is
+    surfaced through `scan_trusted` below rather than by changing this
+    function's shape."""
+    rows = process_control.list_python_processes(base_dir=BASE_DIR, timeout_sec=timeout_sec)
+    return list(rows or [])
+
+
+def _scan_is_trusted(timeout_sec: float = 12.0) -> bool:
+    """Whether a process scan can currently be trusted at all. Lets the report
+    say "не удалось проверить процессы" instead of falsely claiming everything
+    is down when the scan backend itself is unavailable."""
+    return process_control.list_python_processes(base_dir=BASE_DIR, timeout_sec=timeout_sec) is not None
 
 
 def _read_soft_status() -> Dict[str, Any]:

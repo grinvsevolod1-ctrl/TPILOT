@@ -1,31 +1,57 @@
-﻿aiosqlite==0.22.1
+# TPilot runtime dependencies. Target: Python 3.12 on Ubuntu 24.04 LTS.
+#
+# UBUNTU MIGRATION STAGE 1 notes:
+#   * This file previously began with a UTF-8 BOM, which made `pip install -r`
+#     fail on the very first line ("aiosqlite" was read as "\ufeffaiosqlite").
+#     Keep this file BOM-free.
+#   * psutil, segno and anthropic were imported by the code but absent here, so
+#     a clean install produced a runtime that silently lost QR login and the LLM
+#     supervisor. They are listed below with the code paths that need them.
+
+# --- core async / Telegram ---
+aiosqlite==0.22.1
 anyio==4.12.1
-certifi==2026.1.4
-DAWG-Python==0.7.2
-docopt==0.6.2
-et_xmlfile==2.0.0
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.11
+pyaes==1.6.1
+pyasn1==0.6.2
+PySocks==1.7.1
+rsa==4.9.1
+Telethon==1.42.0
+
+# --- process discovery / lifecycle (process_control.py) ---
+# Optional but strongly recommended: without it process_control falls back to
+# reading /proc directly, which works but loses Windows support entirely.
+psutil==7.1.3
+
+# --- QR login rendering (panel_bot.py, guarded import) ---
+segno==1.6.6
+
+# --- LLM supervisor (llm_supervisor.py, guarded import) ---
+anthropic==0.75.0
+
+# --- NLP pipeline (profile extraction / lead parsing) ---
+DAWG-Python==0.7.2
+docopt==0.6.2
 intervaltree==3.2.1
 ipymarkup==0.9.0
 natasha==1.6.0
 navec==0.10.0
 numpy==2.4.2
-openpyxl==3.1.5
-pyaes==1.6.1
-pyasn1==0.6.2
 pymorphy2==0.9.1
 pymorphy2-dicts-ru==2.4.417127.4579844
-PySocks==1.7.1
-python-dotenv==1.2.1
 RapidFuzz==3.14.3
 razdel==0.5.0
-rsa==4.9.1
 slovnet==0.6.0
 sortedcontainers==2.4.0
-Telethon==1.42.0
+yargy==0.16.0
+
+# --- reporting / misc ---
+certifi==2026.1.4
+et_xmlfile==2.0.0
+openpyxl==3.1.5
+python-dotenv==1.2.1
 typing_extensions==4.15.0
 tzdata==2025.3
-yargy==0.16.0

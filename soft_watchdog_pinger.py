@@ -20,6 +20,7 @@ ENV_PATH = BASE_DIR / '.env.TPilot'
 # start-failure taxonomy, reused here instead of re-declaring it.
 sys.path.insert(0, str(BASE_DIR))
 import manager_registry  # noqa: E402
+import process_control  # noqa: E402
 
 
 def _load_env(path: Path) -> Dict[str, str]:
@@ -99,50 +100,32 @@ def _write_status(payload: dict) -> None:
 
 
 def _norm_path(s: str) -> str:
-    return str(s or '').replace('\\', '/').lower()
+    return process_control.norm_path(s)
 
 
 def _get_python_processes() -> List[Dict[str, str]]:
-    if sys.platform.startswith('win'):
-        ps = (
-            "Get-CimInstance Win32_Process | "
-            "Where-Object { $_.Name -like 'python*' -and $_.CommandLine } | "
-            "Select-Object ProcessId,ParentProcessId,Name,CommandLine | "
-            "ConvertTo-Json -Compress"
-        )
-        try:
-            cp = subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
-                                cwd=str(BASE_DIR), capture_output=True, text=True, timeout=15)
-            raw = (cp.stdout or '').strip()
-            if not raw:
-                return []
-            data = json.loads(raw)
-            if isinstance(data, dict):
-                data = [data]
-            out = []
-            for row in data or []:
-                out.append({
-                    'pid': str(row.get('ProcessId', '')),
-                    'ppid': str(row.get('ParentProcessId', '')),
-                    'name': str(row.get('Name', '')),
-                    'cmd': str(row.get('CommandLine', '')),
-                })
-            return out
-        except Exception as e:
-            _log(f'process_list_error={e!r}')
-            return []
-    try:
-        cp = subprocess.run(['ps', 'aux'], capture_output=True, text=True, timeout=15)
-        return [{'pid': '', 'ppid': '', 'name': 'python', 'cmd': line} for line in (cp.stdout or '').splitlines() if 'python' in line]
-    except Exception as e:
-        _log(f'process_list_error={e!r}')
+    """Enumerate python processes, delegated to process_control.
+
+    UBUNTU MIGRATION STAGE 1: the previous POSIX branch used `ps aux`, whose
+    `args` column is truncated to the output width -- long absolute venv paths
+    pushed the `--manager <key>` tail off the line, so the watchdog could not
+    see any manager and never restarted one. It also hardcoded blank pid/ppid,
+    which disabled the launcher-pair collapse below. process_control uses
+    psutil / `/proc` / `ps -eo ... -ww` and returns real pids.
+
+    An untrustworthy scan (process_control returns None) is logged and mapped to
+    [] here, matching this module's pre-existing behaviour: the watchdog treats
+    "no data" conservatively via its own restart thresholds rather than acting on
+    a single bad sample."""
+    rows = process_control.list_python_processes(base_dir=BASE_DIR, timeout_sec=15)
+    if rows is None:
+        _log('process_list_error=scan_unavailable')
         return []
+    return rows
 
 
 def _list_active_manager_keys() -> List[str]:
-    py = BASE_DIR / 'venv' / 'Scripts' / 'python.exe'
-    if not py.exists():
-        py = Path(sys.executable)
+    py = process_control.venv_python(BASE_DIR)
     reg = BASE_DIR / 'manager_registry.py'
     if not reg.exists():
         return []
@@ -156,34 +139,26 @@ def _list_active_manager_keys() -> List[str]:
 
 
 def _collapse_venv_children(procs: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    """Remove Windows venv-launcher child processes from a list of relevant procs.
+    """Collapse interpreter-launcher parent/child pairs so each logical instance
+    is counted exactly once. Delegated to process_control.
 
     On Windows, running venv/Scripts/python.exe spawns a real Python child
     (e.g. Python312/python.exe) with the same CommandLine.  Both entries appear
-    in Win32_Process and both contain the TPilot base path, so raw counting
-    reports double the actual logical instances.
+    in the scan and both contain the TPilot base path, so raw counting reports
+    double the actual logical instances.
 
-    The child's ParentProcessId (ppid) points to the venv launcher parent whose
-    PID is also in the relevant set.  We keep only the parent (logical root) and
-    drop the child.
-
-    Rule: if a process's ppid is in the set of relevant PIDs, it is a child of
-    another TPilot-relevant Python process → drop it.
-
-    On non-Windows the function is a no-op (ppid is always '' from ps aux).
+    UBUNTU MIGRATION STAGE 1 -- CORRECTNESS FIX. The old rule was "drop any
+    process whose ppid is in the relevant set", gated to Windows only. That gate
+    was load-bearing in a way the comment did not admit: on Linux the controller
+    legitimately spawns each manager runtime as its own child, and the
+    controller is itself a relevant process, so lifting the gate under the old
+    rule would have deleted EVERY manager from the scan and made the watchdog
+    restart-storm them. process_control.collapse_launcher_children additionally
+    requires parent and child command lines to be IDENTICAL, which is exactly
+    what defines a launcher pair -- so it is correct on Windows and safe on
+    Linux, and needs no platform gate at all.
     """
-    if not sys.platform.startswith('win'):
-        return procs
-    relevant_pids = {str(p.get('pid') or '') for p in procs if p.get('pid')}
-    result = []
-    for p in procs:
-        ppid = str(p.get('ppid') or '')
-        if ppid and ppid in relevant_pids:
-            # Parent is also a TPilot-relevant process: this is the venv child.
-            # Drop it so each logical instance is counted exactly once.
-            continue
-        result.append(p)
-    return result
+    return process_control.collapse_launcher_children(procs)
 
 
 def _check_soft() -> Tuple[bool, List[str], dict]:
