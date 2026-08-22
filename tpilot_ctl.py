@@ -327,9 +327,73 @@ def status(*, env_file: str) -> int:
     return 0
 
 
+def _check_session_schema() -> None:
+    """Warn when the installed Telethon disagrees with the session-schema the
+    offline-import path accepts.
+
+    STAGE 3: Telethon 1.44 bumped the .session schema from 7 to 8. On a host that
+    resolves a newer Telethon than the pinned telethon==1.42.0, every prepared-account
+    import fails with "unsupported schema version 8 (need 7)" -- a message that points
+    at the operator's session file instead of at the dependency. Reported here (not in
+    preflight_check, which builds the business report for AdminBot) because this is an
+    environment fact, and `doctor` is where operators look for those.
+    """
+    try:
+        import sqlite3
+
+        import telethon
+        from telethon.sessions.sqlite import CURRENT_VERSION as lib_ver
+        from tdata_import.session_inspector import SESSION_SCHEMA_VERSION as want
+    except Exception as exc:
+        warn(f"session-schema check skipped: {exc!r}")
+        return
+    lib_ver, want = int(lib_ver), int(want)
+    if lib_ver != want:
+        warn(f"Telethon {telethon.__version__} writes session schema {lib_ver}, but the "
+             f"inspector accepts {want}. Prepared-account offline import will reject "
+             f"those sessions -- pin Telethon in requirements.txt or migrate.")
+        return
+
+    # The inspector now tracks the library, so a mismatch there is unlikely. The REAL
+    # hazard is on disk: Telethon upgrades an older session IN PLACE on first open
+    # (SQLiteSession.__init__ -> _upgrade_database + save). A Telethon upgrade is
+    # therefore a one-way migration of live credentials, and the pre-upgrade file is
+    # only recoverable from a backup. Report the split so it is a decision, not a
+    # surprise discovered after the sessions have already been rewritten.
+    stale: list[str] = []
+    try:
+        import tpilot_paths
+        session_paths = sorted(tpilot_paths.ROOT.glob("runtime/managers/*/*.session"))
+    except Exception as exc:
+        # Never report "0 sessions consistent" when the scan itself failed -- a
+        # falsely reassuring check is worse than no check.
+        warn(f"could not scan live sessions: {exc!r}")
+        return
+    for path in session_paths:
+        try:
+            con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+            try:
+                row = con.execute("select version from version").fetchone()
+            finally:
+                con.close()
+        except Exception:
+            continue
+        if row and int(row[0]) < lib_ver:
+            stale.append(f"{path.parent.name}={row[0]}")
+    if stale:
+        warn(f"Telethon {telethon.__version__} writes schema {lib_ver}, but "
+             f"{len(stale)} live session(s) are older: {', '.join(stale)}. Telethon "
+             f"MIGRATES them in place on first open -- back up runtime/managers/*/ "
+             f"before starting managers with this Telethon.")
+    else:
+        info(f"Telethon {telethon.__version__}: session schema {lib_ver}, "
+             f"{len(session_paths)} live session(s) consistent")
+
+
 def doctor(*, env_file: str) -> int:
     """Run the preflight report. Kept as a thin wrapper so operators have one
     entrypoint instead of remembering a second script name."""
+    _check_session_schema()
     try:
         import preflight_check
     except Exception as exc:

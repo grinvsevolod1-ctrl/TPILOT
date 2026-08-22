@@ -20,9 +20,13 @@ No network, no DB, no spend. Exit 0 = PASS.
 """
 from __future__ import annotations
 
+import fnmatch
 import glob
 import importlib.util
 import os
+import shutil
+import subprocess
+import tempfile
 from importlib.machinery import SourceFileLoader
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -102,15 +106,68 @@ def _compare_dict(name, o, c, failures):
         failures.append(f"{name}: {tmis} deep-type mismatches, first {fex}")
 
 
+def _recover_backup_from_git(tmpdir: str) -> str | None:
+    """STAGE 3: commit 5e13c32 untracked the timestamped .bak_* artifacts on purpose,
+    but their blobs remain in git history, so the ground truth is only unlinked from the
+    filesystem -- not lost. Unlike the liquid variant (which literal_evals a dict), this
+    test IMPORTS the backup as a module, so it needs a real path: materialize the blob
+    into a temp file rather than re-adding a 2.9 MB artifact to the working tree.
+    """
+    try:
+        listing = subprocess.run(
+            ["git", "log", "--all", "--pretty=format:", "--name-only", "--diff-filter=A"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+        names = sorted({
+            ln.strip() for ln in listing.splitlines()
+            if fnmatch.fnmatch(ln.strip(), "non_liquid_locations.py.bak_datamove_*")
+        })
+        if not names:
+            return None
+        newest = names[-1]  # timestamped names sort chronologically
+        rev = subprocess.run(
+            ["git", "log", "--all", "--format=%H", "--diff-filter=A", "--", newest],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=True,
+        ).stdout.split()
+        if not rev:
+            return None
+        blob = subprocess.run(
+            ["git", "cat-file", "-p", f"{rev[0]}:{newest}"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=120, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not blob:
+        return None
+    path = os.path.join(tmpdir, os.path.basename(newest))
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(blob)
+    return path
+
+
 def main() -> int:
     backups = sorted(glob.glob(os.path.join(REPO_ROOT, "non_liquid_locations.py.bak_datamove_*")))
-    if not backups:
-        raise SystemExit("FAIL: no non_liquid_locations.py.bak_datamove_* backup found")
-    backup = backups[-1]
+    tmpdir = None
+    if backups:
+        backup = backups[-1]
+    else:
+        tmpdir = tempfile.mkdtemp(prefix="nl_parity_")
+        backup = _recover_backup_from_git(tmpdir)
+        if not backup:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            raise SystemExit(
+                "FAIL: no non_liquid_locations.py.bak_datamove_* backup on disk and it "
+                "could not be recovered from git history"
+            )
     live = os.path.join(REPO_ROOT, "non_liquid_locations.py")
 
-    print(f"[parity] ground truth: {os.path.basename(backup)}")
-    orig = _load_module_from_path(backup, "nl_orig")
+    try:
+        print(f"[parity] ground truth: {os.path.basename(backup)}")
+        orig = _load_module_from_path(backup, "nl_orig")
+    finally:
+        # The module is fully loaded into memory by now, so the temp copy is disposable.
+        if tmpdir:
+            shutil.rmtree(tmpdir, ignore_errors=True)
     cand = _load_module_from_path(live, "nl_cand")
 
     oc, cc = _public_containers(orig), _public_containers(cand)

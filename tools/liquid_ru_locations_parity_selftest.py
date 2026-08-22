@@ -20,25 +20,74 @@ No network, no DB, no spend. Exit 0 = PASS.
 from __future__ import annotations
 
 import ast
+import fnmatch
 import glob
 import importlib
 import os
+import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _ground_truth_from_git(basename_glob: str) -> tuple[str, str] | None:
+    """Recover the pre-refactor backup from git history.
+
+    STAGE 3: commit 5e13c32 ("stop tracking timestamped .bak_* safety backups")
+    untracked these files on purpose -- a 20 MB generated artifact does not belong in
+    the working tree. But the blob is still in history, so the ground truth is not
+    lost, only unlinked from the filesystem. Reading it straight out of git keeps this
+    parity test (160k lines of location data) alive without re-adding the artifact.
+
+    Returns (source_text, provenance_label) or None when git cannot supply it.
+    """
+    try:
+        listing = subprocess.run(
+            ["git", "log", "--all", "--pretty=format:", "--name-only", "--diff-filter=A"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    names = sorted({
+        ln.strip() for ln in listing.splitlines()
+        if fnmatch.fnmatch(ln.strip(), basename_glob)
+    })
+    if not names:
+        return None
+    newest = names[-1]  # timestamped names sort chronologically
+    try:
+        rev = subprocess.run(
+            ["git", "log", "--all", "--format=%H", "--diff-filter=A", "--", newest],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=True,
+        ).stdout.split()
+        if not rev:
+            return None
+        blob = subprocess.run(
+            ["git", "cat-file", "-p", f"{rev[0]}:{newest}"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=120, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (blob, f"git:{rev[0][:8]}:{newest}") if blob else None
 
 
 def _load_original_from_backup() -> dict:
     backups = sorted(
         glob.glob(os.path.join(REPO_ROOT, "liquid_ru_locations.py.bak_datamove_*"))
     )
-    if not backups:
-        raise SystemExit(
-            "FAIL: no liquid_ru_locations.py.bak_datamove_* backup found; "
-            "cannot establish parity ground truth"
-        )
-    newest = backups[-1]
-    src = open(newest, encoding="utf-8").read()
+    if backups:
+        newest = backups[-1]
+        src = open(newest, encoding="utf-8").read()
+    else:
+        # No on-disk backup: fall back to git history before giving up.
+        recovered = _ground_truth_from_git("liquid_ru_locations.py.bak_datamove_*")
+        if not recovered:
+            raise SystemExit(
+                "FAIL: no liquid_ru_locations.py.bak_datamove_* backup on disk and it "
+                "could not be recovered from git history; cannot establish parity "
+                "ground truth"
+            )
+        src, newest = recovered
     tree = ast.parse(src)
     for node in tree.body:
         if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "RU_LOCATIONS":

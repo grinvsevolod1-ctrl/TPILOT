@@ -227,6 +227,12 @@ def build_sync_fn(*, mutate: Optional[str] = None):
         "aiosqlite": _aiosqlite,
         "_manager_table_ready": _storage._manager_table_ready,
         "_now_iso": _storage._now_iso,
+        # STAGE 3: manager_sync_telegram_profile_in_db was later refactored to open its
+        # connection through storage._db_conn() instead of aiosqlite.connect() directly.
+        # It is a REAL storage.py dependency, bound here exactly like the two above --
+        # never faked, so the extracted function still exercises the production
+        # connection/PRAGMA path (and still honours db_path, which the tests assert).
+        "_db_conn": _storage._db_conn,
         "Dict": Dict,
         "Any": Any,
         "Optional": Optional,

@@ -3,9 +3,9 @@
 
 Runs BEFORE any Telegram network use. It opens the file strictly read-only and
 immutable (never mutates the candidate or its sidecars), runs PRAGMA
-quick_check, and checks the Telethon schema (version 7 in this project's
-telethon==1.42.0) and the single `sessions` row (dc_id / server_address / port
-/ auth_key length).
+quick_check, and checks the Telethon schema (read from the installed Telethon --
+7 for the pinned telethon==1.42.0, 8 from 1.44 on) and the single `sessions` row
+(dc_id / server_address / port / auth_key length).
 
 What this can prove offline: the file is a well-formed Telethon session DB of a
 known schema with a plausibly-sized auth_key for a plausible DC. What it CANNOT
@@ -24,8 +24,25 @@ from typing import Iterable, Optional
 
 from .models import FailureClass, SessionCandidate
 
-# telethon==1.42.0 SQLiteSession.CURRENT_VERSION
-SESSION_SCHEMA_VERSION = 7
+# The Telethon session schema this project accepts.
+#
+# STAGE 3: this used to be a bare `7` matching telethon==1.42.0. The constant and the
+# installed library could then drift apart SILENTLY: Telethon 1.44 bumped
+# CURRENT_VERSION to 8, so on a host that resolved a newer Telethon every prepared
+# account would be rejected with "unsupported schema version 8 (need 7)" -- a total
+# offline-import outage whose cause points at the session file rather than at the
+# dependency. (That is exactly how it surfaced: 17 selftest failures, one root cause.)
+#
+# Derive it from the installed Telethon so the check tracks the library automatically,
+# and keep 7 as the fallback for the pinned telethon==1.42.0. The comparison below stays
+# EXACT on purpose -- accepting "anything >= 7" would let a genuinely unknown future
+# schema through into session installation, which is the one place this project must not
+# guess (a wrong .session install is unrecoverable without re-login).
+try:  # pragma: no cover - trivial import shim
+    from telethon.sessions.sqlite import CURRENT_VERSION as _TELETHON_SCHEMA_VERSION
+    SESSION_SCHEMA_VERSION = int(_TELETHON_SCHEMA_VERSION)
+except Exception:  # Telethon absent (pure-offline tooling) or API moved
+    SESSION_SCHEMA_VERSION = 7
 # A Telegram MTProto auth_key is 256 bytes.
 AUTH_KEY_LEN = 256
 VALID_DC_IDS = frozenset({1, 2, 3, 4, 5})

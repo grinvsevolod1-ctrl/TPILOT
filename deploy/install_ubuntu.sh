@@ -140,6 +140,33 @@ run "${TPILOT_DIR}/venv/bin/python" -m pip install --quiet --upgrade pip wheel
 run "${TPILOT_DIR}/venv/bin/python" -m pip install --quiet \
     -r "${TPILOT_DIR}/requirements.txt"
 
+# Telethon session-schema agreement.
+#
+# STAGE 3: the offline-import path rejects any .session whose schema is not the expected
+# version. Telethon bumped that schema from 7 to 8 in 1.44, so an unpinned or drifted
+# install silently breaks EVERY prepared-account import with a message that blames the
+# session file. Existing live sessions on disk are schema 7, so a Telethon that writes 8
+# is also a migration event, not just a version bump -- surface it at install time.
+if [[ "$DRY_RUN" != "1" ]]; then
+  "${TPILOT_DIR}/venv/bin/python" - <<'PYEOF' || warn "Telethon session-schema check could not run"
+import sys
+sys.path.insert(0, ".")
+try:
+    from telethon.sessions.sqlite import CURRENT_VERSION as lib
+    import telethon
+except Exception as exc:
+    print(f"  [warn] cannot import Telethon: {exc}")
+    raise SystemExit(0)
+from tdata_import.session_inspector import SESSION_SCHEMA_VERSION as expected
+tag = "OK" if lib == expected else "MISMATCH"
+print(f"  Telethon {telethon.__version__}: session schema {lib}, "
+      f"inspector expects {expected} -> {tag}")
+if lib != expected:
+    print("  [warn] prepared-account offline import will reject sessions written by "
+          "this Telethon; pin the version in requirements.txt or migrate sessions.")
+PYEOF
+fi
+
 # ---------------------------------------------------------------------------
 # 5. Secrets skeleton. Never overwrite an existing file.
 # ---------------------------------------------------------------------------
