@@ -8,7 +8,8 @@ so every existing call site stays byte-identical.
 """
 
 import re
-from typing import Any, Tuple
+from datetime import datetime, timezone
+from typing import Any, Optional, Tuple
 
 
 def tp_normalize_phone_plus(raw: Any) -> str:
@@ -86,3 +87,59 @@ def phone_clean(phone: str) -> str:
 def display_unknown(value: Any) -> str:
     v = str(value or "").strip()
     return v if v else "не определено"
+
+
+# ---------------------------------------------------------------------------
+# Naive-UTC datetime parsers + duration formatter (moved from main.py,
+# extraction pass #3, 2026-08-22). Pure stdlib datetime/string logic only --
+# no TZ_KYIV, no _kyiv_now(), no Telethon types, no main.py globals.
+# ---------------------------------------------------------------------------
+
+def parse_utc_naive(raw: str) -> Optional[datetime]:
+    try:
+        dt = datetime.fromisoformat(str(raw or ""))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt.replace(microsecond=0)
+    except Exception:
+        return None
+
+
+def parse_utc_naive_dt(raw: str) -> Optional[datetime]:
+    try:
+        dt = datetime.fromisoformat(str(raw or ""))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt.replace(microsecond=0)
+    except Exception:
+        return None
+
+
+def tp_utc_parse(raw: Any) -> Optional[datetime]:
+    try:
+        dt = datetime.fromisoformat(str(raw or ""))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0)
+    except Exception:
+        return None
+
+
+def format_wait_duration(value: Any) -> str:
+    try:
+        n = float(value or 0)
+    except Exception:
+        n = 0.0
+    minutes = int(round(n / 60.0)) if n > 600 else int(round(n))
+    if minutes <= 0:
+        return "0 мин"
+    h, m = divmod(minutes, 60)
+    d, h = divmod(h, 24)
+    parts = []
+    if d:
+        parts.append(f"{d} д")
+    if h:
+        parts.append(f"{h} ч")
+    if m or not parts:
+        parts.append(f"{m} мин")
+    return " ".join(parts)
