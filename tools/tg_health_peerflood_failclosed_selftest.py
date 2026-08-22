@@ -77,6 +77,14 @@ async def runtime_gate(source: str, tree: ast.Module) -> None:
         "_tp_hg_row": row_loader,
         "_tp_hg_restriction_family": family,
         "_tp_hg_parse_iso": parse_iso,
+        # STAGE 3: the utcnow refactor (2026-08-16) routed main.py's naive-UTC reads
+        # through the _tp_utc_now() seam, so the extracted gate now calls it (this test
+        # failed with "NameError: name '_tp_utc_now'"). Bound to the same naive-UTC clock
+        # the rest of this namespace already fakes, keeping the cooldown-window
+        # assertions below driven by the test's own notion of "now".
+        # Mirrors main.py's _tp_utc_now: aware UTC with the tzinfo dropped. Deliberately
+        # NOT dt.datetime.utcnow(), which is the deprecated call the refactor removed.
+        "_tp_utc_now": lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None),
     }
 
     exec(compile(isolated, str(MAIN), "exec"), namespace, namespace)

@@ -107,6 +107,20 @@ def _make_d7_ns(main_tree, kyiv_now_fn, *, select_candidates=None, audit_add=Non
         "re": re,
         "datetime": _dt,
         "_kyiv_now": kyiv_now_fn,
+        # STAGE 3: the utcnow refactor (2026-08-16) routed main.py's naive-UTC reads
+        # through the _tp_utc_now() seam, so the extracted D7 body now calls a name this
+        # harness never bound ("NameError: name '_tp_utc_now'").
+        #
+        # A FIXED instant, deliberately independent of kyiv_now_fn and of the wall clock
+        # (this file's contract, see module docstring: datetime.now() is never called).
+        # Deriving it from the injected Kyiv clock was tried and is WRONG: it made the
+        # UTC seam raise W3TimezoneError in Case D, where the real one cannot. D7 reads
+        # _tp_utc_now() for its `started_at` telemetry stamp BEFORE its outer try, so a
+        # raising stub escapes the function uncaught and Case D fails on an exception the
+        # product cannot produce -- main.py's _tp_utc_now is a pure clock, while only
+        # _kyiv_now goes through storage.w3_now() and can fail. Keeping them separate is
+        # what makes Case D test the Kyiv-clock failure path and nothing else.
+        "_tp_utc_now": lambda: _dt(2026, 8, 14, 9, 0, 0),
         "TPILOT_DB_PATH": "<never touched: G requires zero DB contact>",
         "_bsd3a_select_candidates": select_candidates or _default_select,
         "_bsd3a_audit_add": audit_add or _default_audit,

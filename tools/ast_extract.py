@@ -78,6 +78,21 @@ def safe_module_ns() -> dict[str, Any]:
     return ns
 
 
+# Pure, dependency-light main.py helpers that extracted code may call. Kept an explicit
+# allow-list (see extract_and_exec): every entry must be safe to execute for real, with no
+# DB, network, filesystem or Telethon access, so auto-including it cannot bypass a fake.
+_AUTO_HELPERS: frozenset[str] = frozenset({
+    "_tp_utc_now",  # naive-UTC clock seam introduced by the 2026-08-16 utcnow refactor
+})
+
+# stdlib names the auto-included helpers above need in the exec namespace. Seeded only
+# when a helper is actually pulled in, so this cannot mask a test's own stubbed clock.
+_AUTO_HELPER_STDLIB: dict[str, str] = {
+    "datetime": "datetime.datetime",
+    "timezone": "datetime.timezone",
+}
+
+
 def _strip_docstring(node: ast.AST) -> ast.AST:
     """Drop a leading docstring so unparse output stays compact in failure diffs."""
     body = getattr(node, "body", None)
@@ -152,6 +167,11 @@ def extract_and_exec(
 
     `extra_ns` wins over auto-imported modules, so a test can always substitute a fake
     (that is how the proxy selftests inject a no-spend provider).
+
+    One limit worth knowing: `extra_ns` cannot override a name that is itself being
+    EXTRACTED -- exec of the extracted `def` rebinds it afterwards. To stub an extracted
+    function, leave it out of `names`; to stub what it calls (e.g. `datetime` under
+    `_tp_utc_now`), pass that dependency in `extra_ns`, which does win.
     """
     extra_ns = dict(extra_ns or {})
     path = Path(path)  # accept str call sites; path.name is used in messages below
@@ -168,6 +188,37 @@ def extract_and_exec(
             f"module level (not nested inside a function)."
         )
 
+    # STAGE 3: pull in pure project-internal helpers the extracted bodies call.
+    #
+    # The utcnow refactor (2026-08-16) routed every naive-UTC read in main.py through the
+    # _tp_utc_now() clock seam. Extracted code therefore calls a name that name-based
+    # extraction never requested, and a dozen unrelated selftests failed at once with
+    # "NameError: name '_tp_utc_now'" -- a refactor-time tax paid in every harness.
+    #
+    # Deliberately an explicit ALLOW-LIST of side-effect-free, dependency-light helpers,
+    # NOT general transitive-closure extraction: pulling in arbitrary callees would drag
+    # DB and Telethon-touching code into the exec namespace and silently defeat the fakes
+    # each test installs. A helper qualifies only if it is pure and safe to run for real.
+    auto_helpers = ((_referenced_names(list(picked.values())) & _AUTO_HELPERS)
+                    - set(picked) - set(extra_ns))
+    if auto_helpers:
+        for name, node in extract_nodes(path, auto_helpers).items():
+            picked.setdefault(name, node)
+
+    # Seed the stdlib names these helpers need, keyed off whichever of them ended up in
+    # the namespace -- whether auto-pulled above or requested directly by the caller.
+    # Never over a name the caller supplied: a test that stubs `datetime` keeps its stub.
+    helper_ns: dict[str, Any] = {}
+    present = set(picked) & _AUTO_HELPERS
+    if present:
+        needed = _referenced_names([picked[n] for n in present]) & set(_AUTO_HELPER_STDLIB)
+        for ref in needed - set(extra_ns):
+            mod, _, attr = _AUTO_HELPER_STDLIB[ref].partition(".")
+            try:
+                helper_ns[ref] = getattr(importlib.import_module(mod), attr)
+            except Exception:
+                pass
+
     ordered = [picked[n] for n in sorted(picked)]
     module_src = "\n\n".join(ast.unparse(_strip_docstring(n)) for n in ordered)
 
@@ -182,6 +233,7 @@ def extract_and_exec(
                 # fails loudly with the real reason.
                 pass
 
+    ns.update(helper_ns)
     ns.update(extra_ns)
     exec(compile(module_src, f"<{path.name}>", "exec"), ns)
     return ns

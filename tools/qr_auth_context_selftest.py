@@ -87,6 +87,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+import ast_extract  # noqa: E402  (shared AST harness, lives next to this file)
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -378,6 +380,10 @@ def build_qr_ns(db_path: str, base_dir: Path, *, script: dict = None, exclude_na
     tmp_audit_log = Path(db_path).parent / "manager_auth_audit.log"
 
     ns = {
+        # STAGE 3: seed side-effect-free project modules that extracted main.py code
+        # reaches through module-level import aliases (this test hit it as
+        # NameError: proxy_parser). Splatted FIRST so every explicit binding below wins.
+        **ast_extract.safe_module_ns(),
         "os": os,
         "asyncio": asyncio,
         "aiosqlite": _aiosqlite,
