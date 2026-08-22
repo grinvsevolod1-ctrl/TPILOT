@@ -56,10 +56,13 @@ DEFAULT_QUEUE_DB_PATH = os.path.join(os.path.dirname(__file__), "db", "data_tpil
 QUEUE_DB_PATH = (os.getenv("TPILOT_DB_PATH") or os.getenv("QUEUE_DB_PATH") or DEFAULT_QUEUE_DB_PATH)
 
 # --- perf/reliability: shared connection settings (patch perf_conn, 2026-08-22) ---
-# Before this helper each aiosqlite.connect() site used per-connection defaults,
-# which meant busy_timeout=0 on 87 of 88 sites. With the controller + N manager
-# runtimes + 3 bots all writing one SQLite file, that surfaces as spurious
-# "database is locked" instead of a short wait.
+# Before this helper each aiosqlite.connect() site relied on driver defaults.
+# NOTE: Python's sqlite3/aiosqlite connect() already defaults to timeout=5.0
+# (busy_timeout=5000ms), so those sites were NOT running at busy_timeout=0 -- an
+# earlier audit claim to that effect was measured and disproved. What they did
+# lack is synchronous=NORMAL and a guaranteed journal_mode=WAL (previously set on
+# only 2 of 88 sites), plus one place to tune the wait via DB_BUSY_TIMEOUT_MS.
+# This helper is therefore a consistency/tunability fix, not a lock-error fix.
 #
 # busy_timeout and synchronous are PER-CONNECTION and must be re-applied on every
 # connect; journal_mode=WAL is persisted in the DB file, so it is applied once per

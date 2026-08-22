@@ -1715,7 +1715,7 @@ async def _process_auto_offline() -> None:
         if current_status == "online" and now_local >= no_show_local and now_local < work_end_local and not manual_today and not manual_online_today:
             changed = await _set_manager_work_status(key, "no_show", user_id=0, source="no_show")
             if changed:
-                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего вре��ени.")
+                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего времени.")
             continue
 
         # Inactivity: ordinary online is checked in the work window; forced worknow is checked even at night.
@@ -2343,44 +2343,6 @@ async def _create_partner_lead_event_from_daily(
     except Exception as e:
         print(f"partner live event create error: {e!r}")
 # --- PARTNER LIVE EVENTS FIX END ---
-
-async def _process_pending_lead_events() -> None:
-    if not CONTROLLER_MODE:
-        return
-    rows = await _manager_rows_for_reporting()
-    db_paths = [str(r.get("db_path") or "") for r in rows if str(r.get("db_path") or "").strip()]
-    pending: List[Dict[str, Any]] = []
-    row_by_key: Dict[str, Dict[str, Any]] = {registry_normalize_manager_key(r.get("manager_key") or ""): r for r in rows}
-
-    for mgr in rows:
-        db_path = str(mgr.get("db_path") or "")
-        for item in await _fetch_unsent_daily_leads(db_path, limit=300):
-            item["_db_path"] = db_path
-            item["_manager_row"] = mgr
-            pending.append(item)
-
-    pending.sort(key=lambda x: (str(x.get("first_seen_utc") or ""), str(x.get("manager_key") or ""), int(x.get("id") or 0)))
-    batch_seen: set[int] = set()
-    for item in pending:
-        db_path = str(item.get("_db_path") or "")
-        key = registry_normalize_manager_key(item.get("manager_key") or "")
-        mgr = item.get("_manager_row") or row_by_key.get(key) or {}
-        duplicate = await _is_duplicate_systemwide(item, db_paths, batch_seen, db_path)
-        manager_label = _manager_label_from_row(mgr) if mgr else key
-        text = _format_lead_event(item, duplicate, manager_label)
-
-        # Partner Stat Bot live event must not depend on the STATISTICS send result.
-        try:
-            await _create_partner_lead_event_from_daily(item, mgr, duplicate)
-        except Exception as e:
-            print(f"partner live event dispatch error: {e!r}")
-
-        ok = await _send_ai_stat(text)
-        if ok:
-            await _mark_daily_lead_sent(db_path, int(item.get("id") or 0), duplicate=duplicate)
-            batch_seen.add(int(item.get("chat_id") or 0))
-            await asyncio.sleep(0.2)
-
 
 async def _lead_dispatch_loop() -> None:
     if not CONTROLLER_MODE:
@@ -4614,7 +4576,7 @@ async def _export_period_xlsx(spec: Dict[str, Any]) -> str:
     ws.title = "leads"
     headers = [
         "№", "Дата", "Время", "Период", "Фильтр", "manager_key", "Аккаунт менеджера", "chat_id", "username", "Имя аккаунта", "Телефон", "Дубликат",
-        "Возраст", "Город", "Регион", "Страна", "С��атус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
+        "Возраст", "Город", "Регион", "Страна", "Статус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
     ]
     ws.append(headers)
     for cell in ws[1]:
@@ -6095,27 +6057,6 @@ async def _format_profile_auto_status(target: str = "all") -> str:
     if not any_row:
         lines.append("Менеджеры не найдены.")
     return chr(10).join(lines).rstrip()
-
-
-async def _handle_profile_auto_command(args: str, *, user_id: int = 0) -> str:
-    parts = str(args or "").split()
-    if not parts or parts[0].lower() not in ("auto", "анкета"):
-        return "Формат: /profile auto status|on|off <manager|all>"
-    action = (parts[1].lower() if len(parts) > 1 else "status")
-    target = registry_normalize_manager_key(parts[2] if len(parts) > 2 else "all") or "all"
-    rows = await manager_list_rows(include_removed=False)
-    keys = [registry_normalize_manager_key(r.get("manager_key") or "") for r in rows if registry_normalize_manager_key(r.get("manager_key") or "")]
-    if target != "all" and target not in keys:
-        return f"Менеджер не найден: {target}"
-    if action in ("status", "st", "state"):
-        return await _format_profile_auto_status(target)
-    if action not in ("on", "off"):
-        return "Формат: /profile auto status|on|off <manager|all>"
-    enabled = action == "on"
-    for k in keys:
-        if target == "all" or k == target:
-            await _set_profile_auto_enabled(k, enabled, user_id=user_id)
-    return await _format_profile_auto_status(target)
 
 
 def _parse_target_date_args(raw_args: str, *, default_target: str = "all"):
@@ -8221,7 +8162,7 @@ async def _funnel_sources_text(date_token: str = "") -> str:
             continue
         lines.append(str(b.get("label") or key))
         lines.append(f"Лидов: {int(b.get('total') or 0)}")
-        lines.append(f"Новые: {int(b.get('new') or 0)} | Дуб��и: {int(b.get('duplicates') or 0)}")
+        lines.append(f"Новые: {int(b.get('new') or 0)} | Дубли: {int(b.get('duplicates') or 0)}")
         lines.append(f"Анкету дали: {int(b.get('profile_done') or 0)}")
         lines.append(f"Ликвид: {int(b.get('liquid') or 0)} | Неликвид: {int(b.get('nonliquid') or 0)} | NA: {int(b.get('na') or 0)} | TRASH: {int(b.get('trash') or 0)}")
         lines.append(f"Качество источника: {_funnel_quality_ratio(b)}%")
@@ -11281,7 +11222,7 @@ def _content_variant_add(category: str, text: str, *, user_id: int = 0) -> str:
     _content_ensure_variant_category(category)
     cap = _CONTENT_VARIANT_CATEGORY_CAPS.get(category)
     if cap and len(_content_variant_rows(category)) >= cap:
-        return f"⚠️ Дости��нут лимит {cap} текстов для категории {category}. Удалите или измените существующий вариант."
+        return f"⚠️ Достигнут лимит {cap} текстов для категории {category}. Удалите или измените существующий вариант."
     con = _content_connect()
     try:
         now = _content_now_iso()
@@ -14910,7 +14851,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:
             "",
             "/lead status <chat_id> - показать качество лида",
             "/lead fix <chat_id> liquid|geo|-18|under18|trash|na [причина] - ручное исправление",
-            "/lead repair today|yesterday|all|ДД.ММ.ГГ - пересчита��ь статусы",
+            "/lead repair today|yesterday|all|ДД.ММ.ГГ - пересчитать статусы",
         ]).rstrip()
     if action == "status":
         if len(parts) < 2:
@@ -21194,7 +21135,7 @@ async def _tp_hg_run_self_check(*, source: str = "periodic_self_check") -> Dict[
                 error_class=str(classified.get("error_class") or "DialogCheckError"),
                 error_text=str(classified.get("error_text") or repr(e)),
                 error_source=f"{source}_get_dialogs",
-                action_required="Лёгкая проверка диалогов дала ошибку. Наблюдать, уведомление не отпра��ляется.",
+                action_required="Лёгкая проверка диалогов дала ошибку. Наблюдать, уведомление не отправляется.",
                 cooldown_seconds=int(classified.get("seconds") or 0),
             )
             return {"ok": True, "status": row.get("health_status"), "text": str(row.get("error_text") or "warning"), "row": row, "live_probe_ok": True}
@@ -25293,7 +25234,7 @@ async def _queue_bizlink_create_one_for_manager(
             return False, str(
                 (row or {}).get("error_text")
                 or (row or {}).get("result_text")
-                or f"{mk}: ошибка соз��ания бизнес-ссылки"
+                or f"{mk}: ошибка создания бизнес-ссылки"
             )
         await asyncio.sleep(1.0)
     return False, (
@@ -27700,7 +27641,7 @@ async def _queue_bizlink_delete_tpilot_for_manager(
     # Check expiry
     now_iso = _tp_utc_now().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
-        return False, "Preview ис��ёк (>5 мин). Создайте новый."
+        return False, "Preview истёк (>5 мин). Создайте новый."
 
     # Atomic consume — prevents double execution
     if not callable(_bsd3a_preview_consume):
@@ -28192,7 +28133,7 @@ async def _queue_bizlink_delete_telegram_for_manager(
         return False, "Это подтверждение уже было использовано (single-use)."
     now_iso = _tp_utc_now().replace(microsecond=0).isoformat()
     if str(preview.get("expires_at") or "") <= now_iso:
-        return False, "Preview истё�� (>5 мин). Создайте новый."
+        return False, "Preview истёк (>5 мин). Создайте новый."
 
     if not callable(_bsd3a_preview_consume):
         return False, "Модуль storage недоступен."
@@ -36407,7 +36348,7 @@ async def _manager_runtime_ready_once(
     if not ping_tgid:
         return _fail("session_unauthorized", "runtime_ping не вернул Telegram id.", "ping")
     if stored_tgid and ping_tgid != stored_tgid:
-        return _fail("telegram_identity_mismatch", f"runtime_ping id {ping_tgid} != ��еестр {stored_tgid}.", "ping")
+        return _fail("telegram_identity_mismatch", f"runtime_ping id {ping_tgid} != реестр {stored_tgid}.", "ping")
     if expected_tgid and ping_tgid != expected_tgid:
         return _fail("telegram_identity_mismatch", f"runtime_ping id {ping_tgid} != ожидаемый {expected_tgid}.", "ping")
 
