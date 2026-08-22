@@ -228,9 +228,28 @@ do NOT attribute these to a new patch, and do not "fix" them as part of an unrel
 change): `proxy_buy_flow`, `manager_relogin`, `deleted_manager_stats_retention`,
 `identity_sync_ira`, `liquid_ru_locations_parity`, `non_liquid_locations_parity`,
 `manager_replacement_adminbot`, `manager_replacement_backend`,
-`manager_replacement_commit`, `prepared_accounts_offline_import`. Most fail because they
-AST-extract a helper from `main.py` that is no longer defined at module top level.
+`manager_replacement_commit`, `prepared_accounts_offline_import`.
 When touching a failing area, re-verify against HEAD before and after.
+
+Diagnosed causes (these are STALE TEST HARNESSES, not product bugs — the product code
+was refactored correctly and the AST-extraction harnesses were not updated):
+
+1. **Un-injected dependency in the exec namespace.** The harness AST-extracts a function
+   and `exec`s it, but the extracted code now references a module the namespace does not
+   provide → `NameError: name 'text_format_helpers' / 'proxy_parser' / '_db_conn'`.
+   Affects `manager_relogin`, `identity_sync_ira`, `manager_replacement_adminbot`,
+   `manager_replacement_backend`. Fix = add the module to the namespace dict; this is
+   exactly the fix applied to `startup_isolation_selftest` (`process_control`).
+2. **Helper moved out of `main.py` into a module and re-bound by assignment**
+   (e.g. `_manager_label_from_row = text_format_helpers.manager_label_from_row`). The
+   harness only accepts a top-level `def`, so it reports "could not find ... as top-level
+   defs". Affects `deleted_manager_stats_retention`, `proxy_buy_flow`. Fix = teach
+   `extract_and_exec` to resolve module-level aliases, not just `def`s.
+3. **Missing ground-truth artifact.** `liquid_ru_locations_parity` /
+   `non_liquid_locations_parity` need a `*.bak_datamove_*` backup file to diff against;
+   it is absent from a sanitized checkout. Environmental, not a code defect.
+4. `prepared_accounts_offline_import` fails 17 real checks (session install/rollback) and
+   is the only one NOT yet root-caused — investigate before trusting that area.
 
 ## 10. Deployment process
 
