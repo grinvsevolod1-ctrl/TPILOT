@@ -10,14 +10,18 @@ The module is intentionally offline-first:
 - local aliases for common Russian/CIS latin spellings and abbreviations.
 """
 
+import logging
 import re
 import unicodedata
 from typing import Any, Dict, Optional, Tuple
 
-try:
-    from liquid_ru_locations import RU_LOCATIONS as _RU_LOCATIONS  # type: ignore
-except Exception:
-    _RU_LOCATIONS = {}
+_log = logging.getLogger(__name__)
+
+# NOTE (perf): liquid_ru_locations is intentionally NOT imported at module import
+# time. It parses data/ru_locations.json (~18 MB, ~160k records) which used to cost
+# ~1.5 s and ~76 MB RSS in EVERY process that imports router (controller + each
+# manager runtime). It is now loaded lazily by _ru_load() on the first RU geo
+# lookup, so processes that never parse lead geo never pay for it at all.
 
 try:
     import non_liquid_locations as _NLIQ  # type: ignore
@@ -30,44 +34,146 @@ except Exception:
     _UA_LOCATIONS_RAW = set()
 
 
+# ----------------------------
+# Normalization primitives
+# ----------------------------
+# These run on every inbound lead message AND once per dictionary key while the
+# geo indexes are built (~600k calls on a cold index). Patterns are compiled once
+# at import time; the character folding is done with a single str.translate table
+# instead of chained replace()/re.sub() passes.
+_RE_WS = re.compile(r"\s+")
+_RE_KEY_DROP = re.compile(r"[^0-9a-zа-яіїєґ\s\-]+", re.IGNORECASE)
+_RE_SEP_RUN = re.compile(r"[\s\-]+")
+_RE_SEP_SPLIT = re.compile(r"([\s\-]+)")
+_RE_SEP_FULL = re.compile(r"[\s\-]+")
+
+# ё/Ё folding plus every dash variant the old code normalized to ASCII '-'.
+# Order does not matter: the old chain lowercased before the dash pass, and
+# lowercasing never touches dashes.
+_FOLD_MAP = {
+    ord("ё"): "е",
+    ord("Ё"): "Е",
+    0x2010: "-",  # ‐ hyphen
+    0x2011: "-",  # ‑ non-breaking hyphen
+    0x2012: "-",  # ‒ figure dash
+    0x2013: "-",  # – en dash
+    0x2014: "-",  # — em dash
+    0x2212: "-",  # − minus sign
+}
+
+
 def _norm(text: Any) -> str:
     s = str(text or "").strip()
-    s = unicodedata.normalize("NFKC", s)
-    s = s.replace("ё", "е").replace("Ё", "Е")
-    s = s.lower()
-    s = re.sub(r"[‐‑‒–—−]", "-", s)
-    s = re.sub(r"[\t\r\n]+", " ", s)
-    s = re.sub(r"\s+", " ", s)
-    return s.strip()
+    if not s:
+        return ""
+    # NFKC is a no-op for pure ASCII and is_normalized() short-circuits without
+    # allocating a new string, so the common case skips the expensive call.
+    if not s.isascii() and not unicodedata.is_normalized("NFKC", s):
+        s = unicodedata.normalize("NFKC", s)
+    s = s.lower().translate(_FOLD_MAP)
+    # The old code ran [\t\r\n]+ -> " " before \s+ -> " "; the second pass fully
+    # subsumes the first, so a single collapse is equivalent.
+    return _RE_WS.sub(" ", s).strip()
 
 
 def _key(text: Any) -> str:
     s = _norm(text)
-    s = re.sub(r"[^0-9a-zа-яіїєґ\s\-]+", " ", s, flags=re.IGNORECASE)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    if not s:
+        return ""
+    s = _RE_KEY_DROP.sub(" ", s)
+    return _RE_WS.sub(" ", s).strip()
 
 
 def _compact_key(text: Any) -> str:
-    return re.sub(r"[\s\-]+", "", _key(text))
+    return _RE_SEP_RUN.sub("", _key(text))
 
 
 def _title_city(text: str) -> str:
     s = str(text or "").strip()
     if not s:
         return ""
-    parts = re.split(r"([\s\-]+)", s)
-    return "".join(p.capitalize() if p and not re.fullmatch(r"[\s\-]+", p) else p for p in parts)
+    parts = _RE_SEP_SPLIT.split(s)
+    return "".join(p.capitalize() if p and not _RE_SEP_FULL.fullmatch(p) else p for p in parts)
 
 
 # ----------------------------
 # Source indexes
 # ----------------------------
-RU_LOCATIONS: Dict[str, Any] = {}
-for k, v in dict(_RU_LOCATIONS or {}).items():
-    kk = _key(k)
-    if kk:
-        RU_LOCATIONS[kk] = v
+# The old code eagerly materialized a SECOND full dict: RU_LOCATIONS[_key(k)] = v
+# for all ~160k source keys. Measurement shows the source keys are already
+# normalized -- _key(k) == k for 159459 of 159765 entries -- so that copy was
+# ~99.8% redundant and cost ~76 MB plus ~1.0 s of _key() calls per process.
+#
+# Instead we keep the source dict as-is and add a tiny alias map for the handful
+# of keys whose normalized form differs (dotted dates, "ж/д", abbreviations with
+# periods). Lookups check the source dict first, then the alias map, which is
+# equivalent because _key() is idempotent: a normalized query can never equal a
+# non-normalized source key.
+_RU_RAW: Optional[Dict[str, Any]] = None
+_RU_ALIAS: Optional[Dict[str, str]] = None
+
+
+def _ru_load() -> None:
+    """Import and index the RU dictionary at most once per process.
+
+    Lazy on purpose: the controller process never parses lead geo, so it should
+    never pay the cost of loading this dictionary at all.
+    """
+    global _RU_RAW, _RU_ALIAS
+    if _RU_RAW is not None:
+        return
+    try:
+        from liquid_ru_locations import RU_LOCATIONS as _raw  # type: ignore
+    except Exception:
+        _log.warning("router: liquid_ru_locations unavailable, RU geo lookup disabled", exc_info=True)
+        _RU_RAW, _RU_ALIAS = {}, {}
+        return
+    raw: Dict[str, Any] = _raw or {}
+    alias: Dict[str, str] = {}
+    for k in raw:
+        kk = _key(k)
+        if not kk or kk == k:
+            continue
+        if kk in raw:
+            # Would have been an overwrite in the old flat index, where the last
+            # writer won. Log instead of silently diverging if the data changes.
+            _log.warning("router: normalized RU key %r collides with an existing source key", kk)
+            continue
+        alias[kk] = k
+    _RU_RAW, _RU_ALIAS = raw, alias
+
+
+def _ru_contains(k: str) -> bool:
+    """Membership test for an already _key()-normalized token."""
+    _ru_load()
+    return k in _RU_RAW or k in _RU_ALIAS  # type: ignore[operator]
+
+
+def _ru_get(k: str) -> Any:
+    """Value for an already _key()-normalized token, or None when absent."""
+    _ru_load()
+    if k in _RU_RAW:  # type: ignore[operator]
+        return _RU_RAW[k]  # type: ignore[index]
+    src = _RU_ALIAS.get(k)  # type: ignore[union-attr]
+    return None if src is None else _RU_RAW[src]  # type: ignore[index]
+
+
+def _ru_index() -> Dict[str, Any]:
+    """Legacy flat view of the index. Materializes the full second copy, so it
+    exists only for backwards compatibility -- prefer _ru_contains()/_ru_get()."""
+    _ru_load()
+    out = dict(_RU_RAW or {})
+    for kk, src in (_RU_ALIAS or {}).items():
+        out[kk] = _RU_RAW[kk] if kk in _RU_RAW else _RU_RAW[src]  # type: ignore[index,operator]
+    return out
+
+
+def __getattr__(name: str) -> Any:
+    """Backwards compatibility: `router.RU_LOCATIONS` still resolves, but now
+    builds the flat view on demand instead of existing as an eager global."""
+    if name == "RU_LOCATIONS":
+        return _ru_index()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 UA_LOCATIONS = {_key(x) for x in (_UA_LOCATIONS_RAW or set()) if _key(x)}
 UA_COMPACT = {_compact_key(x) for x in UA_LOCATIONS if x}
@@ -171,7 +277,7 @@ ALIASES: Dict[str, Tuple[Optional[str], Optional[str], str]] = {
     "moskva": ("Москва", "Москва", "Россия"),
     "москва": ("Москва", "Москва", "Россия"),
     "спб": ("Санкт-Петербург", "Санкт-Петербург", "Россия"),
-    "spb": ("Санкт-Петербург", "Санкт-Петербург", "Россия"),
+    "spb": ("Санкт-Пе��ербург", "Санкт-Петербург", "Россия"),
     "питер": ("Санкт-Петербург", "Санкт-Петербург", "Россия"),
     "piter": ("Санкт-Петербург", "Санкт-Петербург", "Россия"),
     "peterburg": ("Санкт-Петербург", "Санкт-Петербург", "Россия"),
@@ -194,7 +300,7 @@ ALIASES: Dict[str, Tuple[Optional[str], Optional[str], str]] = {
     "rostov-na-donu": ("Ростов-на-Дону", "Ростовская область", "Россия"),
     "ростов на дону": ("Ростов-на-Дону", "Ростовская область", "Россия"),
     "ростов-на-дону": ("Ростов-на-Дону", "Ростовская область", "Россия"),
-    "ростов": ("Ростов-на-Дону", "Ростовская область", "Россия"),
+    "ростов": ("Рос��ов-на-Дону", "Ростовская область", "Россия"),
     "уфа": ("Уфа", "Республика Башкортостан", "Россия"),
     "ufa": ("Уфа", "Республика Башкортостан", "Россия"),
     "казань": ("Казань", "Республика Татарстан", "Россия"),
@@ -395,7 +501,7 @@ def _normalize_country_name(country: Optional[str]) -> Optional[str]:
     if c in {"украины", "україни"}:
         return "Украина"
     # Values from source files often use genitive "России".
-    if c == "россии":
+    if c == "р��ссии":
         return "Россия"
     return str(country).strip().capitalize()
 
@@ -469,8 +575,8 @@ def _lookup_alias(candidate: str) -> Optional[Dict[str, Any]]:
 def _lookup_ru(candidate: str) -> Optional[Dict[str, Any]]:
     for cand in [candidate] + _variants_for_token(candidate):
         k = _key(cand)
-        if k in RU_LOCATIONS:
-            city, region, country = _unpack_mapping_value(RU_LOCATIONS[k])
+        if _ru_contains(k):
+            city, region, country = _unpack_mapping_value(_ru_get(k))
             return {
                 "city": city or _title_city(k),
                 "region": region or "",
@@ -577,7 +683,11 @@ def is_noise_text(text: str) -> bool:
 
 def is_known_city_token(word: str) -> bool:
     k = _key(word)
-    return bool(k in RU_LOCATIONS or k in NLIQ_KEYS or k in UA_LOCATIONS or k in ALIASES)
+    # Cheap in-memory sets first; the RU dictionary is checked last so a hit on
+    # any of them short-circuits before it has to be loaded from disk.
+    if k in ALIASES or k in UA_LOCATIONS or k in NLIQ_KEYS:
+        return True
+    return _ru_contains(k)
 
 
 def detect_remote_intent(text: str) -> bool:
