@@ -142,11 +142,13 @@ run "${TPILOT_DIR}/venv/bin/python" -m pip install --quiet \
 
 # Telethon session-schema agreement.
 #
-# STAGE 3: the offline-import path rejects any .session whose schema is not the expected
-# version. Telethon bumped that schema from 7 to 8 in 1.44, so an unpinned or drifted
-# install silently breaks EVERY prepared-account import with a message that blames the
-# session file. Existing live sessions on disk are schema 7, so a Telethon that writes 8
-# is also a migration event, not just a version bump -- surface it at install time.
+# STAGE 3: the offline-import path rejects any .session whose schema is not in the
+# inspector's known set. Telethon bumped that schema from 7 to 8 in 1.44, so before this
+# check a drifted install silently broke EVERY prepared-account import with a message
+# that blamed the session file rather than the dependency. Live sessions on disk are
+# schema 7 and Telethon migrates them IN PLACE on first open, so a Telethon that writes 8
+# is a one-way credential migration, not just a version bump -- surface it at install
+# time, while it is still a decision.
 if [[ "$DRY_RUN" != "1" ]]; then
   "${TPILOT_DIR}/venv/bin/python" - <<'PYEOF' || warn "Telethon session-schema check could not run"
 import sys
@@ -157,13 +159,15 @@ try:
 except Exception as exc:
     print(f"  [warn] cannot import Telethon: {exc}")
     raise SystemExit(0)
-from tdata_import.session_inspector import SESSION_SCHEMA_VERSION as expected
-tag = "OK" if lib == expected else "MISMATCH"
+from tdata_import.session_inspector import SESSION_SCHEMA_VERSIONS as accepted
+known = ", ".join(str(v) for v in sorted(accepted))
+tag = "OK" if lib in accepted else "MISMATCH"
 print(f"  Telethon {telethon.__version__}: session schema {lib}, "
-      f"inspector expects {expected} -> {tag}")
-if lib != expected:
+      f"inspector accepts {known} -> {tag}")
+if lib not in accepted:
     print("  [warn] prepared-account offline import will reject sessions written by "
-          "this Telethon; pin the version in requirements.txt or migrate sessions.")
+          "this Telethon; pin the version in requirements.txt, or add it to "
+          "SESSION_SCHEMA_VERSIONS after verifying the sessions-table layout.")
 PYEOF
 fi
 

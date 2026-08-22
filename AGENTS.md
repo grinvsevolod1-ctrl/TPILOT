@@ -88,8 +88,11 @@ Never edit or run them unless explicitly asked.
 ## 4. Critical architecture warnings
 
 * main.py and panel_bot.py contain MANY stacked override definitions of the same function.
-  Only the LAST definition is active. Before editing, always locate the active/latest def
-  by line number (`grep -n "def name"` → take the last). Never assume the first def is active.
+  Only the LAST definition is active. Before editing, locate the active def with
+  `python tools/override_map.py <name>` (Stage 3) — it reports every definition, marks the
+  ACTIVE one, and lists the delegation captures. Prefer it over `grep -n "def name" | tail -1`,
+  which misses helpers that are now module-level aliases rather than `def`s. Never assume
+  the first def is active. See §9 "Override chains" before deleting any duplicate.
 * New overrides follow the chain pattern: `_X_PREV = globals().get("name")` before redefining,
   delegate to `_X_PREV` as fallback.
 * panel_bot.py callback handler order matters; for callback data where one string is a prefix
@@ -256,10 +259,18 @@ those 20 MB files to the working tree.
 `tdata_import/session_inspector.py` hardcoded schema `7` (telethon==1.42.0). Telethon
 1.44 writes schema **8**, so on any host resolving a newer Telethon EVERY prepared-account
 import fails with "unsupported schema version 8 (need 7)" — a message that blames the
-operator's session file, not the dependency. The constant is now derived from the
-installed Telethon (fallback 7), and the comparison stays EXACT on purpose: accepting
-">= 7" would let an unknown future schema into session installation, where a wrong
-install is unrecoverable without re-login.
+operator's session file, not the dependency.
+
+It is now `SESSION_SCHEMA_VERSIONS = frozenset({7, 8})`, an allow-SET, and that shape is
+load-bearing in both directions. Pinning a single version — including deriving it from the
+installed Telethon — rejects the other half of the real world: live sessions on disk are
+v7 while a newer Telethon writes v8, and both are legitimate inputs. (Tracking the library
+alone was tried first and broke 7 checks in `tdata_session_inspector`, because it rejected
+every existing v7 session — a worse outage than the one being fixed.) Membership stays
+EXACT, never `>= 7`: an unknown future schema must still be refused, since session
+installation is the one place this project must not guess — a wrong `.session` install is
+unrecoverable without re-login. Add a version only after confirming the `sessions` row
+layout (dc_id / server_address / port / auth_key) is unchanged in it.
 
 The real danger is on disk: **Telethon migrates an older `.session` IN PLACE on first
 open** (`SQLiteSession.__init__` → `_upgrade_database` + `save`). All live sessions are
@@ -310,11 +321,12 @@ Checks after restart:
 ```
 tpilot-ctl status
 tpilot-ctl doctor
-journalctl -u tpilot-panel-bot -n 40
+journalctl -u tpilot-panel -n 40
 journalctl -u tpilot-manager@<key> -n 40 -f
 ```
 
-If only PanelBot changed: `sudo systemctl restart tpilot-panel-bot`.
+If only PanelBot changed: `sudo systemctl restart tpilot-panel`. (The unit is
+`tpilot-panel.service`; `tpilot-manager-bot.service` is the separate ManagerBot.)
 
 Rollback: systemd keeps the previous unit files, but code rollback is still manual —
 take a timestamped copy of changed files before overwriting them (§2 backup rule still

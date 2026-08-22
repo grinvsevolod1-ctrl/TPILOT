@@ -3,7 +3,7 @@
 
 Runs BEFORE any Telegram network use. It opens the file strictly read-only and
 immutable (never mutates the candidate or its sidecars), runs PRAGMA
-quick_check, and checks the Telethon schema (read from the installed Telethon --
+quick_check, and checks the Telethon schema (accepts the known versions 7 and 8 --
 7 for the pinned telethon==1.42.0, 8 from 1.44 on) and the single `sessions` row
 (dc_id / server_address / port / auth_key length).
 
@@ -24,25 +24,34 @@ from typing import Iterable, Optional
 
 from .models import FailureClass, SessionCandidate
 
-# The Telethon session schema this project accepts.
+# The Telethon session schemas this project accepts.
 #
-# STAGE 3: this used to be a bare `7` matching telethon==1.42.0. The constant and the
-# installed library could then drift apart SILENTLY: Telethon 1.44 bumped
-# CURRENT_VERSION to 8, so on a host that resolved a newer Telethon every prepared
-# account would be rejected with "unsupported schema version 8 (need 7)" -- a total
-# offline-import outage whose cause points at the session file rather than at the
-# dependency. (That is exactly how it surfaced: 17 selftest failures, one root cause.)
+# STAGE 3: this used to be a bare `7` matching telethon==1.42.0, and the constant could
+# drift from the installed library SILENTLY. Telethon 1.44 bumped CURRENT_VERSION to 8,
+# so on a host that resolved a newer Telethon every prepared account was rejected with
+# "unsupported schema version 8 (need 7)" -- a total offline-import outage whose message
+# blames the operator's session file rather than the dependency. (That is exactly how it
+# surfaced: 17 selftest failures, one root cause.)
 #
-# Derive it from the installed Telethon so the check tracks the library automatically,
-# and keep 7 as the fallback for the pinned telethon==1.42.0. The comparison below stays
-# EXACT on purpose -- accepting "anything >= 7" would let a genuinely unknown future
-# schema through into session installation, which is the one place this project must not
-# guess (a wrong .session install is unrecoverable without re-login).
+# Deliberately an ALLOW-SET of known Telethon schemas, not a single version:
+#   - Pinning one version rejects the other half of the real world. Live sessions on
+#     disk are v7 while a newer Telethon writes v8, and BOTH are legitimate inputs --
+#     tracking only the installed library would reject every existing session, which is
+#     a worse outage than the one being fixed.
+#   - Membership stays EXACT (never ">= 7"): an unknown future schema must still be
+#     refused, because session installation is the one place this project must not guess
+#     -- a wrong .session install is unrecoverable without re-login.
+# Add a version here only after confirming the layout this module reads (the single
+# `sessions` row: dc_id / server_address / port / auth_key) is unchanged in it.
+SESSION_SCHEMA_VERSIONS = frozenset({7, 8})
+# Preferred version for messages and for callers that need a single number; the schema
+# the installed Telethon writes, when that is one we know.
 try:  # pragma: no cover - trivial import shim
     from telethon.sessions.sqlite import CURRENT_VERSION as _TELETHON_SCHEMA_VERSION
-    SESSION_SCHEMA_VERSION = int(_TELETHON_SCHEMA_VERSION)
+    _lib = int(_TELETHON_SCHEMA_VERSION)
 except Exception:  # Telethon absent (pure-offline tooling) or API moved
-    SESSION_SCHEMA_VERSION = 7
+    _lib = 7
+SESSION_SCHEMA_VERSION = _lib if _lib in SESSION_SCHEMA_VERSIONS else max(SESSION_SCHEMA_VERSIONS)
 # A Telegram MTProto auth_key is 256 bytes.
 AUTH_KEY_LEN = 256
 VALID_DC_IDS = frozenset({1, 2, 3, 4, 5})
@@ -106,9 +115,10 @@ def inspect_session(path: str, *, origin: str = "ready",
 
         vrow = con.execute("SELECT version FROM version").fetchone()
         version = int(vrow[0]) if vrow and vrow[0] is not None else None
-        if version != SESSION_SCHEMA_VERSION:
+        if version not in SESSION_SCHEMA_VERSIONS:
+            known = ", ".join(str(v) for v in sorted(SESSION_SCHEMA_VERSIONS))
             return _fail(path, origin, FailureClass.SESSION_SCHEMA_UNSUPPORTED,
-                         f"unsupported schema version {version!r} (need {SESSION_SCHEMA_VERSION})")
+                         f"unsupported schema version {version!r} (need one of {known})")
 
         srows = con.execute(
             "SELECT dc_id, server_address, port, auth_key FROM sessions"

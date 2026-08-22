@@ -343,18 +343,20 @@ def _check_session_schema() -> None:
 
         import telethon
         from telethon.sessions.sqlite import CURRENT_VERSION as lib_ver
-        from tdata_import.session_inspector import SESSION_SCHEMA_VERSION as want
+        from tdata_import.session_inspector import SESSION_SCHEMA_VERSIONS as accepted
     except Exception as exc:
         warn(f"session-schema check skipped: {exc!r}")
         return
-    lib_ver, want = int(lib_ver), int(want)
-    if lib_ver != want:
+    lib_ver = int(lib_ver)
+    if lib_ver not in accepted:
+        known = ", ".join(str(v) for v in sorted(accepted))
         warn(f"Telethon {telethon.__version__} writes session schema {lib_ver}, but the "
-             f"inspector accepts {want}. Prepared-account offline import will reject "
-             f"those sessions -- pin Telethon in requirements.txt or migrate.")
+             f"inspector only accepts {known}. Prepared-account offline import will "
+             f"reject those sessions -- pin Telethon in requirements.txt, or add the "
+             f"version to SESSION_SCHEMA_VERSIONS after verifying the sessions layout.")
         return
 
-    # The inspector now tracks the library, so a mismatch there is unlikely. The REAL
+    # The inspector accepts every known schema, so a mismatch there is unlikely. The REAL
     # hazard is on disk: Telethon upgrades an older session IN PLACE on first open
     # (SQLiteSession.__init__ -> _upgrade_database + save). A Telethon upgrade is
     # therefore a one-way migration of live credentials, and the pre-upgrade file is
