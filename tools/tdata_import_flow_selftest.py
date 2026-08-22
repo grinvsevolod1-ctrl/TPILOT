@@ -310,7 +310,14 @@ def main():
             version_1c = con_1c.execute("SELECT version FROM version LIMIT 1").fetchone()[0]
         finally:
             con_1c.close()
-        check("1c. converted session schema version == 7", version_1c == 7, detail=str(version_1c))
+        # STAGE 3: the converted session is written by the INSTALLED Telethon, whose
+        # schema moved from 7 (telethon==1.42.0) to 8 (1.44+). Assert membership in the
+        # inspector's allow-set rather than a literal 7, so this check pins the real
+        # contract -- "the converter must produce a session the inspector will accept" --
+        # and stops failing on every legitimate Telethon bump.
+        from tdata_import.session_inspector import SESSION_SCHEMA_VERSIONS as _known_schemas
+        check(f"1c. converted session schema version in {sorted(_known_schemas)}",
+              version_1c in _known_schemas, detail=str(version_1c))
         check("1c. no probe.session was created anywhere under work_root",
               not any(fn == "probe.session" for _r, _d, fs in os.walk(work_root1c) for fn in fs))
 

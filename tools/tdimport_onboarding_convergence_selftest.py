@@ -49,6 +49,8 @@ from manager_registry import mask_phone  # noqa: E402
 MAIN_PY = os.path.join(BASE_DIR, "main.py")
 PANEL_PY = os.path.join(BASE_DIR, "panel_bot.py")
 
+import ast_extract  # noqa: E402  (shared AST harness, lives next to this file)
+
 FAILURES = []
 
 
@@ -92,18 +94,22 @@ def src_of(tree, name):
 
 
 def extract_and_exec(tree, names, extra_ns):
-    nodes = [last_def(tree, n) for n in names]
-    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
-    ns = dict(extra_ns)
-    exec(compile(module_src, f"<extract {names}>", "exec"), ns)
-    return ns
+    # STAGE 3: delegate to the shared harness (tools/ast_extract.py). The local def-only
+    # collector broke when _tp_normalize_phone_plus became a module-level alias of
+    # text_format_helpers.tp_normalize_phone_plus ("no top-level def named ... found").
+    # The shared version resolves aliases, keeps last-wins, and seeds safe project
+    # modules. This file extracts from BOTH main.py and panel_bot.py, so each parsed
+    # tree carries its source path (set right after ast.parse in main()).
+    return ast_extract.extract_and_exec(tree._tp_src_path, set(names), dict(extra_ns))
 
 
 def main():
     main_src = open(MAIN_PY, encoding="utf-8-sig").read()
     main_tree = ast.parse(main_src)
+    main_tree._tp_src_path = MAIN_PY  # consumed by extract_and_exec above
     panel_src = open(PANEL_PY, encoding="utf-8-sig").read()
     panel_tree = ast.parse(panel_src)
+    panel_tree._tp_src_path = PANEL_PY
 
     # ======================================================================
     # Part A -- phone self-heal normalization
@@ -158,6 +164,11 @@ def main():
     check("C: host+port present and proxy_enabled=1 -> delegates to full reveal (last paragraph)",
           proxy_fn("mgr", active_row) == "`ACTIVE_PROXY_SENTINEL`")
     check("C: proxy_enabled missing entirely (falsy) with host/port set == disabled, not active",
+          # STAGE 3: this literal used to contain two U+FFFD replacement characters baked
+          # into the file where the "пр" of "прямое" belongs -- the PowerShell-edit
+          # mojibake risk from the project rules, made permanent. The check could never
+          # pass. Restored to the exact product string (same literal as the
+          # proxy_enabled=0 case above, which is precisely the point of this check).
           proxy_fn("mgr", {"proxy_host": "h", "proxy_port": "1"}) == "Отключён — используется прямое подключение")
 
     waiting_text_src = src_of(panel_tree, "_devlogin_waiting_text")

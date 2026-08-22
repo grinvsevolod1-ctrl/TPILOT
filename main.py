@@ -1716,7 +1716,7 @@ async def _process_auto_offline() -> None:
         if current_status == "online" and now_local >= no_show_local and now_local < work_end_local and not manual_today and not manual_online_today:
             changed = await _set_manager_work_status(key, "no_show", user_id=0, source="no_show")
             if changed:
-                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего вре��ени.")
+                await _notify_work_status_auto(f"🌙 {key}: no_show, ручных ответов с {WORK_DAY_START_HOUR:02d}:00 не было. Клиентам будет уходить сообщение нерабочего времени.")
             continue
 
         # Inactivity: ordinary online is checked in the work window; forced worknow is checked even at night.
@@ -3043,7 +3043,7 @@ async def _handle_manager_proxy_command(chat_id: int, user_id: int, text: str) -
             return True
         if action == "OFF":
             await manager_set_fields(key, proxy_enabled=0, proxy_updated_at=_now_utc_iso())
-            await client.send_message(chat_id, f"✅ Proxy выключен для {key}.\nЧтобы применить к уже запущенному аккаунту, перезапуст��те менеджера: MANAGER STOP {key}, потом MANAGER START {key}.")
+            await client.send_message(chat_id, f"✅ Proxy выключен для {key}.\nЧтобы применить к уже запущенному аккаунту, перезапустите менеджера: MANAGER STOP {key}, потом MANAGER START {key}.")
             return True
         if action == "ON":
             if not str(row.get("proxy_host") or "").strip() or not _proxy_port_int(row.get("proxy_port")):
@@ -3283,7 +3283,7 @@ async def _handle_manager_plaintext(event: events.NewMessage.Event) -> bool:
         key = registry_normalize_manager_key(text[len("MANAGER ENABLE "):].strip())
         row = await manager_get(key)
         if not row or str(row.get("status") or "") == "archived":
-            await client.send_message(chat_id, f"Мен��джер не найден: {key}")
+            await client.send_message(chat_id, f"Менеджер не найден: {key}")
             return True
         await manager_set_fields(key, is_enabled=1, status="active")
         await client.send_message(chat_id, f"✅ ENABLE: {key}")
@@ -4273,7 +4273,7 @@ async def _handle_work_status_command(event: events.NewMessage.Event) -> bool:
             st_value = "offline"
         st = await _set_manager_work_status(key, st_value, user_id=sender_id, source='manual')
         icon = "☀️" if st_value == "worknow" else ("🟢" if st_value == "online" else ("🌙" if st_value == "dayoff" else "🔴"))
-        note = "\nДневное приветствие �� анкета включены прямо сейчас." if st_value == "worknow" else ""
+        note = "\nДневное приветствие и анкета включены прямо сейчас." if st_value == "worknow" else ""
         await client.send_message(event.chat_id, f"{icon} {key}: {st.get('status')}{note}")
         return True
 
@@ -4555,7 +4555,7 @@ async def _build_stat_period_text(spec: Dict[str, Any]) -> str:
         lines.append(f"Дубликаты: {int(b['duplicates'])}")
         lines.append(f"Ответили возраст/гео: {int(b['profile_done'])}")
         lines.append(f"Ликвид: {int(b['liquid'])}")
-        lines.append(f"Не��иквид: {int(b['nonliquid'])}")
+        lines.append(f"Неликвид: {int(b['nonliquid'])}")
         lines.append(f"Не определено: {int(b['unknown'])}")
         _append_reason_lines(lines, b.get("reasons") or {})
         lines.append("")
@@ -5891,7 +5891,7 @@ async def _handle_unanswered_notify_command(args: str = "") -> str:
         "/unanswered_notify on - включить автоуведомления в PanelBot",
         "/unanswered_notify off - выключить автоуведомления в PanelBot",
         "/unanswered all - показать всех вручную",
-        "/unanswered <manager_key> - показать по менед��еру",
+        "/unanswered <manager_key> - показать по менеджеру",
     ]).rstrip()
 # --- UNANSWERED PANEL NOTIFY TOGGLE END ---
 
@@ -7218,7 +7218,7 @@ async def _handle_baseline_command(args: str, *, user_id: int = 0) -> str:
             st = await _baseline_status_for_db(str(r.get("db_path") or ""))
             latest = str(st.get("latest") or "")
             latest_disp = _iso_to_local_hhmm(latest) if latest else "_"
-            lines.append(f"{key}: {int(st.get('count') or 0)} старых ч��тов | обновлено {latest_disp}")
+            lines.append(f"{key}: {int(st.get('count') or 0)} старых чатов | обновлено {latest_disp}")
         return chr(10).join(lines).rstrip()
 
     if action == "clear":
@@ -7488,7 +7488,7 @@ async def _group_stats_text(group_key: str = "all") -> str:
         members = await _group_members(group_key)
         leads = await _structure_leads_for_managers(members)
         stats = _stats_for_leads_subset(leads)
-        lines = [f"👥 Группа менеджеров: {grp.get('name') or grp.get('group_key')}", f"Дата: {date_disp}", "", f"Статус: {'а��тивна' if _nice_status(grp.get('status')) == 'active' else 'выключена'}"]
+        lines = [f"👥 Группа менеджеров: {grp.get('name') or grp.get('group_key')}", f"Дата: {date_disp}", "", f"Статус: {'активна' if _nice_status(grp.get('status')) == 'active' else 'выключена'}"]
         lines.append("Менеджеры: " + (", ".join(labels.get(m, m) for m in members) if members else "не добавлены"))
         lines.append("")
         _append_compact_stats(lines, stats)
@@ -7927,7 +7927,7 @@ def _score_label(score: int) -> str:
         return "🟡 средне"
     if s > 0:
         return "🔴 слабо"
-    return "⚪ нет да��ных"
+    return "⚪ нет данных"
 
 
 def _manager_quality_buckets(leads: List[Dict[str, Any]], manager_rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -8022,7 +8022,7 @@ async def _quality_losses_text(date_token: str = "") -> str:
     b = _quality_bucket_empty("all")
     for lead in leads:
         _quality_bucket_add(b, lead)
-    lines = [f"📉 Потери лидо�� | {_quality_date_header(d)}", ""]
+    lines = [f"📉 Потери лидов | {_quality_date_header(d)}", ""]
     lines.append(f"Всего лидов: {int(b.get('total') or 0)}")
     lines.append(f"Не ответил менеджер: {int(b.get('not_answered') or 0)}")
     lines.append(f"Не дали город/возраст: {int(b.get('na') or 0)}")
@@ -8180,7 +8180,7 @@ async def _funnel_sources_text(date_token: str = "") -> str:
         lines.append(str(b.get("label") or key))
         lines.append(f"Лидов: {int(b.get('total') or 0)}")
         lines.append(f"Новые: {int(b.get('new') or 0)} | Дубли: {int(b.get('duplicates') or 0)}")
-        lines.append(f"Анкету дал��: {int(b.get('profile_done') or 0)}")
+        lines.append(f"Анкету дали: {int(b.get('profile_done') or 0)}")
         lines.append(f"Ликвид: {int(b.get('liquid') or 0)} | Неликвид: {int(b.get('nonliquid') or 0)} | NA: {int(b.get('na') or 0)} | TRASH: {int(b.get('trash') or 0)}")
         lines.append(f"Качество источника: {_funnel_quality_ratio(b)}%")
         lines.append("")
@@ -10822,7 +10822,7 @@ async def _tp_export_duplicates_excel(args: str = "31d") -> Tuple[bool, str, str
     wb = Workbook()
     ws = wb.active
     ws.title = "duplicates"
-    headers = ["chat_id блока", "№ обращения", "Дата", "Время", "manager_key", "Аккаунт менеджера", "username к��иента", "Имя клиента", "Телефон", "Источник", "Статус", "Возраст", "Город", "Страна"]
+    headers = ["chat_id блока", "№ обращения", "Дата", "Время", "manager_key", "Аккаунт менеджера", "username клиента", "Имя клиента", "Телефон", "Источник", "Статус", "Возраст", "Город", "Страна"]
     ws.append(headers)
     for c in ws[1]:
         c.font = Font(bold=True)
@@ -10874,7 +10874,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
     if cmd == "/followup":
         return {"ok": True, "result_text": await _handle_post_followup_command(args, user_id=requested_by)}
     if cmd == "/silent" and not callable(globals().get("_handle_silent_command")):
-        return {"ok": True, "result_text": "🔇 Тихий режим сейчас управляется через раздел 💬 Автоответы к��иентам и ⚙️ Анкета."}
+        return {"ok": True, "result_text": "🔇 Тихий режим сейчас управляется через раздел 💬 Автоответы клиентам и ⚙️ Анкета."}
     if callable(_TPILOT_202605_ORIG_PANEL_EXEC):
         return await _TPILOT_202605_ORIG_PANEL_EXEC(command_text, requested_by=requested_by)
     return {"ok": False, "error_text": f"Команда не поддерживается в панели: {cmd}"}
@@ -10928,7 +10928,7 @@ _CONTENT_TEXT_LABELS = {
     "nonliquid_country_template": "Шаблон nonliquid страна",
     "clarify_age": "Уточнение возраста",
     "clarify_geo": "Уточнение города",
-    "clarify_both": "Уточнение города и возрас��а",
+    "clarify_both": "Уточнение города и возраста",
     "profile_reminder_first": "Анкета дожим 1",
     "profile_reminder_second": "Анкета дожим 2",
     "profile_reminder_third": "Анкета дожим 3",
@@ -11794,7 +11794,7 @@ async def _tpilot_proxy_check_v3_command(args: str, *, requested_by: int = 0) ->
 
     row = await manager_get(key)
     if not row or str(row.get("status") or "") == "archived":
-        return f"Менеджер н�� найден: {key}"
+        return f"Менеджер не найден: {key}"
 
     host = str(row.get("proxy_host") or "").strip()
     port = _proxy_port_int(row.get("proxy_port"))
@@ -12529,7 +12529,7 @@ def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[overri
         "",
         f"Proxy IP: {row.get('auth_proxy_ip') or 'не определено'}",
         f"Proxy Geo: {', '.join([x for x in [row.get('auth_proxy_country'), row.get('auth_proxy_region'), row.get('auth_proxy_city')] if str(x or '').strip()]) or 'не определено'}",
-        f"Server IP: {row.get('auth_direct_ip') or 'не опреде��ено'}",
+        f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
         f"Server Geo: {', '.join([x for x in [row.get('auth_direct_country'), row.get('auth_direct_region'), row.get('auth_direct_city')] if str(x or '').strip()]) or 'не определено'}",
         "",
         f"Auth Guard: {guard}",
@@ -14956,7 +14956,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:
             date_filter = _kyiv_now().date().isoformat()
         elif token in ("yesterday", "вчера"):
             date_filter = (_kyiv_now().date() - timedelta(days=1)).isoformat()
-        elif token not in ("all", "в��е"):
+        elif token not in ("all", "все"):
             try:
                 date_filter = _tp_parse_date_token(token).isoformat()  # type: ignore[name-defined]
             except Exception:
@@ -15104,7 +15104,7 @@ def _tp_report_v3_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         "ru_18_plus_city_unknown": "Россия, 18+, город не определён",
         "unclear": "ответ не разобран",
         "unclear_profile": "ответ не разобран",
-        "manual_liquid": "исправ��ено вручную: ликвид",
+        "manual_liquid": "исправлено вручную: ликвид",
         "manual_geo": "исправлено вручную: гео",
         "manual_trash": "исправлено вручную: трэш",
         "manual_na": "исправлено вручную: NA",
@@ -15124,7 +15124,7 @@ def _tp_report_v3_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         if bucket == "under18":
             return "нет 18 лет / 18+ не подтверждён"
         if bucket == "na":
-            return "не ответил на город и воз��аст"
+            return "не ответил на город и возраст"
         if bucket == "trash":
             return "трэш"
         return "_"
@@ -15454,7 +15454,7 @@ def _tp_report_v5_country_title(raw: Any) -> str:
         "кыргызстан": "Кыргызстан", "киргизия": "Кыргызстан", "беларусь": "Беларусь",
         "белоруссия": "Беларусь", "молдова": "Молдова", "таджикистан": "Таджикистан",
         "азербайджан": "Азербайджан", "армения": "Армения", "грузия": "Грузия",
-        "герма��ия": "Германия", "индия": "Индия", "гана": "Гана", "таиланд": "Таиланд",
+        "германия": "Германия", "индия": "Индия", "гана": "Гана", "таиланд": "Таиланд",
         "турция": "Турция", "польша": "Польша", "литва": "Литва", "латвия": "Латвия",
         "эстония": "Эстония", "израиль": "Израиль", "сша": "США", "оаэ": "ОАЭ",
     }
@@ -15472,7 +15472,7 @@ def _tp_report_v5_reason_ru(reason: Any, *, bucket: str = "", country: Any = "")
         return "гео: " + _tp_report_v5_country_title(c)
     mapping = {
         "age_and_geo_missing": "не ответил на город и возраст",
-        "age_missing": "18+ не подт��ерждён",
+        "age_missing": "18+ не подтверждён",
         "geo_missing": "гео не определено",
         "under18": "нет 18 лет / 18+ не подтверждён",
         "_18": "нет 18 лет / 18+ не подтверждён",
@@ -16531,7 +16531,7 @@ def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[overri
         _tpag_geo_line("Server Geo", {"country": row.get("auth_direct_country"), "region": row.get("auth_direct_region"), "city": row.get("auth_direct_city")}),
         "",
         f"Auth Guard: {guard}",
-        f"Прове��ено: {row.get('auth_guard_checked_at') or '_'}",
+        f"Проверено: {row.get('auth_guard_checked_at') or '_'}",
         f"Последний OK: {row.get('auth_guard_last_ok_at') or '_'}",
     ]
     try:
@@ -17855,11 +17855,11 @@ def _tpac_rules_text(action: str = "show") -> str:
         "",
         f"🚫 Чёрный список городов: {len(getattr(rules, 'city_blacklist', []) or [])}",
         f"🔞 Запретные фразы возраста: {len(getattr(rules, 'age_negative_phrases', []) or [])}",
-        f"✅ Подтверждающие фразы возра��та: {len(getattr(rules, 'age_positive_phrases', []) or [])}",
+        f"✅ Подтверждающие фразы возраста: {len(getattr(rules, 'age_positive_phrases', []) or [])}",
         f"📍 GEO_OK территории: {len(getattr(rules, 'geo_ru_special_locations', []) or [])}",
         "",
         "Файлы правил лежат в папке config.",
-        "После р��чного изменения нажмите 🔄 Обновить правила.",
+        "После ручного изменения нажмите 🔄 Обновить правила.",
     ]
     _tpac_log(f"rules {action}")
     return "\n".join(lines).rstrip()
@@ -17984,7 +17984,7 @@ async def _tpe_handle_profile_command(args: str, *, user_id: int = 0) -> str:  #
             "/profile rules reload - обновить правила",
             "/lead profile <chat_id> - проверить конкретного лида",
             "/lead repair today dry - проверить сегодня",
-            "/lead repair apply <код_проверки> confirm - применить по код��",
+            "/lead repair apply <код_проверки> confirm - применить по коду",
         ])
     if action in ("status", "статус"):
         return await _tpac_profile_status_text()
@@ -20008,7 +20008,7 @@ def _tp_hg_build_alert_text(manager_key: str, row: Dict[str, Any]) -> str:
     else:
         title = "Session умерла, аккаунт забанен, разлогинен или Telegram не даёт работать."
     lines = [
-        "�� Telegram Health Alert",
+        "🛡 Telegram Health Alert",
         "",
         f"Статус: {_tp_hg_status_label(status)}",
         f"Аккаунт: {_tp_hg_manager_label_from_key(manager_key)}",
@@ -20495,7 +20495,7 @@ async def _tp_hg_set_from_exception(manager_key: str, exc: Any, *, source: str) 
                 "error_source": source,
                 "action_required": (
                     "Подтверждено live-проверкой: аккаунт заблокирован/деактивирован Telegram. "
-                    "Не перезапускать и не перелогинивать -- заменить аккаунт через карточку менеджер��."
+                    "Не перезапускать и не перелогинивать -- заменить аккаунт через карточку менеджера."
                 ),
                 "seconds": 0,
             }
@@ -21429,13 +21429,13 @@ async def _tp_hg_mark(target: str, status: str, reason: str = "") -> str:  # typ
         f"Причина: {reason_s}",
         "",
         "Ручная отметка держится до команды /tghealth reset.",
-        "Уведомление от��равляется только по 🟠 LIMITED и 🔴 BLOCKED.",
+        "Уведомление отправляется только по 🟠 LIMITED и 🔴 BLOCKED.",
     ]).rstrip()
 
 
 async def _tp_hg_handle_command(args: str = "", *, user_id: int = 0) -> str:  # type: ignore[override]
     parts = [p for p in str(args or "").split() if p.strip()]
-    if not parts or parts[0].lower() in {"status", "show", "стату��"}:
+    if not parts or parts[0].lower() in {"status", "show", "статус"}:
         target = parts[1] if len(parts) >= 2 else "all"
         return await _tp_hg_format_status(target)
     action = parts[0].lower()
@@ -23682,7 +23682,7 @@ def _tp_qs_decide(row, *, source="rules"):  # type: ignore[override]
         raw = _tp_pa_str((row or {}).get("profile_answer_texts") or "")
         if not raw:
             # Do not claim that the bot asked the questionnaire when it did not.
-            reason = "Нет данных пос��е первого сообщения клиента"
+            reason = "Нет данных после первого сообщения клиента"
             if _tp_pa_int((row or {}).get("profile_question_sent"), 0) == 1:
                 reason = "Нет ответов клиента после вопроса анкеты"
             return {
@@ -24752,7 +24752,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
             if not int(row.get("is_enabled") or 0) or int(row.get("manual_stopped") or 0):
                 return {"ok": False,
                         "error_text": f"Менеджер отключён: {mk}",
-                        "result_text": f"��� Менеджер отключён: {mk}\nВключите перед перезапуском."}
+                        "result_text": f"❌ Менеджер отключён: {mk}\nВключите перед перезапуском."}
             ok2, msg = await _spawn_manager_process(mk)
             print(f"[m2.12a] manager_restart key={mk} ok={ok2} msg={msg!r} by={requested_by}")
             if ok2:
@@ -24761,7 +24761,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
                     "result_text": f"❌ Не удалось перезапустить менеджера: {mk}\n{msg}"}
     except Exception as _m212a_cmd_exc:
         return {"ok": False, "error_text": repr(_m212a_cmd_exc),
-                "result_text": f"❌ Ошибка перезапуск��: {_m212a_cmd_exc!r}"}
+                "result_text": f"❌ Ошибка перезапуска: {_m212a_cmd_exc!r}"}
     if callable(_M212A_ORIG_PANEL_EXEC):
         try:
             return await _M212A_ORIG_PANEL_EXEC(command_text, requested_by=requested_by,
@@ -25672,7 +25672,7 @@ async def _manager_command_loop() -> None:  # type: ignore[override]
                     fw_sec = int(res.get("flood_wait_seconds") or 0)
                     abort_reason = str(res.get("abort_reason") or "")
                     if abort_reason:
-                        header = "��️ Удаление отменено"
+                        header = "⛔️ Удаление отменено"
                     elif ok:
                         header = "✅ Удаление завершено"
                     else:
@@ -31832,7 +31832,7 @@ async def _handle_proxy_renew_confirm_command(args: str) -> str:
     if not lease or str(lease.get("status") or "") != "active":
         return _pbuy_json.dumps({
             "ok": False, "error": "lease_not_found", "message": f"Активный lease не найден: {lease_id}",
-            "reason": "Активная аренда прокси не найден��.", "action": "Обновите список прокси и повторите попытку.",
+            "reason": "Активная аренда прокси не найдена.", "action": "Обновите список прокси и повторите попытку.",
         }, ensure_ascii=False)
 
     provider_proxy_id = lease.get("provider_proxy_id")
@@ -31866,7 +31866,7 @@ async def _handle_proxy_renew_confirm_command(args: str) -> str:
     if block:
         return _pbuy_json.dumps({
             "ok": False, "error": "blocked", "message": block,
-            "reason": block, "action": "Проверьте настройки автопродления (лимиты/бала��с/пауза).",
+            "reason": block, "action": "Проверьте настройки автопродления (лимиты/баланс/пауза).",
         }, ensure_ascii=False)
 
     result = await _renewal_wrapped_execute(lease, source="panel_renew_confirm", actor_user_id=None)
@@ -32039,7 +32039,7 @@ async def _prenew_autorenew_one(lease: Dict[str, Any]) -> None:
         title = "⚠️ Продление прокси не подтверждено"
         lines = [title, "", *header, "",
                  "Списание могло пройти, но Proxy-Seller пока не подтвердил новый срок.",
-                 "Повторное списание автоматически не выполн��ется.",
+                 "Повторное списание автоматически не выполняется.",
                  "",
                  "Что делать: синхронизируйте пул и проверьте прокси.",
                  "", f"lease_id: {lease_id}"]
@@ -33327,7 +33327,7 @@ async def _manager_relogin_begin(key: str, owner_user_id: int) -> Tuple[bool, st
         return False, f"Менеджер не найден: {key}", None
     status = str(row.get("status") or "").strip().lower()
     if status in ("archived", "deleted"):
-        return False, f"Менеджер архивирован/удалён, повт��рный вход недоступен: {key}", None
+        return False, f"Менеджер архивирован/удалён, повторный вход недоступен: {key}", None
     other_owner = await _manager_relogin_active_owner(key, exclude_owner=owner_user_id)
     if other_owner:
         return False, f"Повторный вход для {key} уже выполняется другим администратором. Попробуйте позже.", None
@@ -35139,7 +35139,7 @@ async def replacement_ready_commit_preview(
     other = _repl_storage.replacement_get_by_new_key(key, db_path=db_path)
     if (other and str(other.get("operation_id")) != op
             and str(other.get("status")) not in _repl_storage.REPLACEMENT_TERMINAL_STATUSES):
-        return _replacement_result(False, "key_conflict", f"Ключ {key} за��ят другой операцией.", operation_id=op)
+        return _replacement_result(False, "key_conflict", f"Ключ {key} занят другой операцией.", operation_id=op)
 
     ok_adv = _repl_storage.replacement_advance(op, "identity_ok", "ready_commit", stage="ready_for_commit", db_path=db_path)
     if not ok_adv:
@@ -35272,7 +35272,7 @@ async def replacement_recover(
     op = str(operation_id or "").strip()
     op_row = _repl_storage.replacement_get(op, db_path=db_path)
     if not op_row:
-        return _replacement_result(False, "missing_operation", "Операция не найде��а.", operation_id=op, next_step="unknown")
+        return _replacement_result(False, "missing_operation", "Операция не найдена.", operation_id=op, next_step="unknown")
 
     status = str(op_row.get("status") or "")
     key = registry_normalize_manager_key(op_row.get("new_manager_key") or "")
@@ -36434,7 +36434,7 @@ async def _repl4_validate_new_runtime(op_row: Dict[str, Any], new_key: str) -> O
     if not perm_path or not os.path.exists(perm_path):
         return _repl4_result(False, "missing_permanent_session", "Постоянная сессия не найдена.", op, op_row, manual_recovery_required=True)
     if int(row.get("tg_user_id") or 0) != int(op_row.get("new_tg_user_id") or 0):
-        return _repl4_result(False, "identity_mismatch", "Идентификатор нового мене��жера не совпадает.", op, op_row, manual_recovery_required=True)
+        return _repl4_result(False, "identity_mismatch", "Идентификатор нового менеджера не совпадает.", op, op_row, manual_recovery_required=True)
     conflict_key = await _replacement_tg_user_conflict(int(row.get("tg_user_id") or 0))
     if conflict_key and conflict_key != new_key:
         return _repl4_result(False, "identity_conflict", "Конфликт Telegram-идентификатора.", op, op_row, manual_recovery_required=True)
@@ -40036,7 +40036,7 @@ _HNV2_RECOMMENDED_ACTION = {
     HNV2_FAMILY_SESSION_UNAUTHORIZED: "Перелогиниться: Перезайти / Войти по QR / Вход на устройстве.",
     HNV2_FAMILY_PROXY_AUTH_FAILED: "Исправить данные прокси и проверить.",
     HNV2_FAMILY_WORKER_CRASH: "Перезапустить менеджера.",
-    HNV2_FAMILY_HEALTH_MISSING_STALE: "Провести health-check и проверить п��окси.",
+    HNV2_FAMILY_HEALTH_MISSING_STALE: "Провести health-check и проверить прокси.",
     HNV2_FAMILY_ACCOUNT_BLOCKED: (
         "Не перезапускать и не перелогинивать. Проверить подтверждённую "
         "блокировку и при необходимости заменить аккаунт через карточку."

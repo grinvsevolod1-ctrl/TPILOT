@@ -24,6 +24,8 @@ if BASE_DIR not in sys.path:
 
 MAIN_PY = os.path.join(BASE_DIR, "main.py")
 
+import ast_extract  # noqa: E402  (shared AST harness, lives next to this file)
+
 FAILURES = []
 
 
@@ -59,16 +61,15 @@ def last_def(tree, name):
 
 
 def extract_and_exec(tree, names, extra_ns):
-    nodes = []
-    for name in names:
-        defs = find_defs(tree, name)
-        if not defs:
-            raise AssertionError(f"missing def {name!r}")
-        nodes.append(defs[-1])
-    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
-    ns = dict(extra_ns)
-    exec(compile(module_src, "<main.py extract>", "exec"), ns)
-    return ns
+    # STAGE 3: delegate to the shared harness (tools/ast_extract.py) instead of the
+    # def-only local logic. _proxy_port_int is now a module-level alias of
+    # proxy_parser.proxy_port_int rather than a `def` in main.py, which the local
+    # collector could not see ("missing def '_proxy_port_int'"). The shared version
+    # resolves aliases, applies the same last-wins rule, and seeds safe project modules.
+    # `tree` is kept in the signature so the three call sites stay untouched; the shared
+    # harness re-parses MAIN_PY itself, which is what `tree` was parsed from.
+    del tree
+    return ast_extract.extract_and_exec(MAIN_PY, set(names), dict(extra_ns))
 
 
 def main():

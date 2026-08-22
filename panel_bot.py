@@ -1940,7 +1940,7 @@ def _manager_admin_detail_text(row: dict) -> str:
         f"Остановлен вручную: {stopped}",
         f"Прокси: {proxy}",
         "",
-        "Кнопки разделены по смыслу. Включ��ние всегда слева, выключение или остановка справа.",
+        "Кнопки разделены по смыслу. Включение всегда слева, выключение или остановка справа.",
         "Опасные действия выполняются только через пароль и обязательный backup.",
     ]).rstrip()
 
@@ -4888,7 +4888,7 @@ def _content_editor_menu():
 
 
 def _content_texts_menu():
-    rows = [[Button.inline("📋 Список те��стов", b"cmd:/content text list")]]
+    rows = [[Button.inline("📋 Список текстов", b"cmd:/content text list")]]
     for key, label in _CONTENT_TEXT_BUTTONS:
         rows.append([Button.inline(f"✏️ {label}", f"wiz:content_text:{key}".encode()), Button.inline("♻️", f"cmd:/content text reset {key}".encode())])
     rows.append([Button.inline("⬅️ Назад", b"menu:content")])
@@ -4913,7 +4913,7 @@ def _content_profile_menu():
 
 def _content_cat_menu(cat: str):
     return [
-        [Button.inline("📋 ��оказать варианты", f"cmd:/content variant list {cat}".encode())],
+        [Button.inline("📋 Показать варианты", f"cmd:/content variant list {cat}".encode())],
         [Button.inline("➕ Добавить", f"wiz:content_variant_add:{cat}".encode())],
         [Button.inline("✏️ Изменить номер", f"wiz:content_variant_set:{cat}".encode())],
         [Button.inline("🔁 Вкл/выкл номер", f"wiz:content_variant_toggle:{cat}".encode())],
@@ -5605,7 +5605,7 @@ _HNV2_UNSAFE_ACTION_PREFIXES = (
 # family with zero buttons (e.g. worker_crash's only action IS restart).
 _HNV2_SAFE_DIAG_FALLBACK = [
     ("🩺 Проверить", "cmd:/tghealth check {k}"),
-    ("🌐 Проверить ��рокси", "cmd:/manager_proxy_check {k}"),
+    ("🌐 Проверить прокси", "cmd:/manager_proxy_check {k}"),
 ]
 
 
@@ -6484,7 +6484,7 @@ async def _tp_panel_v5_bulk_callback(event):
     data = (event.data or b"").decode("utf-8", errors="ignore")
     parts = data.split(":")
     if len(parts) < 4:
-        await _pb_safe_answer(event, "Неверная ��оманда", alert=True)
+        await _pb_safe_answer(event, "Неверная команда", alert=True)
         return
     _prefix, step, kind, action = parts[:4]
     if step == "ask":
@@ -6663,7 +6663,7 @@ def _tpac_profile_check_menu():
         [Button.inline("🧪 Быстрый тест", b"cmd:/profile test"), Button.inline("🧪 Полный тест", b"cmd:/profile test full")],
         [Button.inline("📋 Показать правила", b"cmd:/profile rules show"), Button.inline("🔄 Обновить правила", b"cmd:/profile rules reload")],
         [Button.inline("🧾 Проверить лида", b"wiz:profile_lead:start")],
-        [Button.inline("🔎 Проверить с��годня", b"cmd:/lead repair today dry"), Button.inline("🔎 Проверить вчера", b"cmd:/lead repair yesterday dry")],
+        [Button.inline("🔎 Проверить сегодня", b"cmd:/lead repair today dry"), Button.inline("🔎 Проверить вчера", b"cmd:/lead repair yesterday dry")],
         [Button.inline("📅 Проверить период", b"wiz:profile_period:start")],
         [Button.inline("⚠️ Применить проверку", b"wiz:profile_apply:start")],
         # N5.3 (D8): this screen is opened from the canonical Автоматизация
@@ -11748,7 +11748,7 @@ def _replace_committing_text(stage: str = "") -> str:
     lines = ["🔄 Выполняется замена аккаунта", ""]
     if detail:
         lines.append(detail)
-    lines.append("Старый аккаунт о��танется рабочим до полного завершения.")
+    lines.append("Старый аккаунт останется рабочим до полного завершения.")
     return "\n".join(lines)
 
 
@@ -12661,7 +12661,7 @@ def _bizlinks_templates_text() -> str:
         text = str(r.get("message_text") or "")
         preview = _bsl_template_preview(text)
         lines.append(f"{n}. {preview}")
-    lines += ["", "На��мите номер для редактирования."]
+    lines += ["", "Нажмите номер для редактирования."]
     return "\n".join(lines).rstrip()
 
 
@@ -13159,7 +13159,7 @@ def _bizlinks_batch_pick_mgr_text() -> str:
         + "\n\n\U0001f4e6 Создать 15 ссылок\n\n"
         + f"Дата: {tomorrow}\n\n"
         + "Выберите менеджера.\n"
-        + "Будет создано до 15 б��знес-ссылок (слоты 1–15).\n"
+        + "Будет создано до 15 бизнес-ссылок (слоты 1–15).\n"
         + "Уже созданные слоты будут пропущены.\n"
         + "Требуется Telegram Business или Premium."
     )
@@ -14776,7 +14776,7 @@ def _g3b_format_preview_text(
         lines.append("  ❓ Не распознано: {}".format(unclassified_count))
     lines.append("")
     if foreign_count > 0:
-        lines.append("Будет удален�� ({} чужих/ручных):".format(foreign_count))
+        lines.append("Будет удалено ({} чужих/ручных):".format(foreign_count))
         shown = foreign_items[:30]
         for it in shown:
             url = str(it.get("url") or "")
@@ -17879,7 +17879,7 @@ def _bdd_progress_text(progress: dict) -> str:
         # Running well past the per-manager estimate almost always means tg_limit's own
         # cleanup/expired-slug handling is doing extra work inside the delete primitive.
         remaining_min = max(1, (int(_BDD_CMD_HARD_TIMEOUT_SEC - mgr_elapsed) + 59) // 60)
-        remaining_line = f"Осталось примерн��: дольше обычного, до {remaining_min} мин"
+        remaining_line = f"Осталось примерно: дольше обычного, до {remaining_min} мин"
         stage = "удаляю ссылки (дольше обычного)"
     else:
         current_remaining = max(estimate - mgr_elapsed, 10) if mgr_started_at else estimate
@@ -18873,7 +18873,7 @@ def _nm_automation_screen() -> Tuple[str, list]:
     ]
     return _nm_screen(
         "🤖 АВТОМАТИЗАЦИЯ",
-        "Админ-бот → Новое меню → Автоматиз��ция",
+        "Админ-бот → Новое меню → Автоматизация",
         "Внутри: автоответы, автодожимы, тексты, задержки, аварийная тишина (полный запрет "
         "авто-сообщений), приветствия, автоанкета, проверка анкет, LLM-наблюдения (read-only), "
         "глобальный переключатель LLM и автоматические статусы (оба требуют подтверждения).",

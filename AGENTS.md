@@ -226,29 +226,57 @@ bash -n deploy/install_ubuntu.sh && bash deploy/install_ubuntu.sh --dry-run
 Always also: mojibake scan (search `Ð`, `Ñ`, `â€`) in changed files; allow_spend audit;
 show diff/summary before owner approval.
 
-### Selftest harness (Stage 3 — all 10 formerly failing selftests now pass)
+### Selftest harness (Stage 3 — all 26 formerly failing selftests resolved)
 
-The 10 long-standing failures were STALE TEST HARNESSES, not product bugs: the product
-code had been refactored correctly and the AST-extraction harnesses were never updated.
-All are fixed; the causes are recorded because they will recur on the next refactor.
+A full-suite run surfaced 26 failures, every one pre-existing (verified against a clean
+`git archive HEAD` tree). None were product bugs. 17 were STALE TEST HARNESSES — the
+product code had been refactored correctly and the AST-extraction harnesses were never
+updated; all are fixed. 9 were one-shot audit guards whose Windows-only baselines
+(`C:\ALM_TPilot_AUDIT\<date>\...`) are unrecoverable — deleted with owner approval
+(2026-08-22): `rc_scope_guard`, `w3_{1,2,3,4}_scope_guard`, `w3_3_b_scope_guard`,
+`w3_2_d6d7_correction_scope_guard`, `w1_proxy_guard_sweep_observability`,
+`w3_3_c1_reader_parity`, plus their three `*_mutation_proof.py` companions that imported
+them. Do not resurrect them without their baselines.
 
 **`tools/ast_extract.py` is now the shared AST harness. Use it — do not write a new
-private copy.** 102 of 154 selftests still carry their own copy; migrate opportunistically
-when touching one. It handles the three shapes a private copy always gets wrong:
+private copy.** ~100 of the remaining selftests still carry their own copy; migrate
+opportunistically when touching one (delegating a local `extract_and_exec` to the shared
+one is usually a 5-line change). It handles the four shapes a private copy always gets
+wrong:
 
 1. **Module-level alias, not a `def`.** When a helper moves into a module and is re-bound
-   (`_manager_label_from_row = text_format_helpers.manager_label_from_row`), a def-only
-   extractor reports "could not find ...". Affected `deleted_manager_stats_retention`,
-   `proxy_buy_flow`.
+   (`_proxy_port_int = proxy_parser.proxy_port_int`), a def-only extractor reports
+   "missing def". Affected `deleted_manager_stats_retention`, `proxy_buy_flow`,
+   `tdata_import_adminbot_wiring`, `tdimport_onboarding_convergence`.
 2. **Un-injected module in the exec namespace.** Extracted `main.py` code reaches modules
    through module-level `import` aliases, which name-based extraction never captures →
    `NameError: text_format_helpers / proxy_parser`. `safe_module_ns()` seeds them all;
    splat it FIRST so explicit fakes still win. Affected `manager_relogin`,
-   `manager_replacement_{adminbot,backend,commit}`. (`identity_sync_ira` was the same
+   `manager_replacement_{adminbot,backend,commit}`, `replacement_tdimport`,
+   `qr_auth_context` (×4 namespaces in one file). (`identity_sync_ira` was the same
    shape but a real `storage._db_conn` dependency, bound explicitly.)
-3. **Last-wins.** `extract_nodes` takes the LAST top-level definition, matching Python and
+3. **Refactor-introduced helper seams.** The utcnow refactor (2026-08-16) routed naive-UTC
+   reads through `_tp_utc_now()`, and every harness that exec'd extracted code broke at
+   once (`tg_health_recovery`, `tg_health_peerflood_failclosed`,
+   `w3_2_business_date_fallback`). The shared harness now auto-pulls such helpers via the
+   `_AUTO_HELPERS` allow-list — explicitly enumerated, pure functions only, never general
+   transitive extraction (that would drag DB/Telethon code past the tests' fakes). When a
+   test controls time itself, bind `_tp_utc_now` to ITS clock — but keep it a
+   non-raising one: the real `_tp_utc_now` is pure and cannot fail, so a stub that raises
+   (e.g. derived from a deliberately failing Kyiv clock) makes tests fail on an exception
+   the product cannot produce.
+4. **Last-wins.** `extract_nodes` takes the LAST top-level definition, matching Python and
    the override convention in §4. Private copies that collect every occurrence break on
    any duplicated name. Accepts `str` or `Path`.
+
+**Mojibake is not only cosmetic — it lives in PRODUCT strings.** A repo-wide U+FFFD scan
+(2026-08-22) found 109 replacement characters baked into `main.py` (83), `panel_bot.py`
+(24), and `process_control.py` (2) — all inside user-facing Russian Telegram texts
+("менед��еру", "На��мите", buttons, alert titles), plus one inside a selftest's expected
+literal that made its check unpassable (`tdimport_onboarding_convergence`). All repaired.
+The `Ð/Ñ/â€` grep in the deploy gate does NOT catch this class — those patterns match
+double-encoded UTF-8, while these were U+FFFD bytes written by a lossy editor. Scan for
+both: `python -c "import sys; sys.exit('\ufffd' in open(sys.argv[1],encoding='utf-8').read())" <file>`.
 
 Ground truth for `liquid_ru_locations_parity` / `non_liquid_locations_parity` (267k
 records) is recovered from **git history** — commit 5e13c32 untracked the
