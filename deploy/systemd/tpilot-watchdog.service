@@ -1,0 +1,64 @@
+# TPilot soft watchdog (heartbeat pinger + restart escalation)
+#
+# UBUNTU MIGRATION STAGE 1: replaces start_soft_watchdog.bat / stop_soft_watchdog.bat.
+# The watchdog decides whether runtimes are alive, so it must start LAST and
+# back off hardest on restart (RestartSec=30): a flapping watchdog that
+# mis-reads the process table is what causes restart storms. Its detection now
+# runs through process_control, which is why it can see managers on Linux at
+# all -- the previous `ps aux` path was blind here.
+
+[Unit]
+Description=TPilot soft watchdog (heartbeat pinger + restart escalation)
+Documentation=file:///opt/tpilot/AGENTS.md
+After=network-online.target tpilot-controller.service
+Wants=network-online.target
+PartOf=tpilot.target
+
+[Service]
+Type=simple
+User=tpilot
+Group=tpilot
+WorkingDirectory=/opt/tpilot
+UMask=0077
+
+EnvironmentFile=/opt/tpilot/.env.TPilot
+ExecStart=/opt/tpilot/venv/bin/python -u /opt/tpilot/soft_watchdog_pinger.py
+
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=20
+
+Restart=always
+RestartSec=30
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tpilot-watchdog
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/tpilot
+
+MemoryMax=256M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

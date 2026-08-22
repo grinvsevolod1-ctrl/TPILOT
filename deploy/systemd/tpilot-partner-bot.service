@@ -1,0 +1,59 @@
+# TPilot partner stats bot (PartnerBot)
+#
+# UBUNTU MIGRATION STAGE 1: replaces start_partner_stat_bot.bat / stop_partner_stat_bot.bat.
+
+[Unit]
+Description=TPilot partner stats bot (PartnerBot)
+Documentation=file:///opt/tpilot/AGENTS.md
+After=network-online.target
+Wants=network-online.target
+PartOf=tpilot.target
+
+[Service]
+Type=simple
+User=tpilot
+Group=tpilot
+WorkingDirectory=/opt/tpilot
+UMask=0077
+
+EnvironmentFile=/opt/tpilot/.env.TPilot
+ExecStart=/opt/tpilot/venv/bin/python -u /opt/tpilot/partner_stat_bot.py
+
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=30
+
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tpilot-partner-bot
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/tpilot
+
+MemoryMax=768M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

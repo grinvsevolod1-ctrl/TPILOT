@@ -109,6 +109,13 @@ def build_live_ns(db_path: str, proc_scan=None) -> dict:
     selftest). normalize_manager_key is the real manager_registry
     function (project convention)."""
     import manager_registry
+    # UBUNTU MIGRATION STAGE 1: the live wrapper now delegates its
+    # process-matching rule to process_control (single source of truth shared
+    # with main.py / preflight_check.py / soft_watchdog_pinger.py), so the REAL
+    # module must be present in the exec namespace. It is injected unmocked on
+    # purpose: the matching rule is exactly what these checks exercise, and
+    # process_control performs no I/O when `procs` is supplied.
+    import process_control
 
     nodes = _extract_by_name(PURE_NAMES) + _extract_by_name(LIVE_NAMES)
     module_src = "\n\n".join(ast.unparse(n) for n in nodes)
@@ -126,7 +133,8 @@ def build_live_ns(db_path: str, proc_scan=None) -> dict:
         "TPILOT_DB_PATH": db_path,
         "BASE_DIR": BASE_DIR,
         "normalize_manager_key": manager_registry.normalize_manager_key,
-        "_norm_path": lambda s: str(s or "").replace("\\", "/").lower(),
+        "_norm_path": process_control.norm_path,
+        "process_control": process_control,
         "_pb_service_scan_cached": lambda: _scan_holder["value"],
     }
     exec(compile(module_src, f"<{PANEL_PATH}:status_live>", "exec"), ns)
@@ -487,15 +495,22 @@ class _FakeCompletedProcess:
 
 
 def build_scan_ns(*, run_result=None, run_raises=None, os_name="nt"):
-    """Extracts the REAL _get_python_processes, faking only subprocess.run
-    (and os.name, to exercise both the Windows/PowerShell and the POSIX
-    `ps aux` branches) -- `run_result` is a _FakeCompletedProcess to
-    return, `run_raises` is an exception instance to raise instead."""
-    import json as real_json
-    import subprocess as real_subprocess
+    """Run the REAL scan implementation with `subprocess.run` faked at the
+    boundary -- `run_result` is a _FakeCompletedProcess to return, `run_raises`
+    an exception instance to raise instead.
 
-    nodes = _extract_by_name({"_get_python_processes"})
-    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
+    UBUNTU MIGRATION STAGE 1: the scan body moved out of panel_bot.py into
+    process_control (shared with main.py / preflight_check.py /
+    soft_watchdog_pinger.py), so the contract is now enforced against that
+    module's backends instead of an AST-extracted panel function. The psutil and
+    `/proc` backends are disabled here so the faked subprocess backend is the one
+    under test; without that, a real live process table would answer first and
+    the failure cases below could never be exercised.
+
+    `os_name="nt"` selects the PowerShell backend, anything else selects the
+    POSIX `ps` backend."""
+    import subprocess as real_subprocess
+    import process_control
 
     class _FakeSubprocess:
         @staticmethod
@@ -506,18 +521,35 @@ def build_scan_ns(*, run_result=None, run_raises=None, os_name="nt"):
 
         TimeoutExpired = real_subprocess.TimeoutExpired
 
-    class _FakeOS:
-        name = os_name
-        sep = os.sep
+    is_windows = (os_name == "nt")
 
-    ns = {
-        "subprocess": _FakeSubprocess(),
-        "os": _FakeOS(),
-        "json": real_json,
-        "BASE_DIR": BASE_DIR,
-    }
-    exec(compile(module_src, f"<{PANEL_PATH}:scan_contract>", "exec"), ns)
-    return ns
+    def _scan():
+        saved = {
+            "subprocess": process_control.subprocess,
+            "IS_WINDOWS": process_control.IS_WINDOWS,
+            "IS_LINUX": process_control.IS_LINUX,
+            "_scan_via_psutil": process_control._scan_via_psutil,
+            "_scan_via_proc": process_control._scan_via_proc,
+            "which": process_control.shutil.which,
+        }
+        process_control.subprocess = _FakeSubprocess()
+        process_control.IS_WINDOWS = is_windows
+        process_control.IS_LINUX = not is_windows
+        # Force the subprocess-backed backend to be the decisive one.
+        process_control._scan_via_psutil = lambda: None
+        process_control._scan_via_proc = lambda: None
+        process_control.shutil.which = lambda _name: "/usr/bin/ps"
+        try:
+            return process_control.list_python_processes(base_dir=BASE_DIR, timeout_sec=10)
+        finally:
+            process_control.subprocess = saved["subprocess"]
+            process_control.IS_WINDOWS = saved["IS_WINDOWS"]
+            process_control.IS_LINUX = saved["IS_LINUX"]
+            process_control._scan_via_psutil = saved["_scan_via_psutil"]
+            process_control._scan_via_proc = saved["_scan_via_proc"]
+            process_control.shutil.which = saved["which"]
+
+    return {"_get_python_processes": _scan}
 
 
 def test_8_real_process_scan_contract() -> None:
@@ -571,16 +603,27 @@ def test_8_real_process_scan_contract() -> None:
     check("8f. [MALFORMED] unparseable stdout -> None (unknown), function does not raise",
           result is None, result)
 
-    # 8g. Non-Windows (POSIX `ps aux`) branch: same None-on-failure contract.
+    # 8g. POSIX branch: same None-on-failure contract. The field layout is now
+    # `ps -eo pid=,ppid=,comm=,args= -ww` (UBUNTU MIGRATION STAGE 1), NOT
+    # `ps aux` -- `-ww` is what stops the `--manager <key>` tail from being
+    # truncated away behind a long absolute venv path.
     ns = build_scan_ns(os_name="posix", run_result=_FakeCompletedProcess(
-        stdout="user 123 0.0 0.1 python main.py --manager mgr01\n", returncode=0))
+        stdout="123 1 python3 /opt/tpilot/venv/bin/python3 main.py --env /etc/tpilot.env --manager mgr01\n",
+        returncode=0))
     result = ns[fn_name]()
-    check("8g. [POSIX, match] `ps aux` branch returns a trustworthy list on a clean run",
+    check("8g. [POSIX, match] the `ps -ww` branch returns a trustworthy list on a clean run",
           isinstance(result, list) and len(result) == 1, result)
+    check("8g. [POSIX, pid] the parsed row carries a real pid (blank pids used to disable "
+          "duplicate-runtime detection entirely)",
+          bool(result) and (result[0].get("pid") == "123"), result)
+    check("8g. [POSIX, BUG 1 REGRESSION] the key is still extracted with `--env` sitting "
+          "between `main.py` and `--manager` (the old literal pgrep pattern could never match)",
+          bool(result) and __import__("process_control").manager_key_from_cmdline(
+              result[0].get("cmd")) == "mgr01", result)
 
     ns = build_scan_ns(os_name="posix", run_raises=OSError("simulated: ps not found"))
     result = ns[fn_name]()
-    check("8g. [POSIX, failure] `ps aux` branch also returns None (not []) when the scan itself fails",
+    check("8g. [POSIX, failure] the `ps` branch also returns None (not []) when the scan itself fails",
           result is None, result)
 
     # 8h. End-to-end proof that a genuine scan FAILURE (None) never gets

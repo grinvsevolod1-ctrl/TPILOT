@@ -1,0 +1,72 @@
+# The controller: orchestrates manager runtimes, drains the panel_commands
+# queue, and runs the background loops (lead dispatch, daily report, bizlink
+# autocreate, proxy renewal warnings, proxy auto-renew).
+#
+# CONTROLLER_MODE is derived in main.py from PRIMARY=1 and MANAGER_KEY=tpilot,
+# both of which come from the EnvironmentFile -- so this unit passes NO
+# --manager argument. That absence is exactly how process_control tells the
+# controller apart from a manager runtime sharing the same script name.
+#
+# NOTE ON SPEND: this is the process that hosts the two (and only two)
+# allow_spend=True call sites -- proxy buy-confirm and _prenew_execute_renewal.
+# Restart=always is safe because both are gated behind explicit operator
+# confirmation and per-slot dedupe; a restart never replays a purchase.
+
+[Unit]
+Description=TPilot controller (panel command executor + background loops)
+Documentation=file:///opt/tpilot/AGENTS.md
+After=network-online.target
+Wants=network-online.target
+PartOf=tpilot.target
+
+[Service]
+Type=simple
+User=tpilot
+Group=tpilot
+WorkingDirectory=/opt/tpilot
+UMask=0077
+
+EnvironmentFile=/opt/tpilot/.env.TPilot
+ExecStart=/opt/tpilot/venv/bin/python -u /opt/tpilot/main.py --env /opt/tpilot/.env.TPilot
+
+# The controller spawns manager processes when systemd is not driving them.
+# KillMode=mixed sends SIGTERM to the main process only, so a controller restart
+# does not tear down healthy manager runtimes with it.
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=45
+
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tpilot-controller
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/tpilot
+
+MemoryMax=2G
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,82 @@
+# Templated unit: one instance per manager runtime.
+#   systemctl start  tpilot-manager@foxy1
+#   systemctl status tpilot-manager@foxy1
+#   journalctl -u    tpilot-manager@foxy1 -f
+#
+# %i is the manager key. It is passed verbatim to `--manager`, and
+# manager_registry.normalize_manager_key restricts real keys to [a-z0-9_-],
+# so no shell quoting hazard exists here.
+#
+# UBUNTU MIGRATION STAGE 1: replaces start_manager.bat / stop_manager.bat.
+# process_control.start_manager prefers this unit and falls back to a detached
+# process only when systemd is unavailable.
+
+[Unit]
+Description=TPilot manager runtime (%i)
+Documentation=file:///opt/tpilot/AGENTS.md
+After=network-online.target tpilot-controller.service
+Wants=network-online.target
+# The controller owns the panel_commands queue this runtime reacts to, but a
+# manager must still be able to run while the controller restarts, so this is
+# an ordering hint only -- deliberately NOT Requires=.
+PartOf=tpilot.target
+
+[Service]
+Type=simple
+User=tpilot
+Group=tpilot
+WorkingDirectory=/opt/tpilot
+
+# Telethon session files and the SQLite DB must never be group/world readable.
+UMask=0077
+
+EnvironmentFile=/opt/tpilot/.env.TPilot
+ExecStart=/opt/tpilot/venv/bin/python -u /opt/tpilot/main.py --env /opt/tpilot/.env.TPilot --manager %i
+
+# A manager runtime holds a live Telegram session backed by SQLite. SIGTERM lets
+# Telethon close it cleanly; only a hung process is escalated to SIGKILL, which
+# is what can leave a corrupt session file behind.
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=45
+
+Restart=always
+RestartSec=10
+# Tolerate a crash loop for a while, but stop hammering Telegram's auth
+# endpoints: 5 starts per 10 minutes, then the unit stays failed for a human.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tpilot-manager-%i
+
+# --- Hardening. The runtime needs the project tree (session files, logs, DB)
+# --- and outbound network. Nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/tpilot
+
+# Resource ceilings: one wedged runtime must not take the host down.
+MemoryMax=1G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

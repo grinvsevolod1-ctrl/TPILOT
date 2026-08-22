@@ -1,0 +1,68 @@
+# TPilot admin panel bot (PanelBot)
+#
+# UBUNTU MIGRATION STAGE 1: replaces start_panel_bot.bat / stop_panel_bot.bat.
+# The panel is UI-only: it submits commands to the panel_commands queue and
+# renders the controller's JSON results. It is ordered after the controller so
+# a cold boot does not show a queue with no executor, but it is NOT Requires=
+# -- an operator must still be able to open the panel while the controller is
+# down, precisely to diagnose that.
+#
+# PIN reveal (Stage 6.1 C) reads the proxy password directly from the local DB
+# in this process, never through panel_commands, so this unit needs
+# ReadWritePaths=/opt/tpilot and PANEL_ADMIN_PASSWORD in the EnvironmentFile.
+
+[Unit]
+Description=TPilot admin panel bot (PanelBot)
+Documentation=file:///opt/tpilot/AGENTS.md
+After=network-online.target tpilot-controller.service
+Wants=network-online.target
+PartOf=tpilot.target
+
+[Service]
+Type=simple
+User=tpilot
+Group=tpilot
+WorkingDirectory=/opt/tpilot
+UMask=0077
+
+EnvironmentFile=/opt/tpilot/.env.TPilot
+ExecStart=/opt/tpilot/venv/bin/python -u /opt/tpilot/panel_bot.py
+
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=30
+
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tpilot-panel
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/tpilot
+
+MemoryMax=1G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

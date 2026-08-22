@@ -93,6 +93,7 @@ __all__ = [
     "collapse_launcher_children",
     "count_managers_by_key",
     "manager_process_running",
+    "find_manager_procs",
     "find_manager_pids",
     "script_process_running",
     "systemd_available",
@@ -119,7 +120,10 @@ ProcRow = Dict[str, str]
 _MANAGER_ARG_RE = re.compile(r"--manager[=\s]+([A-Za-z0-9_-]+)")
 
 _DEFAULT_SCAN_TIMEOUT = 10.0
-_DEFAULT_STOP_TIMEOUT = 12.0
+# Must exceed the units' TimeoutStopSec=45, otherwise we would declare a stop
+# failed while systemd is still legitimately waiting for Telethon to close its
+# SQLite session -- and the caller would then refuse to restart the manager.
+_DEFAULT_STOP_TIMEOUT = 55.0
 
 # systemd unit naming. The Ubuntu deployment runs one templated unit per
 # manager plus one plain unit per service, so the panel can address any of them
@@ -439,6 +443,37 @@ def count_managers_by_key(procs: Iterable[ProcRow], base_dir: Any) -> Dict[str, 
     return counts
 
 
+def find_manager_procs(
+    manager_key: str,
+    *,
+    base_dir: Any,
+    procs: Optional[Iterable[ProcRow]] = None,
+) -> Optional[List[ProcRow]]:
+    """Scan rows belonging to one manager's runtime. None means the scan was
+    untrustworthy (unknown), which is NOT the same as an empty list.
+
+    This is deliberately separate from `find_manager_pids`: LIVENESS must not
+    depend on a row carrying a parseable pid. A backend or caller may supply a
+    row with only a command line (the panel's cached scan is passed through
+    verbatim, and selftests construct cmd-only rows), and treating such a row as
+    "not running" would resurrect the exact false-process_down class of bug this
+    module exists to eliminate."""
+    key = str(manager_key or "").strip().lower()
+    if not key:
+        return []
+    rows = list(procs) if procs is not None else list_python_processes(base_dir=base_dir)
+    if rows is None:
+        return None
+
+    matched: List[ProcRow] = []
+    for proc in collapse_launcher_children(filter_project_procs(rows, base_dir)):
+        cmd = norm_path(proc.get("cmd", ""))
+        if "main.py" not in cmd or manager_key_from_cmdline(cmd) != key:
+            continue
+        matched.append(proc)
+    return matched
+
+
 def find_manager_pids(
     manager_key: str,
     *,
@@ -446,24 +481,25 @@ def find_manager_pids(
     procs: Optional[Iterable[ProcRow]] = None,
 ) -> Optional[List[int]]:
     """PIDs of the runtime processes for one manager. None means the scan was
-    untrustworthy (unknown), which is NOT the same as an empty list."""
-    key = str(manager_key or "").strip().lower()
-    if not key:
-        return []
-    rows = list(procs) if procs is not None else list_python_processes(base_dir=base_dir) or None
-    if rows is None:
+    untrustworthy (unknown), which is NOT the same as an empty list.
+
+    Rows without a usable pid are omitted here (there is no pid to signal), so
+    an EMPTY list does not prove the manager is stopped -- use
+    `manager_process_running` for liveness and this function only for signalling.
+    """
+    matched = find_manager_procs(manager_key, base_dir=base_dir, procs=procs)
+    if matched is None:
         return None
 
     pids: List[int] = []
-    for proc in collapse_launcher_children(filter_project_procs(rows, base_dir)):
-        cmd = norm_path(proc.get("cmd", ""))
-        if "main.py" not in cmd or manager_key_from_cmdline(cmd) != key:
-            continue
+    for proc in matched:
         try:
-            pids.append(int(proc.get("pid") or 0))
+            pid = int(proc.get("pid") or 0)
         except (TypeError, ValueError):
             continue
-    return [pid for pid in pids if pid > 0]
+        if pid > 0:
+            pids.append(pid)
+    return pids
 
 
 def manager_process_running(
@@ -474,7 +510,10 @@ def manager_process_running(
 ) -> Optional[bool]:
     """Tri-state liveness for one manager runtime: True, False, or None when the
     scan could not be trusted. Prefers systemd when a unit is installed, because
-    the unit's own state is authoritative and immune to cmdline parsing."""
+    the unit's own state is authoritative and immune to cmdline parsing.
+
+    Liveness is decided on MATCHED ROWS, not on parsed pids -- see
+    `find_manager_procs` for why a pid-less row must still count as running."""
     key = str(manager_key or "").strip().lower()
     if not key:
         return False
@@ -486,8 +525,8 @@ def manager_process_running(
             if active is not None:
                 return active
 
-    pids = find_manager_pids(key, base_dir=base_dir, procs=procs)
-    return None if pids is None else bool(pids)
+    matched = find_manager_procs(key, base_dir=base_dir, procs=procs)
+    return None if matched is None else bool(matched)
 
 
 def script_process_running(
@@ -689,9 +728,16 @@ def stop_manager(
         deadline = time.monotonic() + timeout_sec
         while time.monotonic() < deadline:
             if systemd_is_active(unit) is False:
-                return True, "OK"
+                # The unit is inactive, but a runtime started OUTSIDE systemd
+                # (the Popen fallback below, or a leftover from the Windows-era
+                # deployment) would not be covered by the unit at all. The
+                # caller's next step may be opening a Telethon client on this
+                # manager's .session, so fall through to a process-level sweep
+                # instead of trusting the unit state alone.
+                break
             time.sleep(0.5)
-        return False, f"Юнит {unit} не перешёл в inactive за {int(timeout_sec)}с."
+        else:
+            return False, f"Юнит {unit} не перешёл в inactive за {int(timeout_sec)}с."
 
     pids = find_manager_pids(key, base_dir=base_dir)
     if pids is None:
@@ -745,12 +791,29 @@ def start_manager(
 
     unit = manager_unit_name(key)
     if systemd_unit_exists(unit):
+        # systemd start is idempotent for an already-active unit, so no
+        # duplicate can arise on this path.
         return systemd_start(unit)
 
     base = Path(str(base_dir or "."))
     entrypoint = base / "main.py"
     if not entrypoint.exists():
         return False, f"Не найден {entrypoint}"
+
+    # SESSION-SAFETY GATE (fallback path only). Unlike systemd, a bare Popen has
+    # no notion of "already running", so without this check a double start would
+    # put two Telethon clients on one .session file and corrupt it. Callers are
+    # expected to stop first, but this module must not depend on every caller
+    # remembering to. An UNKNOWN scan (None) blocks the start too: the whole
+    # point is to never guess "nothing is running".
+    existing = manager_process_running(key, base_dir=base)
+    if existing is None:
+        return False, (
+            "Не удалось проверить, запущен ли уже этот менеджер — запуск отменён, "
+            "чтобы не открыть вторую сессию."
+        )
+    if existing:
+        return False, "Менеджер уже запущен — повторный запуск отменён (защита .session)."
 
     interpreter = str(python_exe or venv_python(base))
     argv: List[str] = [interpreter, str(entrypoint)]

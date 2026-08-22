@@ -1,0 +1,59 @@
+# TPilot health/readiness HTTP endpoint
+#
+# UBUNTU MIGRATION STAGE 1: replaces (no .bat equivalent; was started manually).
+
+[Unit]
+Description=TPilot health/readiness HTTP endpoint
+Documentation=file:///opt/tpilot/AGENTS.md
+After=network-online.target
+Wants=network-online.target
+PartOf=tpilot.target
+
+[Service]
+Type=simple
+User=tpilot
+Group=tpilot
+WorkingDirectory=/opt/tpilot
+UMask=0077
+
+EnvironmentFile=/opt/tpilot/.env.TPilot
+ExecStart=/opt/tpilot/venv/bin/python -u /opt/tpilot/health_server.py
+
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=15
+
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tpilot-health
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/opt/tpilot
+
+MemoryMax=256M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

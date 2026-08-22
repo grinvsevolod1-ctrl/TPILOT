@@ -1,0 +1,31 @@
+# Group handle for every TPilot service.
+#
+# UBUNTU MIGRATION STAGE 1: replaces start_everything.bat / stop_everything.bat
+# / restart_everything.bat / start_all.bat / stop_all.bat / restart_all.bat.
+#
+#   systemctl start   tpilot.target     # bring the whole system up
+#   systemctl stop    tpilot.target     # take it all down
+#   systemctl restart tpilot.target     # full restart
+#   systemctl status  tpilot.target
+#
+# Every unit declares PartOf=tpilot.target, so stop/restart on this target
+# propagates to all of them -- INCLUDING the tpilot-manager@<key> instances,
+# which is what makes a single command equivalent to the old batch-file fan-out
+# over `manager_registry.py list-active-keys`.
+#
+# Wants= (not Requires=) is deliberate: one failed bot must not prevent the rest
+# of the system from starting. Per-unit Restart=always handles recovery.
+
+[Unit]
+Description=TPilot (all services)
+Documentation=file:///opt/tpilot/AGENTS.md
+Wants=tpilot-controller.service
+Wants=tpilot-panel.service
+Wants=tpilot-manager-bot.service
+Wants=tpilot-partner-bot.service
+Wants=tpilot-watchdog.service
+Wants=tpilot-health.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target
