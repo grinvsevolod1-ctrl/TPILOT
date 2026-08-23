@@ -77,6 +77,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -200,13 +201,22 @@ def _extract_specific_overload(src: str, name: str, unique_marker: str) -> ast.A
     would be scope creep unrelated to the bug this section regression-guards.
     Selects the SPECIFIC def whose unparsed source contains unique_marker,
     raising if zero or more than one match (fails loudly on drift instead of
-    silently picking the wrong overload again)."""
+    silently picking the wrong overload again).
+
+    De-vein update (2026-08-23, R1 batch 2): tools/devein_chains.py renamed
+    every shadowed def to a unique {name}__prev{i} name, so the overload this
+    test wants may no longer literally be called `name`. Match `name` OR any
+    `name__prev{i}` variant, then rename the returned node back to the plain
+    `name` so exec-based callers bind it exactly as before."""
     tree = ast.parse(src)
+    prev_re = re.compile(re.escape(name) + r"(?:__prev\d+)?\Z")
     matches = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-               and n.name == name and unique_marker in ast.unparse(n)]
+               and prev_re.match(n.name) and unique_marker in ast.unparse(n)]
     if len(matches) != 1:
         raise AssertionError(f"expected exactly one '{name}' overload containing {unique_marker!r}, found {len(matches)}")
-    return matches[0]
+    node = matches[0]
+    node.name = name
+    return node
 
 
 def _selftest_db_guard(db_path: str, base_dir, storage_mod) -> None:

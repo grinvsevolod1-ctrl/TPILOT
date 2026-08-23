@@ -45,13 +45,22 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # captured) plus 53 orphaned _ORIG_* capture aliases, via
 # tools/collapse_dead_defs.py. Remaining shadowed defs are all LIVE links in
 # delegation chains.
+# 2026-08-23 (R1 batch 2, "de-vein"): tools/devein_chains.py renamed every
+# remaining shadowed def to a unique {name}__prev{i} name and rewrote every
+# module-level `globals().get("name")` capture into a static reference to the
+# exact def it froze at import time (identical import-time binding, identical
+# runtime object graph). There are now ZERO duplicated top-level names and
+# ZERO shadowed defs in both files: every binding is static and grep-able.
+# The delegation chains still exist at runtime (via _ORIG_* aliases pointing
+# at the __prev{i} defs) -- what is gone is the last-def-wins editing hazard.
 EXPECTED: Dict[str, Dict[str, int]] = {
-    "main.py": {"duplicated_names": 37, "shadowed_defs": 105},
-    "panel_bot.py": {"duplicated_names": 13, "shadowed_defs": 47},
+    "main.py": {"duplicated_names": 0, "shadowed_defs": 0},
+    "panel_bot.py": {"duplicated_names": 0, "shadowed_defs": 0},
 }
-# The single worst chain: its size is load-bearing knowledge for anyone editing panel
-# command handling, so assert it explicitly rather than burying it in a total.
-EXPECTED_WORST = {"file": "main.py", "name": "_panel_execute_command_text", "count": 35}
+# Formerly the single worst chain (35 stacked defs). After de-veining it has
+# exactly ONE def under this name; the 34 earlier bodies live on as
+# _panel_execute_command_text__prev{1..34} linked through _ORIG_* aliases.
+EXPECTED_WORST = {"file": "main.py", "name": "_panel_execute_command_text", "count": 1}
 
 FAILURES: List[str] = []
 

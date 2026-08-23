@@ -709,7 +709,7 @@ async def _table_columns(db: aiosqlite.Connection, table: str) -> List[str]:
         return []
 
 
-async def _ensure_daily_leads_table(db_path: str) -> None:
+async def _ensure_daily_leads_table__prev1(db_path: str) -> None:
     p = str(db_path or "").strip()
     if not p:
         return
@@ -768,7 +768,7 @@ async def _ensure_daily_leads_table(db_path: str) -> None:
         await db.commit()
 
 
-async def _record_daily_lead_event(
+async def _record_daily_lead_event__prev1(
     *,
     db_path: str,
     manager_key: str,
@@ -928,7 +928,7 @@ async def _set_lead_automation_stopped(db_path: str, chat_id: int, reason: str =
     )
 
 
-async def _mark_manager_replied(db_path: str, chat_id: int) -> None:
+async def _mark_manager_replied__prev1(db_path: str, chat_id: int) -> None:
     now = _now_utc_iso()
     await _set_auto_state_fields(db_path, chat_id, manager_replied=1, manager_replied_at=now)
     try:
@@ -1303,7 +1303,7 @@ async def _manager_rows_for_reporting_period(period_start_iso: str, period_end_i
     return out
 
 
-async def _collect_day_leads(lead_date: str, target_key: str = "all") -> List[Dict[str, Any]]:
+async def _collect_day_leads__prev1(lead_date: str, target_key: str = "all") -> List[Dict[str, Any]]:
     rows = await _manager_rows_for_reporting_period(lead_date, lead_date)
     target_key = registry_normalize_manager_key(target_key or "all")
     result: List[Dict[str, Any]] = []
@@ -1793,7 +1793,7 @@ def _choose_daily_reminder_text(last_text: str = "") -> str:
     return random.choice(pool)
 
 
-def _reminder_due_text(lead: Dict[str, Any], state: Dict[str, Any], now_utc: datetime, today_local: str) -> str:
+def _reminder_due_text__prev1(lead: Dict[str, Any], state: Dict[str, Any], now_utc: datetime, today_local: str) -> str:
     if int(state.get("trash") or 0) == 1:
         return ""
     if int(lead.get("manager_replied") or 0) == 1:
@@ -1873,7 +1873,7 @@ def _looks_like_trash_message(text: str) -> bool:
     return any(re.search(p, t, flags=re.IGNORECASE) for p in trash_patterns)
 
 
-async def _process_profile_reminders_once() -> int:
+async def _process_profile_reminders_once__prev1() -> int:
     if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY:
         return 0
     if not await _profile_reminders_allowed_now():
@@ -2796,7 +2796,7 @@ async def _handle_manager_proxy_command(chat_id: int, user_id: int, text: str) -
     return True
 
 
-async def _handle_manager_plaintext(event: events.NewMessage.Event) -> bool:
+async def _handle_manager_plaintext__prev1(event: events.NewMessage.Event) -> bool:
     if not (CONTROLLER_MODE and event.raw_text and not event.out):
         return False
     text = (event.raw_text or "").strip()
@@ -3162,7 +3162,7 @@ async def _handle_manager_plaintext(event: events.NewMessage.Event) -> bool:
 
 
 # -------------------- profile / status automation --------------------
-def _combine_profile(existing: Dict[str, Any], parsed: Dict[str, Any]) -> Dict[str, Any]:
+def _combine_profile__prev1(existing: Dict[str, Any], parsed: Dict[str, Any]) -> Dict[str, Any]:
     age = parsed.get("age") if parsed.get("age") is not None else existing.get("age")
     try:
         age = int(age) if age is not None and str(age).strip() != "" else None
@@ -3664,7 +3664,7 @@ async def _format_post_followup_state_for_item(item: Dict[str, Any]) -> str:
     return chr(10).join(lines).rstrip()
 
 
-async def _handle_post_followup_command(args: str, *, user_id: int = 0) -> str:
+async def _handle_post_followup_command__prev1(args: str, *, user_id: int = 0) -> str:
     raw = str(args or "").strip()
     if not raw or raw.lower() in {"help", "?", "помощь"}:
         return "\n".join([
@@ -3718,7 +3718,7 @@ async def _handle_post_followup_command(args: str, *, user_id: int = 0) -> str:
     return chr(10).join(lines).rstrip()
 
 
-async def _process_post_manual_followups_once() -> int:
+async def _process_post_manual_followups_once__prev1() -> int:
     if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY or not POST_MANUAL_FOLLOWUP_ENABLED:
         return 0
     now_local = _kyiv_now()
@@ -4097,7 +4097,7 @@ async def _period_manager_keys_for_scope(scope: str, key: str) -> Tuple[set[str]
     return set(), "Все менеджеры"
 
 
-async def _collect_period_leads(scope: str, key: str, start_iso: str, end_iso: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str]:
+async def _collect_period_leads__prev1(scope: str, key: str, start_iso: str, end_iso: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str]:
     start_d = _date_obj_from_iso(start_iso)
     end_d = _date_obj_from_iso(end_iso)
     allowed_keys, scope_label = await _period_manager_keys_for_scope(scope, key)
@@ -4133,7 +4133,7 @@ async def _collect_period_leads(scope: str, key: str, start_iso: str, end_iso: s
 
 # --- TPILOT PERIOD RANGE REPAIR V2 END ---
 
-def _parse_export_args(raw_args: str):
+def _parse_export_args__prev1(raw_args: str):
     # Return (target, mode, date_val, days). mode: day, range, period, bad_date, bad_period.
     parts = [p for p in str(raw_args or "").split() if p.strip()]
     target = ""
@@ -4209,7 +4209,7 @@ def _date_obj_from_iso(value: str):
 
 
 
-async def _run_export_command(target: str, mode: str, date_val=None, days: int = 0):
+async def _run_export_command__prev1(target: str, mode: str, date_val=None, days: int = 0):
     target = registry_normalize_manager_key(target or "")
     if not target:
         return False, "", "Формат: /export all или /export <manager_key>", ""
@@ -4479,7 +4479,7 @@ def _m212a_fail_startup(reason_class: str, error: str) -> None:
     raise SystemExit(1)
 
 
-async def main() -> None:
+async def main__prev1() -> None:
     global SELF_USERNAME, SELF_USERNAME_DISPLAY, PUBLIC_MANAGER_NAME
     await init_db()
     await _ensure_daily_leads_table(DB_PATH)
@@ -4695,8 +4695,8 @@ UNANSWERED_REPEAT_MINUTES = int(os.getenv("UNANSWERED_REPEAT_MINUTES") or "30")
 PROFILE_CAPTURE_MAX_MESSAGES = int(os.getenv("PROFILE_CAPTURE_MAX_MESSAGES") or "3")
 HISTORY_DAYS_LIMIT = int(os.getenv("HISTORY_DAYS_LIMIT") or "31")
 
-_TPILOT_ORIG_MARK_MANAGER_REPLIED = globals().get("_mark_manager_replied")
-_TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT = globals().get("_record_daily_lead_event")
+_TPILOT_ORIG_MARK_MANAGER_REPLIED = _mark_manager_replied__prev1
+_TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT = _record_daily_lead_event__prev1
 
 
 def _tp_dt_utc_now() -> datetime:
@@ -5360,7 +5360,7 @@ async def _mark_manager_replied(db_path: str, chat_id: int) -> None:
         pass
 
 
-async def _apply_profile_from_text(db_path: str, lead_row: Dict[str, Any], text: str) -> Dict[str, Any]:
+async def _apply_profile_from_text__prev1(db_path: str, lead_row: Dict[str, Any], text: str) -> Dict[str, Any]:
     chat_id = int((lead_row or {}).get("chat_id") or 0)
     gate_auto = int((lead_row or {}).get("profile_question_sent") or 0) == 1
     gate_manual = await _capture_is_open(db_path, chat_id)
@@ -5384,7 +5384,7 @@ async def _apply_profile_from_text(db_path: str, lead_row: Dict[str, Any], text:
 
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:
+async def _record_incoming_from_manager__prev1(event: events.NewMessage.Event) -> None:
     if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY or not event.is_private:
         return
     chat_id = int(event.chat_id or 0)
@@ -5480,7 +5480,7 @@ def _parse_target_date_args(raw_args: str, *, default_target: str = "all"):
     return target or default_target, date_val
 
 
-def _window_for_kind_date(kind: str, date_val):
+def _window_for_kind_date__prev1(kind: str, date_val):
     if date_val is None:
         start_iso, end_iso, label, title = _det_window(kind)
         return _utc_iso_to_kyiv_dt(start_iso), _utc_iso_to_kyiv_dt(end_iso), label, title
@@ -5513,7 +5513,7 @@ async def _lead_belongs_to_window(lead: Dict[str, Any], *, manager_key: str, kin
     return True
 
 
-async def _collect_window_leads_extended(start_local: datetime, end_local: datetime, target_key: str, kind: str, target_date) -> List[Dict[str, Any]]:
+async def _collect_window_leads_extended__prev1(start_local: datetime, end_local: datetime, target_key: str, kind: str, target_date) -> List[Dict[str, Any]]:
     # DELETED MANAGER STATS RETENTION 20260711 (period-filter correction): target_date
     # is this window's own semantic calendar date -- use it as both period bounds so
     # a tombstoned manager surfaces only for the exact date this window represents.
@@ -5845,7 +5845,7 @@ async def _panel_manager_info_command(args: str, *, requested_by: int = 0) -> st
     return chr(10).join(lines).rstrip()
 
 
-async def _panel_manager_lifecycle_command(action: str, args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_lifecycle_command__prev1(action: str, args: str, *, requested_by: int = 0) -> str:
     action = str(action or "").strip().lower()
     key = registry_normalize_manager_key(str(args or "").strip())
     if not key:
@@ -8055,7 +8055,7 @@ async def _panel_manager_onboarding(int_user_id: int) -> Tuple[Optional[dict], s
     return onboarding, ""
 
 
-async def _panel_manager_phone_command(args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_phone_command__prev1(args: str, *, requested_by: int = 0) -> str:
     phone = str(args or "").strip()
     if not phone:
         return "Введите номер телефона менеджера. Пример +79991234567"
@@ -8273,7 +8273,7 @@ async def _panel_manager_phone_command(args: str, *, requested_by: int = 0) -> s
                 pass
 
 
-async def _panel_manager_code_command(args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_code_command__prev1(args: str, *, requested_by: int = 0) -> str:
     code = re.sub(r"\D+", "", str(args or "").strip())
     if not code:
         return "Введите код Telegram цифрами."
@@ -8395,7 +8395,7 @@ async def _panel_manager_code_command(args: str, *, requested_by: int = 0) -> st
                 pass
 
 
-async def _panel_manager_pass_command(args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_pass_command__prev1(args: str, *, requested_by: int = 0) -> str:
     password = str(args or "").strip()
     if not password:
         return "Введите пароль 2FA одним сообщением."
@@ -8925,7 +8925,7 @@ async def _panel_manager_qr_cancel_command(args: str, *, requested_by: int = 0) 
     return "❌ Вход по QR отменён. Можете запросить код по номеру телефона ещё раз или начать QR заново."
 
 
-async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_proxy_command__prev1(action: str, args: str, *, requested_by: int = 0) -> str:
     action = str(action or "").strip().lower()
     parts = str(args or "").strip().split()
     if action in ("info", "on", "off"):
@@ -9028,7 +9028,7 @@ async def _format_autoreply_panel_status(target: str = "all") -> str:
     return "\n".join(lines).rstrip()
 # -------------------- PanelBot autoreply mode command end --------------------
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0) -> Dict[str, Any]:
+async def _panel_execute_command_text__prev1(command_text: str, *, requested_by: int = 0) -> Dict[str, Any]:
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if not cmd:
@@ -9285,7 +9285,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 
     return {"ok": False, "error_text": f"Команда не поддерживается в панели: {cmd}"}
 
-async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:
+async def _handle_ai_stat_command__prev1(event: events.NewMessage.Event) -> bool:
     if not CONTROLLER_MODE:
         return False
     if int(event.chat_id or 0) != int(AI_STAT_CHAT_ID or 0):
@@ -9367,15 +9367,15 @@ except Exception:
 
 AUTO_OFFLINE_INACTIVITY_MINUTES = 30
 
-_TPILOT_202605_ORIG_MAIN = globals().get("main")
-_TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT = globals().get("_record_daily_lead_event")
-_TPILOT_202605_ORIG_COLLECT_DAY_LEADS = globals().get("_collect_day_leads")
-_TPILOT_202605_ORIG_COLLECT_PERIOD_LEADS = globals().get("_collect_period_leads")
-_TPILOT_202605_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
-_TPILOT_202605_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
-_TPILOT_202605_ORIG_HANDLE_AI = globals().get("_handle_ai_stat_command")
-_TPILOT_202605_ORIG_PANEL_PROXY = globals().get("_panel_manager_proxy_command")
-_TPILOT_202605_ORIG_HANDLE_FOLLOWUP = globals().get("_handle_post_followup_command")
+_TPILOT_202605_ORIG_MAIN = main__prev1
+_TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT = _record_daily_lead_event__prev1
+_TPILOT_202605_ORIG_COLLECT_DAY_LEADS = _collect_day_leads__prev1
+_TPILOT_202605_ORIG_COLLECT_PERIOD_LEADS = _collect_period_leads__prev1
+_TPILOT_202605_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev1
+_TPILOT_202605_ORIG_PANEL_EXEC = _panel_execute_command_text__prev1
+_TPILOT_202605_ORIG_HANDLE_AI = _handle_ai_stat_command__prev1
+_TPILOT_202605_ORIG_PANEL_PROXY = _panel_manager_proxy_command__prev1
+_TPILOT_202605_ORIG_HANDLE_FOLLOWUP = _handle_post_followup_command__prev1
 
 TP_CLIENT_SILENCE_START_HOUR = 21
 TP_CLIENT_SILENCE_END_HOUR = 7
@@ -9535,12 +9535,12 @@ async def _is_duplicate_systemwide(event_row: Dict[str, Any], manager_db_paths: 
     return False
 
 
-async def _collect_day_leads(lead_date: str, target_key: str = "all") -> List[Dict[str, Any]]:
+async def _collect_day_leads__prev2(lead_date: str, target_key: str = "all") -> List[Dict[str, Any]]:
     rows = await _TPILOT_202605_ORIG_COLLECT_DAY_LEADS(lead_date, target_key=target_key) if callable(_TPILOT_202605_ORIG_COLLECT_DAY_LEADS) else []
     return [r for r in rows if int((r or {}).get("duplicate") or 0) != 1]
 
 
-async def _collect_period_leads(scope: str, key: str, start_iso: str, end_iso: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str]:
+async def _collect_period_leads__prev2(scope: str, key: str, start_iso: str, end_iso: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str]:
     leads, rows, scope_label = await _TPILOT_202605_ORIG_COLLECT_PERIOD_LEADS(scope, key, start_iso, end_iso) if callable(_TPILOT_202605_ORIG_COLLECT_PERIOD_LEADS) else ([], [], "")
     return [r for r in leads if int((r or {}).get("duplicate") or 0) != 1], rows, scope_label
 
@@ -9707,7 +9707,7 @@ async def _format_manager_followup_status(target: str = "all") -> str:
     return chr(10).join(lines).rstrip()
 
 
-async def _handle_post_followup_command(args: str, user_id: int = 0) -> str:
+async def _handle_post_followup_command__prev2(args: str, user_id: int = 0) -> str:
     raw = str(args or "").strip()
     parts = raw.split()
     if parts:
@@ -9901,7 +9901,7 @@ async def _post_followup_window_counts(db_path: str, manager_key: str, now_utc_d
     return hour_count, day_count
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:
+async def _record_incoming_from_manager__prev2(event: events.NewMessage.Event) -> None:
     if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY or not event.is_private:
         return
     chat_id = int(event.chat_id or 0)
@@ -9973,7 +9973,7 @@ def _tp_parse_proxy_one_line(raw: str) -> Tuple[str, int, str, str]:
     )
 
 
-async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_proxy_command__prev2(action: str, args: str, *, requested_by: int = 0) -> str:
     action = str(action or "").strip().lower()
     raw = str(args or "").strip()
     if action == "set":
@@ -10119,7 +10119,7 @@ async def _tp_export_duplicates_excel(args: str = "31d") -> Tuple[bool, str, str
     return True, out_path, "", f"🔁 Дубликаты Excel | {start_d.strftime('%d.%m.%y')} - {end_d.strftime('%d.%m.%y')}"
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0) -> Dict[str, Any]:
+async def _panel_execute_command_text__prev2(command_text: str, *, requested_by: int = 0) -> Dict[str, Any]:
     cmd, args = _parse_cmd(str(command_text or "").strip())
     if cmd == "/duplicates":
         parts = (args or "31d").split()
@@ -10148,7 +10148,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
     return {"ok": False, "error_text": f"Команда не поддерживается в панели: {cmd}"}
 
 
-async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:
+async def _handle_ai_stat_command__prev2(event: events.NewMessage.Event) -> bool:
     if CONTROLLER_MODE and int(event.chat_id or 0) == int(AI_STAT_CHAT_ID or 0):
         cmd, args = _parse_cmd((event.raw_text or "").strip())
         if cmd == "/duplicates":
@@ -10167,7 +10167,7 @@ async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:
     return False
 
 
-async def main() -> None:
+async def main__prev2() -> None:
     if MANAGER_RUNTIME_KEY and callable(globals().get("_manager_command_loop")):
         try:
             client.loop.create_task(_manager_command_loop())
@@ -10276,7 +10276,7 @@ def _content_ensure_tables() -> None:
         con.close()
 
 
-def _content_text_defaults() -> dict:
+def _content_text_defaults__prev1() -> dict:
     return {
         "profile_question": str(globals().get("PROFILE_QUESTION_TEXT") or "Здравствуйте! Подскажите, пожалуйста, из какого вы города и ваш возраст. Эта информация нужна для работы."),
         "profile_sample_hint": str(globals().get("PROFILE_SAMPLE_HINT_TEXT") or "Можете просто одним сообщением, например Москва 24."),
@@ -10686,7 +10686,7 @@ async def _human_send_delay(chat_id: int, text: str, *, after_first: bool = Fals
 
 
 _CONTENT_ORIG_CHOOSE_PROFILE_REPLY = choose_profile_reply__import
-def choose_profile_reply(lead, client_text, state):  # type: ignore[override]
+def choose_profile_reply__prev1(lead, client_text, state):  # type: ignore[override]
     fn = _CONTENT_ORIG_CHOOSE_PROFILE_REPLY
     res = fn(lead, client_text, state) if callable(fn) else {"send_text": "", "template_key": ""}
     try:
@@ -10721,7 +10721,7 @@ def choose_post_manual_followup_text(sent_keys=None, *, chat_id: int = 0, date_k
     return fn(sent_keys, chat_id=chat_id, date_key=date_key, slot=slot) if callable(fn) else ("", "")
 
 
-_CONTENT_ORIG_REMINDER_DUE_TEXT = globals().get("_reminder_due_text")
+_CONTENT_ORIG_REMINDER_DUE_TEXT = _reminder_due_text__prev1
 def _reminder_due_text(lead, state, now_utc, today_local):  # type: ignore[override]
     try:
         if int(state.get("trash") or 0) == 1 or int(lead.get("manager_replied") or 0) == 1 or int(lead.get("profile_question_sent") or 0) != 1:
@@ -10755,14 +10755,14 @@ def _reminder_due_text(lead, state, now_utc, today_local):  # type: ignore[overr
     return fn(lead, state, now_utc, today_local) if callable(fn) else ""
 
 
-_CONTENT_ORIG_PROCESS_PROFILE_REMINDERS_ONCE = globals().get("_process_profile_reminders_once")
+_CONTENT_ORIG_PROCESS_PROFILE_REMINDERS_ONCE = _process_profile_reminders_once__prev1
 async def _process_profile_reminders_once(*args, **kwargs):  # type: ignore[override]
     _content_refresh_runtime_globals()
     fn = _CONTENT_ORIG_PROCESS_PROFILE_REMINDERS_ONCE
     return await fn(*args, **kwargs) if callable(fn) else 0
 
 
-_CONTENT_ORIG_PROCESS_POST_MANUAL_FOLLOWUPS_ONCE = globals().get("_process_post_manual_followups_once")
+_CONTENT_ORIG_PROCESS_POST_MANUAL_FOLLOWUPS_ONCE = _process_post_manual_followups_once__prev1
 async def _process_post_manual_followups_once(*args, **kwargs):  # type: ignore[override]
     _content_refresh_runtime_globals()
     fn = _CONTENT_ORIG_PROCESS_POST_MANUAL_FOLLOWUPS_ONCE
@@ -10824,8 +10824,8 @@ async def _handle_content_command(args: str, *, user_id: int = 0) -> dict:
     return {"ok": False, "error_text": "Команда content не распознана."}
 
 
-_CONTENT_ORIG_PANEL_EXECUTE_COMMAND_TEXT = globals().get("_panel_execute_command_text")
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0) -> dict:  # type: ignore[override]
+_CONTENT_ORIG_PANEL_EXECUTE_COMMAND_TEXT = _panel_execute_command_text__prev2
+async def _panel_execute_command_text__prev3(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0) -> dict:  # type: ignore[override]
     cmd, args = _parse_cmd(str(command_text or "")) if callable(globals().get("_parse_cmd")) else ("", "")
     if cmd == "/content":
         return await _handle_content_command(args, user_id=int(requested_by or 0))
@@ -10840,8 +10840,8 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
         raise
 
 
-_CONTENT_ORIG_MAIN = globals().get("main")
-async def main() -> None:  # type: ignore[override]
+_CONTENT_ORIG_MAIN = main__prev2
+async def main__prev3() -> None:  # type: ignore[override]
     try:
         _content_ensure_tables()
         _content_refresh_runtime_globals()
@@ -10878,8 +10878,8 @@ def _tpilot_core_required_symbols_check() -> None:
 # --- TPILOT PROXY CHECK PANEL HOTFIX V2 20260507 START ---
 # Final late override. Must stay near the end of main.py, after all duplicate
 # definitions of _panel_manager_proxy_command and _panel_execute_command_text.
-_TPILOT_PROXY_CHECK_V2_ORIG_PANEL_PROXY = globals().get("_panel_manager_proxy_command")
-_TPILOT_PROXY_CHECK_V2_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TPILOT_PROXY_CHECK_V2_ORIG_PANEL_PROXY = _panel_manager_proxy_command__prev2
+_TPILOT_PROXY_CHECK_V2_ORIG_PANEL_EXEC = _panel_execute_command_text__prev3
 
 
 async def _tpilot_proxy_check_v2_tcp(host: str, port: int, timeout: float = 8.0):
@@ -10975,7 +10975,7 @@ async def _tpilot_proxy_check_v2_command(args: str, *, requested_by: int = 0) ->
     return "\n".join(str(x).rstrip() for x in lines if str(x).strip()).rstrip()
 
 
-async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_proxy_command__prev3(action: str, args: str, *, requested_by: int = 0) -> str:
     action = str(action or "").strip().lower()
     if action == "check":
         return await _tpilot_proxy_check_v2_command(args, requested_by=requested_by)
@@ -10984,7 +10984,7 @@ async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: 
     return "Команда proxy не распознана."
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0):
+async def _panel_execute_command_text__prev4(command_text: str, *, requested_by: int = 0):
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/manager_proxy_check":
@@ -10998,8 +10998,8 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 # --- TPILOT PROXY CHECK PANEL HOTFIX V3 20260507 START ---
 # Fixes Telethon compatibility where some methods return a plain bool, not awaitable.
 # This block is intentionally a late override and must stay after older proxy-check patches.
-_TPILOT_PROXY_CHECK_V3_ORIG_PANEL_PROXY = globals().get("_panel_manager_proxy_command")
-_TPILOT_PROXY_CHECK_V3_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TPILOT_PROXY_CHECK_V3_ORIG_PANEL_PROXY = _panel_manager_proxy_command__prev3
+_TPILOT_PROXY_CHECK_V3_ORIG_PANEL_EXEC = _panel_execute_command_text__prev4
 
 
 async def _tpilot_proxy_check_v3_tcp(host: str, port: int, timeout: float = 8.0):
@@ -11102,7 +11102,7 @@ async def _tpilot_proxy_check_v3_command(args: str, *, requested_by: int = 0) ->
     return "\n".join(str(x).rstrip() for x in lines if str(x).strip()).rstrip()
 
 
-async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_proxy_command__prev4(action: str, args: str, *, requested_by: int = 0) -> str:
     action = str(action or "").strip().lower()
     if action == "check":
         return await _tpilot_proxy_check_v3_command(args, requested_by=requested_by)
@@ -11111,7 +11111,7 @@ async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: 
     return "Команда proxy не распознана."
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0):
+async def _panel_execute_command_text__prev5(command_text: str, *, requested_by: int = 0):
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/manager_proxy_check":
@@ -11123,8 +11123,8 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 # --- TPILOT PROXY CHECK PANEL HOTFIX V3 20260507 END ---
 
 # --- TPILOT PROXY FORCE ONE-LINE CHECK HOTFIX V5 20260508 START ---
-_TPILOT_PROXY_CHECK_V5_ORIG_PANEL_PROXY = globals().get("_panel_manager_proxy_command")
-_TPILOT_PROXY_CHECK_V5_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TPILOT_PROXY_CHECK_V5_ORIG_PANEL_PROXY = _panel_manager_proxy_command__prev4
+_TPILOT_PROXY_CHECK_V5_ORIG_PANEL_EXEC = _panel_execute_command_text__prev5
 
 
 def _tpilot_proxy_parse_set_args_v5(args: str):
@@ -11280,7 +11280,7 @@ async def _tpilot_proxy_set_v5_command(args: str, *, requested_by: int = 0) -> s
     return "\n".join(str(x).rstrip() for x in lines if str(x).strip()).rstrip()
 
 
-async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
+async def _panel_manager_proxy_command__prev5(action: str, args: str, *, requested_by: int = 0) -> str:
     action = str(action or "").strip().lower()
     if action == "check":
         return await _tpilot_proxy_check_v5_command(args, requested_by=requested_by)
@@ -11291,7 +11291,7 @@ async def _panel_manager_proxy_command(action: str, args: str, *, requested_by: 
     return "Команда proxy не распознана."
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):
+async def _panel_execute_command_text__prev6(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/manager_proxy_check":
@@ -11311,7 +11311,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 # --- TPILOT PROXY FORCE ONE-LINE CHECK HOTFIX V5 20260508 END ---
 
 # --- TPILOT PANEL MANAGER ROUTER HOTFIX 20260508 START ---
-_TPILOT_PANEL_MANAGER_ROUTER_ORIG_EXEC = globals().get("_panel_execute_command_text")
+_TPILOT_PANEL_MANAGER_ROUTER_ORIG_EXEC = _panel_execute_command_text__prev6
 
 
 def _tpilot_panel_manager_router_missing(handler_name: str) -> Dict[str, Any]:
@@ -11375,7 +11375,7 @@ async def _tpilot_panel_manager_proxy_bypass_command(args: str, *, requested_by:
     ]).rstrip()
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:
+async def _panel_execute_command_text__prev7(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
 
@@ -11459,13 +11459,13 @@ except Exception:  # pragma: no cover
 
 TPAG_V2_GUARD_TTL_SEC = 10 * 60
 TPAG_V2_MONITOR_INTERVAL_SEC = 5 * 60
-_TPAG_V2_ORIG_MAIN = globals().get("main")
-_TPAG_V2_ORIG_MANAGER_PROXY_COMMAND = globals().get("_panel_manager_proxy_command")
-_TPAG_V2_ORIG_EXECUTE_COMMAND = globals().get("_panel_execute_command_text")
-_TPAG_V2_ORIG_PHONE = globals().get("_panel_manager_phone_command")
-_TPAG_V2_ORIG_CODE = globals().get("_panel_manager_code_command")
-_TPAG_V2_ORIG_PASS = globals().get("_panel_manager_pass_command")
-_TPAG_V2_ORIG_LIFECYCLE = globals().get("_panel_manager_lifecycle_command")
+_TPAG_V2_ORIG_MAIN = main__prev3
+_TPAG_V2_ORIG_MANAGER_PROXY_COMMAND = _panel_manager_proxy_command__prev5
+_TPAG_V2_ORIG_EXECUTE_COMMAND = _panel_execute_command_text__prev7
+_TPAG_V2_ORIG_PHONE = _panel_manager_phone_command__prev1
+_TPAG_V2_ORIG_CODE = _panel_manager_code_command__prev1
+_TPAG_V2_ORIG_PASS = _panel_manager_pass_command__prev1
+_TPAG_V2_ORIG_LIFECYCLE = _panel_manager_lifecycle_command__prev1
 _TPAG_V2_LAST_MONITOR_AT = 0.0
 
 try:
@@ -11532,7 +11532,7 @@ async def _tpag_registry_set_fields(key: str, **fields: Any) -> None:
 # --- TPILOT PROXY AUTH GUARD V3 REGISTRY DB FIX 20260509 END ---
 
 
-async def _tpag_ensure_schema() -> None:
+async def _tpag_ensure_schema__prev1() -> None:
     try:
         async with aiosqlite.connect(TPILOT_DB_PATH) as db:
             ddls = [
@@ -11898,7 +11898,7 @@ async def _panel_manager_lifecycle_command(action: str, args: str, *, requested_
     return "Lifecycle handler не найден."
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:  # type: ignore[override]
+async def _panel_execute_command_text__prev8(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:  # type: ignore[override]
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd in ("/manager_proxy_info", "/manager_proxy_check", "/manager_proxy_set", "/manager_proxy_on", "/manager_proxy_off", "/manager_proxy_bypass", "/manager_proxy_require"):
@@ -11937,7 +11937,7 @@ async def _tpag_monitor_loop() -> None:
             await asyncio.sleep(30)
 
 
-async def main() -> None:  # type: ignore[override]
+async def main__prev4() -> None:  # type: ignore[override]
     await _tpag_ensure_schema()
     if MANAGER_ARG_USED:
         key = registry_normalize_manager_key(MANAGER_RUNTIME_KEY or MANAGER_ARG_USED)
@@ -11966,7 +11966,7 @@ async def main() -> None:  # type: ignore[override]
 # Adds latency metrics without changing the core Telegram session flow.
 import time as _tpag_v4_time  # noqa: E402
 
-_TPAG_V4_ORIG_ENSURE_SCHEMA = globals().get("_tpag_ensure_schema")
+_TPAG_V4_ORIG_ENSURE_SCHEMA = _tpag_ensure_schema__prev1
 
 
 def _tpag_v4_ms(start: float) -> int:
@@ -12119,7 +12119,7 @@ def _tpag_v4_latency_lines(row: Dict[str, Any]) -> list[str]:
 
 # --- TPILOT MAIN BULK FOLLOWUPS V5 20260509 START ---
 # Adds /followup on all and /followup off all for PanelBot bulk automation.
-_TP_MAIN_V5_ORIG_HANDLE_POST_FOLLOWUP_COMMAND = globals().get("_handle_post_followup_command")
+_TP_MAIN_V5_ORIG_HANDLE_POST_FOLLOWUP_COMMAND = _handle_post_followup_command__prev2
 
 
 async def _tp_main_v5_active_manager_keys() -> list[str]:
@@ -12183,13 +12183,13 @@ import sqlite3 as _tp_ci_sqlite3
 import uuid as _tp_ci_uuid
 
 _TP_CI_PATCH_VERSION = "contact_identity_v1_20260510"
-_TP_CI_ORIG_MAIN = globals().get("main")
-_TP_CI_ORIG_ENSURE_DAILY_LEADS_TABLE = globals().get("_ensure_daily_leads_table")
-_TP_CI_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
-_TP_CI_ORIG_RECORD_DAILY_LEAD_EVENT_DIRECT = globals().get("_TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT") or globals().get("_TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT") or globals().get("_record_daily_lead_event")
-_TP_CI_ORIG_COLLECT_DAY_LEADS = globals().get("_collect_day_leads")
-_TP_CI_ORIG_COLLECT_PERIOD_LEADS = globals().get("_collect_period_leads")
-_TP_CI_ORIG_COLLECT_WINDOW_LEADS_EXTENDED = globals().get("_collect_window_leads_extended")
+_TP_CI_ORIG_MAIN = main__prev4
+_TP_CI_ORIG_ENSURE_DAILY_LEADS_TABLE = _ensure_daily_leads_table__prev1
+_TP_CI_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev2
+_TP_CI_ORIG_RECORD_DAILY_LEAD_EVENT_DIRECT = globals().get("_TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT") or globals().get("_TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT") or _record_daily_lead_event
+_TP_CI_ORIG_COLLECT_DAY_LEADS = _collect_day_leads__prev2
+_TP_CI_ORIG_COLLECT_PERIOD_LEADS = _collect_period_leads__prev2
+_TP_CI_ORIG_COLLECT_WINDOW_LEADS_EXTENDED = _collect_window_leads_extended__prev1
 
 
 def _tp_ci_now_iso() -> str:
@@ -12397,7 +12397,7 @@ async def _tp_ci_ensure_inbound_events_table(db_path: str) -> None:
         await db.commit()
 
 
-async def _ensure_daily_leads_table(db_path: str) -> None:  # type: ignore[override]
+async def _ensure_daily_leads_table__prev2(db_path: str) -> None:  # type: ignore[override]
     await _tp_ci_ensure_daily_identity_columns(db_path)
 
 
@@ -13015,7 +13015,7 @@ _TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT = _tp_ci_record_daily_lead_event
 _record_daily_lead_event = _tp_ci_record_daily_lead_event  # type: ignore[assignment]
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
+async def _record_incoming_from_manager__prev3(event: events.NewMessage.Event) -> None:  # type: ignore[override]
     if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY or not event.is_private:
         return
     chat_id = int(event.chat_id or 0)
@@ -13392,7 +13392,7 @@ async def _tp_ci_startup_init() -> None:
         print(f"contact_identity startup init error: {e!r}")
 
 
-async def main() -> None:  # type: ignore[override]
+async def main__prev5() -> None:  # type: ignore[override]
     await _tp_ci_startup_init()
     if callable(_TP_CI_ORIG_MAIN):
         await _TP_CI_ORIG_MAIN()
@@ -13408,12 +13408,12 @@ async def main() -> None:  # type: ignore[override]
 import sqlite3 as _tp_qs_sqlite3
 
 _TP_QS_VERSION = "quality_status_v1_20260510"
-_TP_QS_ORIG_MAIN = globals().get("main")
-_TP_QS_ORIG_ENSURE_DAILY_LEADS_TABLE = globals().get("_ensure_daily_leads_table")
-_TP_QS_ORIG_COMBINE_PROFILE = globals().get("_combine_profile")
-_TP_QS_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
-_TP_QS_ORIG_HANDLE_AI_STAT_COMMAND = globals().get("_handle_ai_stat_command")
-_TP_QS_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TP_QS_ORIG_MAIN = main__prev5
+_TP_QS_ORIG_ENSURE_DAILY_LEADS_TABLE = _ensure_daily_leads_table__prev2
+_TP_QS_ORIG_COMBINE_PROFILE = _combine_profile__prev1
+_TP_QS_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev3
+_TP_QS_ORIG_HANDLE_AI_STAT_COMMAND = _handle_ai_stat_command__prev2
+_TP_QS_ORIG_PANEL_EXEC = _panel_execute_command_text__prev8
 
 _TP_QS_RECALC_GUARD = False
 
@@ -13673,7 +13673,7 @@ def _tp_qs_trash_detect(row: Dict[str, Any]) -> Tuple[bool, str]:
     return False, ""
 
 
-def _tp_qs_decide(row: Dict[str, Any], *, source: str = "rules") -> Dict[str, Any]:
+def _tp_qs_decide__prev1(row: Dict[str, Any], *, source: str = "rules") -> Dict[str, Any]:
     age = _tp_qs_int_or_none(row.get("age"))
     country = _tp_qs_text(row.get("country"))
     city = _tp_qs_text(row.get("city"))
@@ -13852,7 +13852,7 @@ async def _tp_qs_fetch_daily_row(db_path: str, lead_date: str, manager_key: str,
         return {}
 
 
-async def _update_daily_lead_fields(db_path: str, *, lead_date: str, manager_key: str, chat_id: int, **fields: Any) -> None:  # type: ignore[override]
+async def _update_daily_lead_fields__prev1(db_path: str, *, lead_date: str, manager_key: str, chat_id: int, **fields: Any) -> None:  # type: ignore[override]
     global _TP_QS_RECALC_GUARD
     if not fields:
         return
@@ -13932,7 +13932,7 @@ def _combine_profile(existing: Dict[str, Any], parsed: Dict[str, Any]) -> Dict[s
     return combined
 
 
-def _tp_qs_row_bucket(lead: Dict[str, Any]) -> Dict[str, Any]:
+def _tp_qs_row_bucket__prev1(lead: Dict[str, Any]) -> Dict[str, Any]:
     if lead.get("quality_status") or lead.get("quality_bucket"):
         dec = {
             "status": _tp_qs_text(lead.get("quality_status") or "na"),
@@ -14021,7 +14021,7 @@ async def _tp_qs_repair_all_manager_dbs(*, date_filter: str = "") -> int:
     return total
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
+async def _record_incoming_from_manager__prev4(event: events.NewMessage.Event) -> None:  # type: ignore[override]
     raw_text = ""
     chat_id = 0
     try:
@@ -14074,7 +14074,7 @@ async def _tp_qs_find_lead_rows(chat_id: int) -> List[Dict[str, Any]]:
     return out
 
 
-async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:
+async def _tp_qs_handle_lead_command__prev1(args: str, *, user_id: int = 0) -> str:
     parts = [p for p in str(args or "").split() if p.strip()]
     action = (parts[0].lower() if parts else "status")
     if action in ("help", ""):
@@ -14184,7 +14184,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:
     return "Формат: /lead help"
 
 
-async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
+async def _handle_ai_stat_command__prev3(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
     try:
         if CONTROLLER_MODE and int(event.chat_id or 0) == int(AI_STAT_CHAT_ID or 0):
             cmd, args = _parse_cmd((event.raw_text or "").strip())
@@ -14202,7 +14202,7 @@ async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # ty
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:  # type: ignore[override]
+async def _panel_execute_command_text__prev9(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:  # type: ignore[override]
     cmd, args = _parse_cmd(str(command_text or ""))
     if cmd == "/lead":
         return {"ok": True, "result_text": await _tp_qs_handle_lead_command(args, user_id=requested_by)}
@@ -14227,7 +14227,7 @@ async def _tp_qs_startup_init() -> None:
         print(f"quality_status startup init error: {e!r}")
 
 
-async def main() -> None:  # type: ignore[override]
+async def main__prev6() -> None:  # type: ignore[override]
     await _tp_qs_startup_init()
     if callable(_TP_QS_ORIG_MAIN):
         await _TP_QS_ORIG_MAIN()
@@ -14243,7 +14243,7 @@ async def main() -> None:  # type: ignore[override]
 # User-facing reports must not show English technical reason codes.
 
 _TP_REPORT_V3_VERSION = "report_consistency_v3_20260510"
-_TP_REPORT_V3_ORIG_TP_QS_ROW_BUCKET = globals().get("_tp_qs_row_bucket")
+_TP_REPORT_V3_ORIG_TP_QS_ROW_BUCKET = _tp_qs_row_bucket__prev1
 
 
 def _tp_report_v3_text(raw: Any) -> str:
@@ -14418,7 +14418,7 @@ def _tp_report_v3_empty_bucket(label: str = "") -> Dict[str, Any]:
     }
 
 
-def _tp_qs_row_bucket(lead: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+def _tp_qs_row_bucket__prev2(lead: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
     orig = globals().get("_TP_REPORT_V3_ORIG_TP_QS_ROW_BUCKET")
     if callable(orig):
         try:
@@ -14524,7 +14524,7 @@ def _tp_report_v3_stats_from_leads(leads: List[Dict[str, Any]], manager_rows: Li
 # User-facing reports must not show English technical reason codes.
 
 _TP_REPORT_V5_VERSION = "report_consistency_v5_20260510"
-_TP_REPORT_V5_ORIG_TP_QS_ROW_BUCKET = globals().get("_tp_qs_row_bucket")
+_TP_REPORT_V5_ORIG_TP_QS_ROW_BUCKET = _tp_qs_row_bucket__prev2
 
 
 def _tp_report_v5_text(raw: Any) -> str:
@@ -14847,7 +14847,7 @@ def _lead_status_counts(lead: Dict[str, Any]) -> Tuple[str, str]:  # type: ignor
     return "nonliquid", _tp_report_v5_lead_reason(lead)
 
 
-def _det_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
+def _det_bucket_add__prev1(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
     _tp_report_v5_bucket_add(bucket, lead)
 
 
@@ -15789,13 +15789,13 @@ async def _tpag_monitor_once() -> None:  # type: ignore[override]
 import json as _tpe_json
 
 _TPE_VERSION = "profile_extraction_v2_base_20260512"
-_TPE_ORIG_APPLY_PROFILE_FROM_TEXT = globals().get("_apply_profile_from_text")
-_TPE_ORIG_CHOOSE_PROFILE_REPLY = globals().get("choose_profile_reply")
+_TPE_ORIG_APPLY_PROFILE_FROM_TEXT = _apply_profile_from_text__prev1
+_TPE_ORIG_CHOOSE_PROFILE_REPLY = choose_profile_reply__prev1
 _TPE_ORIG_MARK_PROFILE_DIALOG_SENT = globals().get("mark_profile_dialog_sent")
-_TPE_ORIG_TP_QS_DECIDE = globals().get("_tp_qs_decide")
-_TPE_ORIG_HANDLE_AI_STAT_COMMAND = globals().get("_handle_ai_stat_command")
-_TPE_ORIG_PANEL_EXECUTE_COMMAND = globals().get("_panel_execute_command_text")
-_TPE_ORIG_TP_QS_HANDLE_LEAD_COMMAND = globals().get("_tp_qs_handle_lead_command")
+_TPE_ORIG_TP_QS_DECIDE = _tp_qs_decide__prev1
+_TPE_ORIG_HANDLE_AI_STAT_COMMAND = _handle_ai_stat_command__prev3
+_TPE_ORIG_PANEL_EXECUTE_COMMAND = _panel_execute_command_text__prev9
+_TPE_ORIG_TP_QS_HANDLE_LEAD_COMMAND = _tp_qs_handle_lead_command__prev1
 
 
 def _tpe_int(raw: Any, default: int = 0) -> int:
@@ -15983,7 +15983,7 @@ async def _tpe_insert_profile_audit(db_path: str, old: Dict[str, Any], new: Dict
         print(f"profile extraction audit error: {e!r}")
 
 
-async def _apply_profile_from_text(db_path: str, lead_row: Dict[str, Any], text: str) -> Dict[str, Any]:  # type: ignore[override]
+async def _apply_profile_from_text__prev2(db_path: str, lead_row: Dict[str, Any], text: str) -> Dict[str, Any]:  # type: ignore[override]
     chat_id = int((lead_row or {}).get("chat_id") or 0)
     gate_auto = int((lead_row or {}).get("profile_question_sent") or 0) == 1
     try:
@@ -16077,7 +16077,7 @@ def _tpe_missing_category(lead: Dict[str, Any], intent: str = "") -> str:
     return ""
 
 
-def choose_profile_reply(lead: Dict[str, Any], client_text: str, state: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+def choose_profile_reply__prev2(lead: Dict[str, Any], client_text: str, state: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
     # This function is sync in current code. It cannot await schema migration, so it relies on mark/load paths.
     lead = dict(lead or {})
     state = dict(state or {})
@@ -16123,7 +16123,7 @@ async def mark_profile_dialog_sent(db_path: str, chat_id: int, *, template_key: 
             await db.commit()
 
 
-def _tp_qs_decide(row: Dict[str, Any], *, source: str = "rules") -> Dict[str, Any]:  # type: ignore[override]
+def _tp_qs_decide__prev2(row: Dict[str, Any], *, source: str = "rules") -> Dict[str, Any]:  # type: ignore[override]
     try:
         pe = _tpe_import_extractor()
         raw = _tpe_text((row or {}).get("profile_raw_text") or (row or {}).get("profile_evidence_text") or "")
@@ -16225,7 +16225,7 @@ def _tpe_date_token(token: str) -> Tuple[str, str, str]:
 
 
 
-async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
+async def _tp_qs_handle_lead_command__prev2(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
     parts = [p for p in str(args or "").split() if p.strip()]
     if parts and parts[0].lower() == "repair":
         return await _tpe_repair_command(parts[1:], user_id=user_id)
@@ -16234,7 +16234,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:  # 
     return "Формат: /lead help"
 
 
-async def _tpe_handle_profile_command(args: str, *, user_id: int = 0) -> str:
+async def _tpe_handle_profile_command__prev1(args: str, *, user_id: int = 0) -> str:
     parts = [p for p in str(args or "").split() if p.strip()]
     action = parts[0].lower() if parts else "help"
     if action in ("help", ""):
@@ -16257,7 +16257,7 @@ async def _tpe_handle_profile_command(args: str, *, user_id: int = 0) -> str:
     return "Формат: /profile help"
 
 
-async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
+async def _handle_ai_stat_command__prev4(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
     try:
         if CONTROLLER_MODE and int(event.chat_id or 0) == int(AI_STAT_CHAT_ID or 0):
             cmd, args = _parse_cmd((event.raw_text or "").strip())
@@ -16278,7 +16278,7 @@ async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # ty
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:  # type: ignore[override]
+async def _panel_execute_command_text__prev10(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0) -> Dict[str, Any]:  # type: ignore[override]
     cmd, args = _parse_cmd(str(command_text or ""))
     if cmd == "/profile":
         return {"ok": True, "result_text": await _tpe_handle_profile_command(args, user_id=requested_by)}
@@ -16381,8 +16381,8 @@ from pathlib import Path as _tpac_Path
 from typing import Any as _tpac_Any, Dict as _tpac_Dict, List as _tpac_List, Tuple as _tpac_Tuple
 
 _TPAC_VERSION = "profile_admin_control_v1_1_20260512"
-_TPAC_ORIG_TPE_HANDLE_PROFILE_COMMAND = globals().get("_tpe_handle_profile_command")
-_TPAC_ORIG_TP_QS_HANDLE_LEAD_COMMAND = globals().get("_tp_qs_handle_lead_command")
+_TPAC_ORIG_TPE_HANDLE_PROFILE_COMMAND = _tpe_handle_profile_command__prev1
+_TPAC_ORIG_TP_QS_HANDLE_LEAD_COMMAND = _tp_qs_handle_lead_command__prev2
 
 
 def _tpac_runtime_dir() -> _tpac_Path:
@@ -16959,7 +16959,7 @@ async def _tpe_repair_command(parts: _tpac_List[str], *, user_id: int = 0) -> st
     return await _tpac_create_snapshot(scope, start_d, end_d, label, user_id=user_id)
 
 
-async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
+async def _tp_qs_handle_lead_command__prev3(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
     parts = [p for p in str(args or "").split() if p.strip()]
     if parts and parts[0].lower() == "repair":
         return await _tpe_repair_command(parts[1:], user_id=user_id)
@@ -17019,9 +17019,9 @@ async def _tpe_handle_profile_command(args: str, *, user_id: int = 0) -> str:  #
 #   flights = 17:00-08:00 only;
 #   Partner LIGHT stays calendar-day based.
 _TP_SDF_VERSION = "stats_day_flight_separation_v1_20260512"
-_TP_SDF_ORIG_WINDOW_FOR_KIND_DATE = globals().get("_window_for_kind_date")
-_TP_SDF_ORIG_PARSE_EXPORT_ARGS = globals().get("_parse_export_args")
-_TP_SDF_ORIG_RUN_EXPORT_COMMAND = globals().get("_run_export_command")
+_TP_SDF_ORIG_WINDOW_FOR_KIND_DATE = _window_for_kind_date__prev1
+_TP_SDF_ORIG_PARSE_EXPORT_ARGS = _parse_export_args__prev1
+_TP_SDF_ORIG_RUN_EXPORT_COMMAND = _run_export_command__prev1
 
 
 def _tp_sdf_date_from_iso(value: str):
@@ -17329,11 +17329,11 @@ import sqlite3 as _tp_pss_sqlite3
 from datetime import datetime as _tp_pss_datetime, time as _tp_pss_time, timedelta as _tp_pss_timedelta
 
 _TP_PSS_VERSION = "profile_status_sync_v1_20260512"
-_TP_PSS_ORIG_UPDATE_DAILY_LEAD_FIELDS = globals().get("_update_daily_lead_fields")
+_TP_PSS_ORIG_UPDATE_DAILY_LEAD_FIELDS = _update_daily_lead_fields__prev1
 _TP_PSS_ORIG_TPE_DIRECT_UPDATE_DAILY = globals().get("_tpe_direct_update_daily")
-_TP_PSS_ORIG_TP_QS_HANDLE_LEAD_COMMAND = globals().get("_tp_qs_handle_lead_command")
-_TP_PSS_ORIG_HANDLE_AI_STAT_COMMAND = globals().get("_handle_ai_stat_command")
-_TP_PSS_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TP_PSS_ORIG_TP_QS_HANDLE_LEAD_COMMAND = _tp_qs_handle_lead_command__prev3
+_TP_PSS_ORIG_HANDLE_AI_STAT_COMMAND = _handle_ai_stat_command__prev4
+_TP_PSS_ORIG_PANEL_EXEC = _panel_execute_command_text__prev10
 _TP_PSS_RECALC_GUARD = False
 
 
@@ -17867,7 +17867,7 @@ async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:  # 
     return await _tp_pss_status_sync_command("help", user_id=user_id)
 
 
-async def _handle_ai_stat_command(event):  # type: ignore[override]
+async def _handle_ai_stat_command__prev5(event):  # type: ignore[override]
     try:
         if CONTROLLER_MODE and int(event.chat_id or 0) == int(AI_STAT_CHAT_ID or 0):
             cmd, args = _parse_cmd((event.raw_text or "").strip())
@@ -17887,7 +17887,7 @@ async def _handle_ai_stat_command(event):  # type: ignore[override]
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
+async def _panel_execute_command_text__prev11(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/lead":
@@ -17913,10 +17913,10 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 # 3) passive parsing профиля, который работает даже когда клиентские авто-сообщения выключены.
 
 _TP_GQ_VERSION = "tpilot_greeting_questionnaire_schedule_v1_20260513"
-_TP_GQ_ORIG_APPLY_PROFILE_FROM_TEXT = globals().get("_apply_profile_from_text")
-_TP_GQ_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
-_TP_GQ_ORIG_HANDLE_AI_STAT = globals().get("_handle_ai_stat_command")
-_TP_GQ_ORIG_CONTENT_TEXT_DEFAULTS = globals().get("_content_text_defaults")
+_TP_GQ_ORIG_APPLY_PROFILE_FROM_TEXT = _apply_profile_from_text__prev2
+_TP_GQ_ORIG_PANEL_EXEC = _panel_execute_command_text__prev11
+_TP_GQ_ORIG_HANDLE_AI_STAT = _handle_ai_stat_command__prev5
+_TP_GQ_ORIG_CONTENT_TEXT_DEFAULTS = _content_text_defaults__prev1
 
 TP_GQ_DEFAULT_DAY_START = "08:00"
 TP_GQ_DEFAULT_DAY_END = "17:00"
@@ -18287,7 +18287,7 @@ async def _tp_gq_update_profile_passive(db_path: str, lead_row: Dict[str, Any], 
 
 
 
-async def _tp_gq_send_questionnaire_followup(lead_row: Dict[str, Any], state: Dict[str, Any], chat_id: int) -> None:
+async def _tp_gq_send_questionnaire_followup__prev1(lead_row: Dict[str, Any], state: Dict[str, Any], chat_id: int) -> None:
     if int((state or {}).get("manager_replied") or 0) == 1 or int((lead_row or {}).get("manager_replied") or 0) == 1:
         await _update_daily_lead_fields(DB_PATH, lead_date=str(lead_row.get("lead_date") or _kyiv_now().date().isoformat()), manager_key=str(lead_row.get("manager_key") or MANAGER_RUNTIME_KEY), chat_id=chat_id, manager_replied=1, manager_replied_at=str((state or {}).get("manager_replied_at") or ""))
         return
@@ -18478,7 +18478,7 @@ async def _tp_gq_handle_schedule_command(args: str, *, user_id: int = 0) -> str:
     return "Формат: /autoschedule status|set|reset <manager|all>"
 
 
-async def _handle_ai_stat_command(event):  # type: ignore[override]
+async def _handle_ai_stat_command__prev6(event):  # type: ignore[override]
     try:
         if CONTROLLER_MODE and int(event.chat_id or 0) == int(AI_STAT_CHAT_ID or 0):
             cmd, args = _parse_cmd((event.raw_text or "").strip())
@@ -18502,7 +18502,7 @@ async def _handle_ai_stat_command(event):  # type: ignore[override]
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
+async def _panel_execute_command_text__prev12(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/greeting":
@@ -18535,9 +18535,9 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 import sqlite3 as _tp_hg_sqlite3  # noqa: E402
 
 _TP_HG_VERSION = "telegram_health_guard_v1_20260514"
-_TP_HG_ORIG_MAIN = globals().get("main")
-_TP_HG_ORIG_HANDLE_AI_STAT = globals().get("_handle_ai_stat_command")
-_TP_HG_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TP_HG_ORIG_MAIN = main__prev6
+_TP_HG_ORIG_HANDLE_AI_STAT = _handle_ai_stat_command__prev6
+_TP_HG_ORIG_PANEL_EXEC = _panel_execute_command_text__prev12
 
 TP_HG_CHECK_INTERVAL_SEC = 20 * 60
 TP_HG_NOTIFY_REPEAT_SEC = 6 * 60 * 60
@@ -19655,7 +19655,7 @@ async def _tp_hg_check_command(target: str, *, user_id: int = 0) -> str:
     return (f"{'✅' if ok else '⚠️'} {text}\n\n" + status_text).rstrip()
 
 
-async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
+async def _handle_ai_stat_command__prev7(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
     try:
         if CONTROLLER_MODE and int(event.chat_id or 0) == int(AI_STAT_CHAT_ID or 0):
             cmd, args = _parse_cmd((event.raw_text or "").strip())
@@ -19673,7 +19673,7 @@ async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # ty
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
+async def _panel_execute_command_text__prev13(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/tghealth":
@@ -19692,7 +19692,7 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
     return {"ok": False, "error_text": f"Команда не поддерживается: {cmd or text}"}
 
 
-async def main() -> None:  # type: ignore[override]
+async def main__prev7() -> None:  # type: ignore[override]
     try:
         await _tp_hg_ensure_tables()
     except Exception as e:
@@ -19784,9 +19784,9 @@ def _tp_hg_me_health_problem(me: Any, *, source: str = "get_me") -> Optional[Dic
 import uuid as _tp_hg_safe_uuid  # noqa: E402
 
 _TP_HG_V13_SAFE_VERSION = "telegram_health_guard_v1_3_safe_hotfix_20260514"
-_TP_HG_V13_SAFE_ORIG_HANDLE_AI_STAT = globals().get("_handle_ai_stat_command")
-_TP_HG_V13_SAFE_ORIG_HANDLE_MANAGER_PLAINTEXT = globals().get("_handle_manager_plaintext")
-_TP_HG_V13_SAFE_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TP_HG_V13_SAFE_ORIG_HANDLE_AI_STAT = _handle_ai_stat_command__prev7
+_TP_HG_V13_SAFE_ORIG_HANDLE_MANAGER_PLAINTEXT = _handle_manager_plaintext__prev1
+_TP_HG_V13_SAFE_ORIG_PANEL_EXEC = _panel_execute_command_text__prev13
 
 
 def _tp_hg_row_sync(manager_key: str) -> Dict[str, Any]:
@@ -20469,7 +20469,7 @@ async def _tp_hg_handle_command(args: str = "", *, user_id: int = 0) -> str:  # 
     return await _tp_hg_format_status(action)
 
 
-async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
+async def _handle_ai_stat_command__prev8(event: events.NewMessage.Event) -> bool:  # type: ignore[override]
     try:
         if CONTROLLER_MODE:
             chat_id = int(event.chat_id or 0)
@@ -20520,7 +20520,7 @@ async def _handle_manager_plaintext(event: events.NewMessage.Event) -> bool:  # 
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
+async def _panel_execute_command_text__prev14(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     if cmd == "/tghealth":
@@ -20549,9 +20549,9 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 # - Contact Identity must not break client auto-replies.
 
 _TP_AE_VERSION = "autoreply_enterprise_repair_v1_20260514"
-_TP_AE_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
-_TP_AE_ORIG_HANDLE_AI_STAT = globals().get("_handle_ai_stat_command")
-_TP_AE_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
+_TP_AE_ORIG_PANEL_EXEC = _panel_execute_command_text__prev14
+_TP_AE_ORIG_HANDLE_AI_STAT = _handle_ai_stat_command__prev8
+_TP_AE_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev4
 _TP_AE_ORIG_SET_PROFILE_AUTO_ENABLED = globals().get("_set_profile_auto_enabled")
 
 TP_AE_DEFAULT_GREETING_ENABLED = 1
@@ -21125,7 +21125,7 @@ async def _tp_ae_fallback_record_and_reply(event: events.NewMessage.Event, origi
         print(f"autoreply enterprise fallback error: {e!r}")
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
+async def _record_incoming_from_manager__prev5(event: events.NewMessage.Event) -> None:  # type: ignore[override]
     if callable(_TP_AE_ORIG_RECORD_INCOMING):
         try:
             await _TP_AE_ORIG_RECORD_INCOMING(event)
@@ -21251,7 +21251,7 @@ async def _handle_ai_stat_command(event: events.NewMessage.Event) -> bool:  # ty
     return False
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
+async def _panel_execute_command_text__prev15(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
     try:
@@ -21290,9 +21290,9 @@ import json as _tp_fm_json
 #    Work presence = manual outbound messages to at least 2 distinct client chats within 45 minutes.
 
 _TP_FM_VERSION = "profile_strict_presence_v2_20260515"
-_TP_FM_ORIG_CHOOSE_PROFILE_REPLY = globals().get("choose_profile_reply")
-_TP_FM_ORIG_TP_QS_DECIDE = globals().get("_tp_qs_decide")
-_TP_FM_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
+_TP_FM_ORIG_CHOOSE_PROFILE_REPLY = choose_profile_reply__prev2
+_TP_FM_ORIG_TP_QS_DECIDE = _tp_qs_decide__prev2
+_TP_FM_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev5
 
 TP_FM_WORK_PRESENCE_START = "07:50"
 TP_FM_WORK_PRESENCE_END = "17:00"
@@ -21658,7 +21658,7 @@ def choose_profile_reply(lead: Dict[str, Any], client_text: str, state: Dict[str
     return {"send_text": "", "template_key": "", "intent": "", "update_fields": {}}
 
 
-def _tp_qs_decide(row: Dict[str, Any], *, source: str = "rules") -> Dict[str, Any]:  # type: ignore[override]
+def _tp_qs_decide__prev3(row: Dict[str, Any], *, source: str = "rules") -> Dict[str, Any]:  # type: ignore[override]
     try:
         pe = _tpe_import_extractor() if callable(globals().get("_tpe_import_extractor")) else __import__("profile_extractor")
         raw = _tp_fm_text((row or {}).get("profile_answer_texts") or (row or {}).get("profile_raw_text") or (row or {}).get("profile_evidence_text") or "")
@@ -21840,7 +21840,7 @@ async def _tp_fm_audit(manager_key: str, chat_id: int, **kwargs: Any) -> None:
         pass
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
+async def _record_incoming_from_manager__prev6(event: events.NewMessage.Event) -> None:  # type: ignore[override]
     if not CONTROLLER_MODE and MANAGER_RUNTIME_KEY and getattr(event, "is_private", False) and getattr(event, "out", False):
         try:
             chat_id = int(event.chat_id or 0)
@@ -22130,7 +22130,7 @@ async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, A
 from typing import Any as _tp_pa_Any, Dict as _tp_pa_Dict, List as _tp_pa_List
 
 _TP_PA_VERSION = "profile_parse_always_v3_20260516"
-_TP_PA_ORIG_TP_QS_DECIDE = globals().get("_tp_qs_decide")
+_TP_PA_ORIG_TP_QS_DECIDE = _tp_qs_decide__prev3
 
 
 def _tp_pa_now_iso():
@@ -22869,7 +22869,7 @@ async def _tp_catchup_run() -> None:
     )
 
 
-_TP_CATCHUP_ORIG_MAIN = globals().get("main")
+_TP_CATCHUP_ORIG_MAIN = main__prev7
 
 
 async def main() -> None:  # type: ignore[override]
@@ -23406,10 +23406,10 @@ async def _mb_enqueue_duplicate_after_pipeline(chat_id: int) -> None:
 # --- TPILOT MANAGER BOT DUPLICATE CARD M2.11C 20260608 END ---
 
 
-_MB_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
+_MB_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev6
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
+async def _record_incoming_from_manager__prev7(event: events.NewMessage.Event) -> None:  # type: ignore[override]
     result = None
 
     if callable(_MB_ORIG_RECORD_INCOMING):
@@ -23531,10 +23531,10 @@ def _m212a_classify_exit_reason(exc: BaseException) -> str:
         return "unknown"
 
 
-_M212A_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_M212A_ORIG_PANEL_EXEC = _panel_execute_command_text__prev15
 
 
-async def _panel_execute_command_text(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
+async def _panel_execute_command_text__prev16(command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0):  # type: ignore[override]
     """M2.12A Stage 1: handle /manager_restart command for AdminBot."""
     text = str(command_text or "").strip()
     cmd, args = _parse_cmd(text)
@@ -24130,10 +24130,10 @@ async def _handle_bizlink_create_one_command(args: str, *, user_id: int = 0) -> 
 
 
 # Override _panel_execute_command_text — add /bizlink_create_one
-_M213B_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_M213B_ORIG_PANEL_EXEC = _panel_execute_command_text__prev16
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev17(  # type: ignore[override]
     command_text: str,
     *,
     requested_by: int = 0,
@@ -25194,10 +25194,10 @@ async def _handle_bizlink_create_15_command(args: str, *, user_id: int = 0) -> s
 
 
 # Override _panel_execute_command_text — M2.13C adds /bizlink_create_15
-_M213C_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_M213C_ORIG_PANEL_EXEC = _panel_execute_command_text__prev17
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev18(  # type: ignore[override]
     command_text: str,
     *,
     requested_by: int = 0,
@@ -25681,10 +25681,10 @@ async def _handle_bizlink_create_all_command(args: str, *, user_id: int = 0) -> 
 
 
 # M2.13D-2: stacked _panel_execute_command_text — routes /bizlink_create_n, /bizlink_create_all
-_M213D2_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_M213D2_ORIG_PANEL_EXEC = _panel_execute_command_text__prev18
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev19(  # type: ignore[override]
     command_text: str,
     *,
     requested_by: int = 0,
@@ -26611,10 +26611,10 @@ async def _handle_bizlink_delete_command(args: str, *, user_id: int = 0) -> str:
 
 
 # M2.13D-3A: stacked _panel_execute_command_text override — routes /bizlink_delete_tpilot
-_M213D3A_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_M213D3A_ORIG_PANEL_EXEC = _panel_execute_command_text__prev19
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev20(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0
 ) -> dict:
     """M2.13D-3A: route /bizlink_delete_tpilot before chaining to M2.13D-2."""
@@ -27086,10 +27086,10 @@ async def _handle_bizlink_delete_telegram_command(args: str, *, user_id: int = 0
 
 
 # M2.13D-3B: stacked _panel_execute_command_text override — routes global Telegram commands
-_M213D3B_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_M213D3B_ORIG_PANEL_EXEC = _panel_execute_command_text__prev20
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev21(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0
 ) -> dict:
     """M2.13D-3B: route /bizlink_list_telegram and /bizlink_delete_telegram before chaining."""
@@ -27278,7 +27278,7 @@ async def _manager_recovery_resolve_auth_incident(key: str) -> None:
         pass
 
 
-async def _manager_recovery_once() -> None:
+async def _manager_recovery_once__prev1() -> None:
     """Single supervisor tick: confirm process presence and recover recoverable absent managers."""
     global _m215_lock
     if _m215_lock is None:
@@ -27862,7 +27862,7 @@ async def _health_incident_handle(
                 await _health_incident_notify(key, signature, unified_status, "", "", is_reminder=False, is_recovery=True)
 
 
-async def _health_agg_once() -> None:
+async def _health_agg_once__prev1() -> None:
     """One aggregator tick: read signals, map, write summary + log, maybe notify."""
     now_utc = _health_agg_utc_now_iso()
 
@@ -28025,7 +28025,7 @@ except Exception as _se4e_imp_err:
 # Default OFF. Do not flip without a clean parity run on a COPIED DB (never prod).
 _SE4E_ENGINE_BUCKET_LIVE = False
 
-_TP_STAGE4E_ORIG_DET_BUCKET_ADD = globals().get("_det_bucket_add")
+_TP_STAGE4E_ORIG_DET_BUCKET_ADD = _det_bucket_add__prev1
 
 
 def _det_bucket_add(bucket: Dict[str, Any], lead: Dict[str, Any]) -> None:  # type: ignore[override]
@@ -28124,7 +28124,7 @@ async def _llm_runtime_enabled() -> bool:
 #   - CancelledError silently swallowed (not an unhandled warning)
 
 _LLMQ_VERSION = "debounce_v1_20260624"
-_LLMQ_ORIG_FOLLOWUP = globals().get("_tp_gq_send_questionnaire_followup")
+_LLMQ_ORIG_FOLLOWUP = _tp_gq_send_questionnaire_followup__prev1
 
 # Per-chat in-process state; keys are int chat_id
 _llmq_debounce_tasks: Dict[int, "asyncio.Task[None]"] = {}
@@ -28539,7 +28539,7 @@ async def _tp_llm_status_persist(
 #   - LLM_SUPERVISOR_ENABLED + LLM_SUPERVISOR_MODE gating respected inside llm_supervisor_shadow
 #   - CancelledError silently swallowed (debounce burst coalescing)
 
-_PASSIVE_LLM_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
+_PASSIVE_LLM_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev7
 
 # Per-chat in-process debounce/throttle state (chat_id → asyncio.Task / float)
 _plobs_debounce_tasks: Dict[int, "asyncio.Task[None]"] = {}
@@ -28643,7 +28643,7 @@ async def _plobs_fire(
         pass
 
 
-async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
+async def _record_incoming_from_manager__prev8(event: events.NewMessage.Event) -> None:  # type: ignore[override]
     """Stage F1P: passive observer wrapper. Calls original first; schedules audit task after."""
     result = None
     if callable(_PASSIVE_LLM_ORIG_RECORD_INCOMING):
@@ -28873,7 +28873,7 @@ async def _transfer_confirm_check(closer_key: str, chat_id: int, known_contact_i
         print(f"[transfer-confirm] check failed closer={ck} chat_id={cid} error={exc!r}")
 
 
-_TR3_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
+_TR3_ORIG_RECORD_INCOMING = _record_incoming_from_manager__prev8
 
 
 async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:  # type: ignore[override]
@@ -29098,10 +29098,10 @@ async def _handle_nmstat_command(args: str, *, user_id: int = 0) -> str:
     return warn_line + header + body
 
 
-_NMSTAT_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_NMSTAT_PREV_PANEL_EXEC = _panel_execute_command_text__prev21
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev22(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0
 ) -> dict:
     """Stage 3A: route /nmstat before chaining to the previous handler."""
@@ -29697,10 +29697,10 @@ async def _handle_manager_proxy_buy_recover_command(args: str) -> str:
     return _pbuy_json.dumps(result, ensure_ascii=False)
 
 
-_PBUY_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_PBUY_PREV_PANEL_EXEC = _panel_execute_command_text__prev22
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev23(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0
 ) -> dict:
     """Stage 4: route the automatic-SOCKS5-purchase commands before
@@ -30955,10 +30955,10 @@ async def _prenew_autorenew_loop() -> None:
         await asyncio.sleep(_PRENEW_LOOP_TICK_SEC)
 
 
-_PRENEW_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_PRENEW_PREV_PANEL_EXEC = _panel_execute_command_text__prev23
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev24(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0
 ) -> dict:
     """Stage 5/6.1F: route the renewal calc/confirm/defer/autorenew-toggle
@@ -31742,10 +31742,10 @@ async def _handle_proxy_pool_sync_command(args: str) -> str:
     }, ensure_ascii=False)
 
 
-_PPOOL_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_PPOOL_PREV_PANEL_EXEC = _panel_execute_command_text__prev24
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev25(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0
 ) -> dict:
     """Stage 6 P2/P3/P4: route the Proxy Pool commands before chaining to
@@ -31963,10 +31963,10 @@ async def _tp_mgrbf_backfill_all(*, retention_days: int = 60, base_dir: Optional
     return results
 
 
-_MGRBF_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_MGRBF_PREV_PANEL_EXEC = _panel_execute_command_text__prev25
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev26(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> dict:
     """DELETED MANAGER STATS BACKFILL 20260711: /manager_stats_backfill <key|all> --
@@ -32529,10 +32529,10 @@ async def _manager_relogin_commit(key: str, owner_user_id: int, *, phone_hint: s
     return "\n".join(lines)
 
 
-_RELOGIN_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_RELOGIN_PREV_PANEL_EXEC = _panel_execute_command_text__prev26
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev27(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, args = _parse_cmd(str(command_text or ""))
@@ -34407,7 +34407,7 @@ async def _panel_manager_replace_commit_command(args: str, *, requested_by: int 
     return _repl3_json_result(res)
 
 
-_REPL3_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_REPL3_PREV_PANEL_EXEC = _panel_execute_command_text__prev27
 
 _REPL3_DISPATCH = {
     "/manager_replace_start": _panel_manager_replace_start_command,
@@ -34425,7 +34425,7 @@ _REPL3_DISPATCH = {
 }
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev28(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, args = _parse_cmd(str(command_text or ""))
@@ -36158,7 +36158,7 @@ async def _panel_manager_tdimport_cancel_command(args: str, *, requested_by: int
     return _repl3_json_result(result)
 
 
-_TDIMPORT_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_TDIMPORT_PREV_PANEL_EXEC = _panel_execute_command_text__prev28
 
 _TDIMPORT_DISPATCH = {
     "/manager_tdimport_start": _panel_manager_tdimport_start_command,
@@ -36168,7 +36168,7 @@ _TDIMPORT_DISPATCH = {
 }
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev29(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, args = _parse_cmd(str(command_text or ""))
@@ -36745,7 +36745,7 @@ async def _devlogin_rescan_loop() -> None:
         await asyncio.sleep(DEVLOGIN_RESCAN_INTERVAL_SEC)
 
 
-_DEVLOGIN_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_DEVLOGIN_PREV_PANEL_EXEC = _panel_execute_command_text__prev29
 
 _DEVLOGIN_DISPATCH = {
     "/manager_devlogin_start": _panel_manager_devlogin_start_command,
@@ -36754,7 +36754,7 @@ _DEVLOGIN_DISPATCH = {
 }
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev30(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, args = _parse_cmd(str(command_text or ""))
@@ -37088,7 +37088,7 @@ async def _plc_reconcile_loop() -> None:
         await asyncio.sleep(1800)  # 30 min -- generous cadence, avoids hammering the provider API
 
 
-_PLC_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_PLC_PREV_PANEL_EXEC = _panel_execute_command_text__prev30
 
 _PLC_DISPATCH = {
     "/proxy_lifecycle_terminal_confirm": _handle_proxy_lifecycle_terminal_confirm_command,
@@ -37097,7 +37097,7 @@ _PLC_DISPATCH = {
 }
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev31(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, _, args = str(command_text or "").strip().partition(" ")
@@ -38030,7 +38030,7 @@ async def _handle_proxy_renewal_config_command(args: str) -> str:
     return _pbuy_json.dumps({"ok": False, "error": "bad_args", "message": "Неизвестный ключ конфигурации."}, ensure_ascii=False)
 
 
-_RENEWAL_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_RENEWAL_PREV_PANEL_EXEC = _panel_execute_command_text__prev31
 
 _RENEWAL_DISPATCH = {
     "/proxy_renewal_backfill": _handle_proxy_renewal_backfill_command,
@@ -38041,7 +38041,7 @@ _RENEWAL_DISPATCH = {
 }
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev32(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, _, args = str(command_text or "").strip().partition(" ")
@@ -38781,7 +38781,7 @@ def _hnv2_spawns_appended_since(before_size: int) -> list:
     return out
 
 
-_HNV2_PREV_RECOVERY_ONCE = globals().get("_manager_recovery_once")
+_HNV2_PREV_RECOVERY_ONCE = _manager_recovery_once__prev1
 
 
 async def _manager_recovery_once() -> None:   # type: ignore[override]
@@ -39399,7 +39399,7 @@ async def _hnv2_bootstrap_once() -> None:
                 pass
 
 
-_HNV2_PREV_AGG_ONCE = globals().get("_health_agg_once")
+_HNV2_PREV_AGG_ONCE = _health_agg_once__prev1
 
 
 async def _health_agg_once() -> None:   # type: ignore[override]
@@ -39696,10 +39696,10 @@ async def _hnv2_diag_text(manager_key: str) -> str:
         return f"Диагностика не удалась: {type(exc).__name__}"
 
 
-_HNV2_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_HNV2_PREV_PANEL_EXEC = _panel_execute_command_text__prev32
 
 
-async def _panel_execute_command_text(
+async def _panel_execute_command_text__prev33(
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, _, args = str(command_text or "").strip().partition(" ")
@@ -39789,7 +39789,7 @@ async def _panel_manager_replace_tdimport_confirm_command(args: str, *, requeste
     return _repl3_json_result(res)
 
 
-_AUTHUI_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_AUTHUI_PREV_PANEL_EXEC = _panel_execute_command_text__prev33
 
 _AUTHUI_DISPATCH = {
     "/manager_relogin_qr_start": _panel_manager_relogin_qr_start_command,
@@ -39799,7 +39799,7 @@ _AUTHUI_DISPATCH = {
 }
 
 
-async def _panel_execute_command_text(  # type: ignore[override]
+async def _panel_execute_command_text__prev34(  # type: ignore[override]
     command_text: str, *, requested_by: int = 0, source_chat_id: int = 0, response_chat_id: int = 0
 ) -> Dict[str, Any]:
     cmd, _, args = str(command_text or "").strip().partition(" ")
@@ -40050,7 +40050,7 @@ async def _panel_prepared_delete_command(args: str, *, requested_by: int = 0) ->
 # --- TPILOT PREPARED ACCOUNTS PHASE 5 (2026-08-11) END -----------------------
 
 
-_PREPARED_PREV_PANEL_EXEC = globals().get("_panel_execute_command_text")
+_PREPARED_PREV_PANEL_EXEC = _panel_execute_command_text__prev34
 
 _PREPARED_DISPATCH = {
     "/prepared_add": _panel_prepared_add_command,

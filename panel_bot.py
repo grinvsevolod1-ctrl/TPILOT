@@ -1064,7 +1064,7 @@ def _wizard_clear(chat_id: int, user_id: int) -> None:
     except Exception:
         pass
 
-def _is_allowed(event) -> bool:
+def _is_allowed__prev1(event) -> bool:
     try:
         uid = int(getattr(event, "sender_id", 0) or 0)
         cid = int(getattr(event, "chat_id", 0) or 0)
@@ -1238,7 +1238,7 @@ def _scan_process_state() -> Dict[str, Any]:
     }
 
 
-def _panel_health() -> Dict[str, Any]:
+def _panel_health__prev1() -> Dict[str, Any]:
     data = _load_status_file()
     if data.get("source") == "file" and data.get("fresh"):
         active_keys = [str(x).strip().lower() for x in (data.get("active_managers") or []) if str(x).strip()]
@@ -1812,7 +1812,7 @@ def _manager_admin_menu():
 
 
 
-def _manager_admin_detail_buttons(key: str):
+def _manager_admin_detail_buttons__prev1(key: str):
     key = normalize_manager_key(key or "")
     return [
         _section_button("📄 ИНФОРМАЦИЯ"),
@@ -2670,7 +2670,7 @@ def _partner_delete_confirm_buttons(user_id: int):
     ]
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:
+def _title_for_menu__prev1(menu: str) -> Tuple[str, list]:
     header = _panel_header()
     raw_menu = str(menu or "main")
     if raw_menu == "stats":
@@ -2798,7 +2798,7 @@ def _title_for_menu(menu: str) -> Tuple[str, list]:
 
 
 # --- TPILOT PANEL DUPLICATES / FOLLOWUPS / PROXY UX UPDATE 20260507 START ---
-_TPILOT_PANEL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPILOT_PANEL_ORIG_TITLE_FOR_MENU = _title_for_menu__prev1
 
 
 def _duplicates_menu():
@@ -2833,7 +2833,7 @@ def _pb_followup_enabled(key: str) -> bool:
         return True
 
 
-def _followups_menu():
+def _followups_menu__prev1():
     rows = []
     for r in _manager_rows()[:50]:
         key = str(r.get("manager_key") or "").strip()
@@ -2853,7 +2853,7 @@ def _followups_menu():
     return rows
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:
+def _title_for_menu__prev2(menu: str) -> Tuple[str, list]:
     header = _panel_header()
     raw_menu = str(menu or "main")
     if raw_menu == "duplicates":
@@ -2869,7 +2869,7 @@ def _title_for_menu(menu: str) -> Tuple[str, list]:
 
 client = TelegramClient(PANEL_SESSION_FILE, API_ID, API_HASH)
 
-async def _send_fresh_panel(chat_id: int, user_id: int = 0, *, delete_previous: bool = True) -> None:
+async def _send_fresh_panel__prev1(chat_id: int, user_id: int = 0, *, delete_previous: bool = True) -> None:
     if delete_previous:
         await _delete_active_panel(int(chat_id))
     text, buttons = _title_for_menu("main")
@@ -2880,7 +2880,7 @@ async def _send_fresh_panel(chat_id: int, user_id: int = 0, *, delete_previous: 
         pass
 
 
-async def _safe_event_edit(event, text: str, buttons=None) -> None:
+async def _safe_event_edit__prev1(event, text: str, buttons=None) -> None:
     try:
         await event.edit(text, buttons=buttons)
     except Exception as e:
@@ -3230,7 +3230,7 @@ def _panel_resume_proxy_prompt(key: str = "") -> str:
     )
 
 
-def _panel_wizard_resume_text_buttons(chat_id: int, user_id: int):
+def _panel_wizard_resume_text_buttons__prev1(chat_id: int, user_id: int):
     state = _wizard_get(int(chat_id or 0), int(user_id or 0))
     if not state:
         return "Незавершённых действий нет.", _back_to_panel_buttons()
@@ -4729,8 +4729,8 @@ def _content_cat_menu(cat: str):
 
 
 
-_CONTENT_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
-def _title_for_menu(menu: str):  # type: ignore[override]
+_CONTENT_ORIG_TITLE_FOR_MENU = _title_for_menu__prev2
+def _title_for_menu__prev3(menu: str):  # type: ignore[override]
     header = _panel_header()
     raw = str(menu or "main")
     if raw == "content":
@@ -4863,7 +4863,7 @@ async def _content_editor_wizard_input(event):
 # Visual-only admin UI layer for TPilot PanelBot.
 # It overrides screen text, breadcrumbs and navigation layout without changing business commands.
 
-_TP_VISUAL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TP_VISUAL_ORIG_TITLE_FOR_MENU = _title_for_menu__prev3
 
 
 def _tp_visual_now_local() -> str:
@@ -4918,7 +4918,7 @@ def _tp_visual_health_parts() -> dict:
     }
 
 
-def _panel_header() -> str:  # type: ignore[override]
+def _panel_header__prev1() -> str:  # type: ignore[override]
     hp = _tp_visual_health_parts()
     return "\n".join([
         f"**{hp['overall']} TPilot Admin Panel**",
@@ -4972,7 +4972,7 @@ def _terminal_ok_button() -> list:
     return [[Button.inline("✅ OK", b"ui:close")]]
 
 
-def _main_menu():  # type: ignore[override]
+def _main_menu__prev1():  # type: ignore[override]
     return [
         [Button.inline("📊 Отчёты и контроль", b"menu:reports_control"), Button.inline("👥 Менеджеры и режимы", b"menu:managers_modes")],
         [Button.inline("📦 Трафик и байеры", b"menu:traffic_buyers"), Button.inline("📈 Качество и дисциплина", b"menu:quality")],
@@ -5065,7 +5065,7 @@ def _tp_visual_autoreply_label(key: str) -> str:
 
 
 
-def _manager_admin_detail_text(row: dict) -> str:  # type: ignore[override]
+def _manager_admin_detail_text__prev1(row: dict) -> str:  # type: ignore[override]
     row = dict(row or {})
     key = normalize_manager_key(row.get("manager_key") or "")
     label = _manager_short_label(row) if row else key
@@ -5115,7 +5115,7 @@ def _tp_visual_existing_buttons(menu_name: str):
     return []
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev4(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
 
     if raw == "main":
@@ -5620,7 +5620,7 @@ async def main() -> None:
 
 # --- TPILOT PROXY AUTH GUARD PANEL V2 20260509 START ---
 # Late UI overrides. Does not touch existing visual layout, only enriches header and proxy cards.
-_TPAG_PANEL_V2_ORIG_HEADER = globals().get("_panel_header")
+_TPAG_PANEL_V2_ORIG_HEADER = _panel_header__prev1
 
 
 def _tpag_panel_v2_mode(row: dict) -> str:
@@ -5701,7 +5701,7 @@ def _pb_proxy_counts_effective() -> tuple[int, int, str]:
     return ok, total, icon
 
 
-def _panel_header() -> str:  # type: ignore[override]
+def _panel_header__prev2() -> str:  # type: ignore[override]
     base = _TPAG_PANEL_V2_ORIG_HEADER() if callable(_TPAG_PANEL_V2_ORIG_HEADER) else "🟢 TPilot Admin Panel"
     if "Proxy:" in str(base):
         return str(base)
@@ -5822,8 +5822,8 @@ def _proxy_detail_buttons(key: str):  # type: ignore[override]
 # Password-gated panel access for users who open the bot by link.
 # Bulk buttons for auto replies and followups.
 
-_TP_PANEL_V5_ORIG_IS_ALLOWED = globals().get("_is_allowed")
-_TP_PANEL_V5_ORIG_FOLLOWUPS_MENU = globals().get("_followups_menu")
+_TP_PANEL_V5_ORIG_IS_ALLOWED = _is_allowed__prev1
+_TP_PANEL_V5_ORIG_FOLLOWUPS_MENU = _followups_menu__prev1
 
 
 def _tp_panel_v5_now_iso() -> str:
@@ -6324,9 +6324,9 @@ def _tp_v8_baseline_clear_confirm_buttons(target: str):
     ]
 
 
-_TP_V8_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TP_V8_ORIG_TITLE_FOR_MENU = _title_for_menu__prev4
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev5(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "service":
         desc = "\n".join([
@@ -6353,9 +6353,9 @@ def _title_for_menu(menu: str):  # type: ignore[override]
 
 # --- TPILOT PROFILE ADMIN CONTROL PANEL V1 20260512 START ---
 # Russian PanelBot UI for Profile Extraction v2. Technical menu id is profile_check to avoid old menu:profile conflict.
-_TPAC_PANEL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPAC_PANEL_ORIG_TITLE_FOR_MENU = _title_for_menu__prev5
 _TPAC_PANEL_ORIG_TP_V8_SERVICE_MENU_ROWS = globals().get("_tp_v8_service_menu_rows")
-_TPAC_PANEL_ORIG_PANEL_WIZARD_RESUME = globals().get("_panel_wizard_resume_text_buttons")
+_TPAC_PANEL_ORIG_PANEL_WIZARD_RESUME = _panel_wizard_resume_text_buttons__prev1
 
 
 def _tpac_back_profile_buttons():
@@ -6456,7 +6456,7 @@ def _service_menu():  # type: ignore[override]
     return rows
 
 
-def _tp_visual_service_menu():  # type: ignore[override]
+def _tp_visual_service_menu__prev1():  # type: ignore[override]
     rows = _tpac_service_menu_rows()
     rows.extend([
         [Button.inline("ℹ️ Помощь", b"cmd:/help"), Button.inline("📘 Инструкция", b"cmd:/instructions")],
@@ -6468,7 +6468,7 @@ def _tp_visual_service_menu():  # type: ignore[override]
     return rows
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev6(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "profile_check":
         try:
@@ -6763,7 +6763,7 @@ try:
 except Exception:
     pass
 
-_TP_GQ_PANEL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TP_GQ_PANEL_ORIG_TITLE_FOR_MENU = _title_for_menu__prev6
 
 
 
@@ -6807,8 +6807,8 @@ def _tp_gq_panel_schedule_text(key: str) -> str:
     )
 
 
-_TP_GQ_PANEL_ORIG_TITLE_FOR_MENU2 = globals().get("_title_for_menu")
-def _title_for_menu(menu: str):  # type: ignore[override]
+_TP_GQ_PANEL_ORIG_TITLE_FOR_MENU2 = _title_for_menu__prev6
+def _title_for_menu__prev7(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "managers":
         return f"{_panel_header()}\n\n👋 Приветствие / нет на месте\n📋 Автоанкета\n🕘 Графики сообщений\n\nВыберите менеджера или действие для всех.", _managers_menu()
@@ -6880,7 +6880,7 @@ async def _tp_gq_panel_schedule_input(event):
 # - no custom manager callback;
 # - all actions use short cmd:/tghealth... callback data;
 # - this block directly overrides the active Managers and Modes menu.
-_TPILOT_TGHEALTH_V22_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPILOT_TGHEALTH_V22_PREV_TITLE_FOR_MENU = _title_for_menu__prev7
 
 
 def _tp_tghealth_v22_manager_rows_safe():
@@ -6958,7 +6958,7 @@ def _tp_tghealth_v22_buttons():
     return rows
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev8(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "tghealth":
         return _tp_tghealth_v22_menu_text(), _tp_tghealth_v22_buttons()
@@ -6974,7 +6974,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
 # 👋 Greeting / away notice, 📋 questionnaire, 🔁 followups, 🛑 emergency silence.
 
 _TP_AE_PANEL_VERSION = "autoreply_enterprise_panel_v1_20260514"
-_TP_AE_PANEL_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TP_AE_PANEL_PREV_TITLE_FOR_MENU = _title_for_menu__prev8
 
 
 def _tp_ae_panel_manager_keys() -> list[str]:
@@ -7312,7 +7312,7 @@ def _tp_visual_managers_modes_menu():  # type: ignore[override]
     return rows
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev9(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "automation":
         try:
@@ -7373,7 +7373,7 @@ def _read_external_watchdog_status() -> bool | None:
         return None
 
 
-_TP_EXT_WD_ORIG_PANEL_HEALTH = globals().get("_panel_health")
+_TP_EXT_WD_ORIG_PANEL_HEALTH = _panel_health__prev1
 
 
 def _panel_health() -> Dict[str, Any]:  # type: ignore[override]
@@ -7946,10 +7946,10 @@ def _mbaccess_all_buttons():
 
 # --- TPILOT M2.6F.2 MANAGERBOT ENTRY FIX END ---
 
-_M26F_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M26F_PREV_TITLE_FOR_MENU = _title_for_menu__prev9
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev10(menu):  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "mbaccess_all":
@@ -9028,10 +9028,10 @@ def _manager_danger_zone_buttons(key: str) -> list:
     ]
 
 
-_MS_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_MS_PREV_TITLE_FOR_MENU = _title_for_menu__prev10
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev11(menu):  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "manager_settings":
@@ -10652,7 +10652,7 @@ def _m212a_runtime_status_line(manager_key: str, row: dict) -> str:
     return ""
 
 
-_M212A_ORIG_ADMIN_DETAIL_TEXT = globals().get("_manager_admin_detail_text")
+_M212A_ORIG_ADMIN_DETAIL_TEXT = _manager_admin_detail_text__prev1
 
 
 def _manager_admin_detail_text(row: dict) -> str:  # type: ignore[override]
@@ -10668,10 +10668,10 @@ def _manager_admin_detail_text(row: dict) -> str:  # type: ignore[override]
     return base
 
 
-_M212A_ORIG_ADMIN_DETAIL_BUTTONS = globals().get("_manager_admin_detail_buttons")
+_M212A_ORIG_ADMIN_DETAIL_BUTTONS = _manager_admin_detail_buttons__prev1
 
 
-def _manager_admin_detail_buttons(key: str):  # type: ignore[override]
+def _manager_admin_detail_buttons__prev2(key: str):  # type: ignore[override]
     """M2.12A Stage1: add 🔄 Перезапустить менеджера button to per-manager card."""
     key = normalize_manager_key(key or "")
     rows = list(_M212A_ORIG_ADMIN_DETAIL_BUTTONS(key)) if callable(_M212A_ORIG_ADMIN_DETAIL_BUTTONS) else []
@@ -10687,10 +10687,10 @@ def _manager_admin_detail_buttons(key: str):  # type: ignore[override]
 
 
 # --- TPILOT MANAGER RELOGIN 20260714 START ---
-_RELOGIN_PREV_ADMIN_DETAIL_BUTTONS = globals().get("_manager_admin_detail_buttons")
+_RELOGIN_PREV_ADMIN_DETAIL_BUTTONS = _manager_admin_detail_buttons__prev2
 
 
-def _manager_admin_detail_buttons(key: str):  # type: ignore[override]
+def _manager_admin_detail_buttons__prev3(key: str):  # type: ignore[override]
     """Adds '🔐 Перезайти' right after the Запустить/Остановить row -- ONLY for an
     existing, non-archived/non-deleted manager row (never for archived/deleted, never in
     the manager list, never in the new menu, never for closers -- this card is reached
@@ -10994,7 +10994,7 @@ async def _relogin_wizard_input(event):
 # Stops at ready_commit -- the final-confirm button is an explicit,
 # no-mutation placeholder; no commit/cutover logic lives here or in main.py.
 
-_RW_PREV_ADMIN_DETAIL_BUTTONS = globals().get("_manager_admin_detail_buttons")
+_RW_PREV_ADMIN_DETAIL_BUTTONS = _manager_admin_detail_buttons__prev3
 
 
 def _manager_admin_detail_buttons(key: str):  # type: ignore[override]
@@ -12387,10 +12387,10 @@ def _bizlinks_schedule_text() -> str:
 
 
 # --- M2.13A _main_menu override: add Business Links button ---
-_M213A_PREV_MAIN_MENU = globals().get("_main_menu")
+_M213A_PREV_MAIN_MENU = _main_menu__prev1
 
 
-def _main_menu():  # type: ignore[override]
+def _main_menu__prev2():  # type: ignore[override]
     rows = list(_M213A_PREV_MAIN_MENU()) if callable(_M213A_PREV_MAIN_MENU) else []
     try:
         btn = [Button.inline("\U0001f517 Бизнес-ссылки", b"menu:bizlinks")]
@@ -12417,10 +12417,10 @@ def _main_menu():  # type: ignore[override]
 
 
 # --- M2.13A _title_for_menu override ---
-_M213A_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213A_PREV_TITLE_FOR_MENU = _title_for_menu__prev11
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev12(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "bizlinks":
@@ -12763,10 +12763,10 @@ def _bizlinks_test_confirm_buttons(mk: str, slot_no: int) -> list:
 
 
 # --- M2.13B _title_for_menu override ---
-_M213B_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213B_PREV_TITLE_FOR_MENU = _title_for_menu__prev12
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev13(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "bizlinks_test_pick_mgr":
@@ -12896,10 +12896,10 @@ def _bizlinks_batch_confirm_buttons(mk: str) -> list:
 
 
 # --- M2.13C _title_for_menu override ---
-_M213C_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213C_PREV_TITLE_FOR_MENU = _title_for_menu__prev13
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev14(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "bizlinks_batch_pick_mgr":
@@ -13232,10 +13232,10 @@ def _sched_pb_missing_buttons() -> list:
 
 
 # M2.13D-1 _title_for_menu override for schedule screens
-_M213D_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213D_PREV_TITLE_FOR_MENU = _title_for_menu__prev14
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev15(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "bizschedule":
@@ -13817,10 +13817,10 @@ def _d2_set_default_count_buttons() -> list:
 
 
 # M2.13D-2: stacked _title_for_menu override
-_M213D2_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213D2_PREV_TITLE_FOR_MENU = _title_for_menu__prev15
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev16(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         # --- M2.13D-2: new create flow screens ---
@@ -14197,10 +14197,10 @@ def _bizlinks_menu_buttons() -> list:  # type: ignore[override]
 
 
 # M2.13D-3A: stacked _title_for_menu override
-_M213D3A_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213D3A_PREV_TITLE_FOR_MENU = _title_for_menu__prev16
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev17(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "bizdel_scope":
@@ -14510,10 +14510,10 @@ def _d3a_scope_buttons() -> list:  # type: ignore[override]
 
 
 # M2.13D-3B: stacked _title_for_menu override — handles bizdelg_scope
-_M213D3B_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_M213D3B_PREV_TITLE_FOR_MENU = _title_for_menu__prev17
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev18(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     try:
         if raw == "bizdelg_scope":
@@ -14901,10 +14901,10 @@ def _r1b_health_buttons() -> list:
 
 
 # R1B: stacked _title_for_menu override — handles menu:health; must remain the last definition
-_R1B_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_R1B_PREV_TITLE_FOR_MENU = _title_for_menu__prev18
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev19(menu):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "health":
         return _r1b_health_text(), _r1b_health_buttons()
@@ -14917,10 +14917,10 @@ def _title_for_menu(menu):  # type: ignore[override]
 
 
 # --- TPILOT PATCH C1B: source_days title override + sds: callback 20260622 START ---
-_TPC1B_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPC1B_PREV_TITLE_FOR_MENU = _title_for_menu__prev19
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev20(menu):  # type: ignore[override]
     raw = str(menu or "main")
     if raw.startswith("source_days:"):
         key = _slug_key(raw.split(":", 1)[1], "source")
@@ -14997,10 +14997,10 @@ async def _tpc1b_source_days_callback(event):
 
 
 # --- TPILOT PATCH C2B: source_time title override + sti: callback + time wizard 20260623 START ---
-_TPC2B_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPC2B_PREV_TITLE_FOR_MENU = _title_for_menu__prev20
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev21(menu):  # type: ignore[override]
     raw = str(menu or "main")
     if raw.startswith("source_time:"):
         key = _slug_key(raw.split(":", 1)[1], "source")
@@ -15238,10 +15238,10 @@ def _tpc3c_inbox_buttons() -> list:
     return rows
 
 
-_TPC3C_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPC3C_PREV_TITLE_FOR_MENU = _title_for_menu__prev21
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev22(menu):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "schedule_requests":
         return _tpc3c_inbox_text(), _tpc3c_inbox_buttons()
@@ -15681,10 +15681,10 @@ def _tp_llm_status_buttons(period: str = "today") -> list:
     ]
 
 
-_TPLLMF1_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TPLLMF1_PREV_TITLE_FOR_MENU = _title_for_menu__prev22
 
 
-def _title_for_menu(menu):  # type: ignore[override]
+def _title_for_menu__prev23(menu):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "llm_status" or raw.startswith("llm_status:"):
         parts = raw.split(":", 1)
@@ -15873,10 +15873,10 @@ def _closer_detail_buttons(key: str):
     return rows
 
 
-_TR_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_TR_PREV_TITLE_FOR_MENU = _title_for_menu__prev23
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev24(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
 
     # Guard: if a stale/manual link points a closer through the ordinary manager
@@ -16923,10 +16923,10 @@ async def _bld_run_batch(chat_id: int, user_id: int, date_iso: str, count: int,
             print(f"[bld] single-manager full result send failed: {exc!r}")
 
 
-_BLD_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_BLD_PREV_TITLE_FOR_MENU = _title_for_menu__prev24
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev25(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "bld_date":
         today = _sched_pb_kyiv_today()
@@ -17759,10 +17759,10 @@ async def _bdd_run_batch(chat_id: int, user_id: int, date_iso: str, run_mks: lis
             print(f"[bdd] single-manager full result send failed: {exc!r}")
 
 
-_BDD_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_BDD_PREV_TITLE_FOR_MENU = _title_for_menu__prev25
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev26(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "bdd_date":
         today = _sched_pb_kyiv_today()
@@ -18777,7 +18777,7 @@ def _nm_search_results_screen(query: str) -> Tuple[str, list]:
     return "\n".join(lines).rstrip(), rows
 
 
-_NM_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_NM_PREV_TITLE_FOR_MENU = _title_for_menu__prev26
 
 # --- TPILOT NM STAGE 2A: contextual Back for safe report/service/control screens ---
 # _nm_wrap renders an OLD screen (via the pre-NM _title_for_menu chain, captured above --
@@ -18919,7 +18919,7 @@ def _nm_llm_toggle_confirm_buttons() -> list:
 # --- end TPILOT NM STAGE 2A helpers ---
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev27(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "nm_root":
         return _nm_root_screen()
@@ -19020,7 +19020,7 @@ def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     return _panel_header(), []
 
 
-_NM_PREV_MAIN_MENU = globals().get("_main_menu")
+_NM_PREV_MAIN_MENU = _main_menu__prev2
 
 
 def _main_menu():  # type: ignore[override]
@@ -19560,10 +19560,10 @@ def _nms_confirm_buttons(payload: dict) -> list:
     ]
 
 
-_NMS_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_NMS_PREV_TITLE_FOR_MENU = _title_for_menu__prev27
 
 
-def _title_for_menu(menu: str) -> Tuple[str, list]:  # type: ignore[override]
+def _title_for_menu__prev28(menu: str) -> Tuple[str, list]:  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "nm_stats2":
         return _nms_sources_screen()
@@ -20688,7 +20688,7 @@ async def _pf_manual_check_callback(event):
 # without touching the existing service-menu implementation -- same
 # additive override-chain pattern already used throughout this file
 # (capture PREV, delegate for everything the new code doesn't own).
-_PFMANUAL_PREV_SERVICE_MENU = globals().get("_tp_visual_service_menu")
+_PFMANUAL_PREV_SERVICE_MENU = _tp_visual_service_menu__prev1
 
 
 def _tp_visual_service_menu():  # type: ignore[override]
@@ -22842,7 +22842,7 @@ def _prn_error_text(data: dict, *, fallback_reason: str, fallback_action: str = 
     return f"⚠️ Причина: {reason}\nЧто делать: {action}"
 
 
-def _prn_status_text(data: dict) -> str:
+def _prn_status_text__prev1(data: dict) -> str:
     if not data.get("ok"):
         return _prn_error_text(data, fallback_reason="Не удалось получить статус продления.")
     auto = "🟢 ВКЛ" if int(data.get("automation_enabled") or 0) == 1 else "⚪ ВЫКЛ"
@@ -23531,10 +23531,10 @@ async def _ppool_callback(event):
             pass
 
 
-_PPOOL_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_PPOOL_PREV_TITLE_FOR_MENU = _title_for_menu__prev28
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev29(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "ppool":
         return _ppool_root_text(), _ppool_root_buttons()
@@ -23551,7 +23551,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
 # direct settings write via _pb_set_setting, then re-render the same screen in place.
 # Does NOT touch manual manager status in any way (lead_status_overrides, ManagerBot
 # mb:s:/mb:e: callbacks, /lead fix) -- manual status stays the single source of truth.
-_AUTOSTATUS_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_AUTOSTATUS_PREV_TITLE_FOR_MENU = _title_for_menu__prev29
 
 
 def _autostatus_render_automation() -> Tuple[str, list]:
@@ -23572,7 +23572,7 @@ def _autostatus_render_automation() -> Tuple[str, list]:
     return _panel_header(), []
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev30(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "autostatus_toggle":
         # N3: historical instant-flip callback -- kept working verbatim for
@@ -23640,10 +23640,10 @@ def _title_for_menu(menu: str):  # type: ignore[override]
 # that opens this dedicated screen instead. Same rows/callbacks as before
 # (_tp_v8_manager_action_rows), just on their own screen -- edit-in-place
 # via the existing generic menu router, so repeated presses never spam.
-_BASELINE_MGRS_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_BASELINE_MGRS_PREV_TITLE_FOR_MENU = _title_for_menu__prev30
 
 
-def _title_for_menu(menu: str):  # type: ignore[override]
+def _title_for_menu__prev31(menu: str):  # type: ignore[override]
     raw = str(menu or "main")
     if raw == "baseline_managers":
         try:
@@ -25300,7 +25300,7 @@ async def _devlogin_pin_input(event):
 #     Система -> Сервис, see nm_service_w) whose own "Открыть старое меню"
 #     button is the ONLY remaining route to "old_root" -- root itself now
 #     has zero old-menu buttons (see N5.1 note on _nm_root_screen).
-_N5_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
+_N5_PREV_TITLE_FOR_MENU = _title_for_menu__prev31
 
 
 def _title_for_menu(menu: str):  # type: ignore[override]
@@ -25395,7 +25395,7 @@ def _title_for_menu(menu: str):  # type: ignore[override]
 #     surface uses -- was _tpag_panel_v2_proxy_counts(), an independent
 #     10-minute classifier, before that predicate was unified) -- pure
 #     managers-table DB read, zero provider/API calls, zero spend.
-_N53_HDR_PREV_PANEL_HEADER = globals().get("_panel_header")
+_N53_HDR_PREV_PANEL_HEADER = _panel_header__prev2
 _N53_SERVICE_SCAN_CACHE: Dict[str, Any] = {"ts": 0.0, "procs": None}
 _N53_SERVICE_SCAN_TTL_SEC = 60.0
 
@@ -25556,7 +25556,7 @@ def _pb_proxy_indicator_icon(health_icon: str) -> str:
     return health_icon
 
 
-_N531_PREV_PRN_STATUS_TEXT = globals().get("_prn_status_text")
+_N531_PREV_PRN_STATUS_TEXT = _prn_status_text__prev1
 
 
 def _prn_status_text(data: dict) -> str:  # type: ignore[override]
@@ -25643,8 +25643,8 @@ def _pb_render_with_title_quote(text: str):
         return str(text or ""), None
 
 
-_N531_PREV_SEND_FRESH_PANEL = globals().get("_send_fresh_panel")
-_N531_PREV_SAFE_EVENT_EDIT = globals().get("_safe_event_edit")
+_N531_PREV_SEND_FRESH_PANEL = _send_fresh_panel__prev1
+_N531_PREV_SAFE_EVENT_EDIT = _safe_event_edit__prev1
 
 
 async def _send_fresh_panel(chat_id: int, user_id: int = 0, *, delete_previous: bool = True) -> None:  # type: ignore[override]
