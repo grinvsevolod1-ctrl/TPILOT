@@ -468,25 +468,6 @@ def _build_manager_telegram_client_from_row(row: Dict[str, Any], session_path: s
     return TelegramClient(session_path, api_id, api_hash, proxy=proxy, **device_kwargs)
 
 
-def _manager_proxy_info_text(row: Dict[str, Any]) -> str:
-    key = registry_normalize_manager_key((row or {}).get("manager_key") or "")
-    ptype = _proxy_type_norm((row or {}).get("proxy_type")) or "_"
-    host = str((row or {}).get("proxy_host") or "").strip() or "_"
-    port = str((row or {}).get("proxy_port") or "").strip() or "_"
-    enabled = "включён" if _manager_proxy_enabled(row or {}) else "выключен"
-    username = _proxy_login_display((row or {}).get("proxy_username"))
-    password = _mask_secret((row or {}).get("proxy_password"))
-    updated_at = str((row or {}).get("proxy_updated_at") or "").strip() or "_"
-    return "\n".join([
-        f"🌐 Proxy {key}",
-        f"Статус: {enabled}",
-        f"Тип: {ptype}",
-        f"Host: {host}",
-        f"Port: {port}",
-        f"Login: {username}",
-        f"Password: {password}",
-        f"Обновлён: {updated_at}",
-    ]).rstrip()
 
 
 async def _build_manager_session_client(manager_key: str, session_path: str, source: str = "onboarding") -> TelegramClient:
@@ -636,55 +617,7 @@ def _is_program_sent(chat_id: int, msg_id: int) -> bool:
     return False
 
 
-async def _human_send_delay(chat_id: int, text: str, *, after_first: bool = False) -> None:
-    """Human-like delay + Telegram typing for client auto-replies only.
 
-    The first approved greeting keeps the old delay. All following profile-dialog
-    messages use a slower, rounded delay range.
-    """
-    if not HUMAN_SEND_ENABLED:
-        return
-    raw = str(text or "").strip()
-    if not raw:
-        return
-    n = len(raw)
-    if after_first:
-        if n <= 90:
-            delay = random.uniform(HUMAN_AFTER_FIRST_SHORT_DELAY_MIN, HUMAN_AFTER_FIRST_SHORT_DELAY_MAX)
-        elif n <= 240:
-            delay = random.uniform(HUMAN_AFTER_FIRST_MEDIUM_DELAY_MIN, HUMAN_AFTER_FIRST_MEDIUM_DELAY_MAX)
-        else:
-            delay = random.uniform(HUMAN_AFTER_FIRST_LONG_DELAY_MIN, HUMAN_AFTER_FIRST_LONG_DELAY_MAX)
-        delay = round(delay)
-        delay = max(0.0, min(float(HUMAN_AFTER_FIRST_MAX_DELAY), float(delay)))
-    else:
-        if n <= 90:
-            delay = random.uniform(HUMAN_SHORT_DELAY_MIN, HUMAN_SHORT_DELAY_MAX)
-        elif n <= 240:
-            delay = random.uniform(HUMAN_MEDIUM_DELAY_MIN, HUMAN_MEDIUM_DELAY_MAX)
-        else:
-            delay = random.uniform(HUMAN_LONG_DELAY_MIN, HUMAN_LONG_DELAY_MAX)
-        delay = max(0.0, min(float(HUMAN_SEND_MAX_DELAY), float(delay)))
-    if delay <= 0:
-        return
-    try:
-        async with client.action(int(chat_id), "typing"):
-            await asyncio.sleep(delay)
-    except Exception:
-        await asyncio.sleep(delay)
-
-async def _send_manager_private(chat_id: int, text: str, *, human_delay: bool = False, after_first_delay: bool = False) -> bool:
-    try:
-        if human_delay:
-            await _human_send_delay(int(chat_id), str(text or ""), after_first=bool(after_first_delay))
-        msg = await client.send_message(int(chat_id), str(text or ""))
-        mid = int(getattr(msg, "id", 0) or 0)
-        if mid:
-            _remember_program_sent(int(chat_id), mid)
-        return True
-    except Exception as e:
-        print(f"manager private send error: {e!r}")
-        return False
 
 
 async def _send_ai_stat(text: str) -> bool:
@@ -904,27 +837,6 @@ async def _record_daily_lead_event(
         return created, (dict(row) if row else {})
 
 
-async def _update_daily_lead_fields(db_path: str, *, lead_date: str, manager_key: str, chat_id: int, **fields: Any) -> None:
-    if not fields:
-        return
-    await _ensure_daily_leads_table(db_path)
-    allowed = {
-        "age", "city", "region", "country", "city_raw", "country_raw", "geo_source", "geo_confidence", "geo_note",
-        "status", "nonliquid_reason", "profile_done", "profile_question_sent", "profile_question_at", "profile_answered_at",
-        "ua_text_sent", "ua_text_sent_at", "manager_work_status", "offline_notice_sent", "offline_notice_period_key",
-        "manager_replied", "manager_replied_at", "clarify_attempts", "profile_final_sent", "profile_final_sent_at", "geoage_sent", "geoage_sent_at", "updated_at",
-    }
-    data = {k: v for k, v in fields.items() if k in allowed}
-    if not data:
-        return
-    data["updated_at"] = data.get("updated_at") or _now_utc_iso()
-    keys = list(data.keys())
-    vals = [data[k] for k in keys]
-    sql = "UPDATE daily_leads SET " + ", ".join([f"{k}=?" for k in keys]) + " WHERE lead_date=? AND manager_key=? AND chat_id=?"
-    vals.extend([str(lead_date), registry_normalize_manager_key(manager_key), int(chat_id)])
-    async with aiosqlite.connect(db_path) as db:
-        await db.execute(sql, tuple(vals))
-        await db.commit()
 
 
 async def _ensure_lead_auto_state_table(db_path: str) -> None:
@@ -1174,17 +1086,6 @@ async def _manager_key_from_status_sender(user_id: int) -> str:
     return ""
 
 
-async def _fetch_unsent_daily_leads(db_path: str, limit: int = 200) -> List[Dict[str, Any]]:
-    if not db_path or not os.path.exists(db_path):
-        return []
-    await _ensure_daily_leads_table(db_path)
-    async with aiosqlite.connect(db_path) as db:
-        db.row_factory = aiosqlite.Row
-        cur = await db.execute(
-            "SELECT * FROM daily_leads WHERE COALESCE(ai_stat_sent,0)=0 ORDER BY first_seen_utc ASC, id ASC LIMIT ?",
-            (int(limit),),
-        )
-        return [dict(r) for r in await cur.fetchall()]
 
 
 async def _mark_daily_lead_sent(db_path: str, row_id: int, *, duplicate: bool) -> None:
@@ -1235,24 +1136,6 @@ async def _prior_daily_exists(db_path: str, chat_id: int, current_id: int, curre
         return False
 
 
-async def _is_duplicate_systemwide(event_row: Dict[str, Any], manager_db_paths: List[str], batch_seen: set[int], current_db_path: str) -> bool:
-    chat_id = int(event_row.get("chat_id") or 0)
-    if chat_id <= 0:
-        return False
-    if chat_id in batch_seen:
-        return True
-
-    # Old base compatibility: if chat_id ever existed in legacy leads of any manager DB, it is a duplicate.
-    for dbp in manager_db_paths:
-        if await _old_lead_exists(dbp, chat_id):
-            return True
-
-    cur_id = int(event_row.get("id") or 0)
-    cur_ts = str(event_row.get("first_seen_utc") or "")
-    for dbp in manager_db_paths:
-        if await _prior_daily_exists(dbp, chat_id, cur_id if os.path.abspath(dbp) == os.path.abspath(current_db_path) else -1, cur_ts):
-            return True
-    return False
 
 
 async def _list_daily_leads_for_db(db_path: str, lead_date: str) -> List[Dict[str, Any]]:
@@ -1437,114 +1320,8 @@ async def _collect_day_leads(lead_date: str, target_key: str = "all") -> List[Di
     return result
 
 
-async def _build_stat_text(target_key: str = "all", lead_date: Optional[str] = None) -> str:
-    lead_date = lead_date or _kyiv_now().date().isoformat()
-    rows = await _manager_rows_for_reporting()
-    leads = await _collect_day_leads(lead_date, target_key=target_key)
-    stats = _stats_from_leads(leads, rows, target_key=target_key)
-    date_disp = datetime.strptime(lead_date, "%Y-%m-%d").strftime("%d.%m.%y")
-
-    lines = [f"📊 Статистика за {date_disp}", ""]
-    for b in stats["buckets"]:
-        lines.append(str(b["label"]))
-        lines.append(f"Всего написавших: {int(b['total'])}")
-        lines.append(f"Новые: {int(b['new'])}")
-        lines.append(f"Дубликаты: {int(b['duplicates'])}")
-        lines.append(f"Ответили возраст/гео: {int(b['profile_done'])}")
-        lines.append(f"Ликвид: {int(b['liquid'])}")
-        lines.append(f"Неликвид: {int(b['nonliquid'])}")
-        lines.append(f"Не определено: {int(b['unknown'])}")
-        lines.append(f"Возраст не определено: {int(b['missing_age'])}")
-        lines.append(f"Город не определено: {int(b['missing_city'])}")
-        lines.append(f"Страна не определено: {int(b['missing_country'])}")
-        _append_reason_lines(lines, b.get("reasons") or {})
-        lines.append("")
-    if not stats["buckets"]:
-        lines.append("Менеджеры не найдены.")
-        return chr(10).join(lines).rstrip()
-    if registry_normalize_manager_key(target_key or "all") == "all":
-        lines.append("Итого:")
-        lines.append(f"Всего написавших: {int(stats['total'])}")
-        lines.append(f"Новые: {int(stats['new'])}")
-        lines.append(f"Дубликаты: {int(stats['duplicates'])}")
-        lines.append(f"Ответили возраст/гео: {int(stats['profile_done'])}")
-        lines.append(f"Ликвид: {int(stats['liquid'])}")
-        lines.append(f"Неликвид: {int(stats['nonliquid'])}")
-        lines.append(f"Не определено: {int(stats['unknown'])}")
-        lines.append(f"Возраст не определено: {int(stats['missing_age'])}")
-        lines.append(f"Город не определено: {int(stats['missing_city'])}")
-        lines.append(f"Страна не определено: {int(stats['missing_country'])}")
-        _append_reason_lines(lines, stats.get("reasons") or {})
-    return chr(10).join(lines).rstrip()
 
 
-async def _export_day_xlsx(target_key: str = "all", lead_date: Optional[str] = None) -> str:
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, Alignment
-        from openpyxl.utils import get_column_letter
-    except Exception as e:
-        raise RuntimeError("openpyxl не установлен. Установите: pip install openpyxl") from e
-
-    lead_date = lead_date or _kyiv_now().date().isoformat()
-    target_key = registry_normalize_manager_key(target_key or "all")
-    leads = await _collect_day_leads(lead_date, target_key=target_key)
-    os.makedirs(EXPORT_DIR, exist_ok=True)
-    suffix = "all" if target_key == "all" else target_key
-    out_path = os.path.join(EXPORT_DIR, f"leads_{lead_date}_{suffix}.xlsx")
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "leads"
-    headers = [
-        "№", "Дата", "Время", "manager_key", "Аккаунт менеджера", "chat_id", "username", "Имя аккаунта", "Телефон", "Дубликат",
-        "Возраст", "Город", "Регион", "Страна", "Статус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
-    ]
-    ws.append(headers)
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-
-    for idx, r in enumerate(leads, 1):
-        dt = _utc_iso_to_kyiv_dt(str(r.get("first_seen_utc") or ""))
-        manager_username = str(r.get("manager_username") or "").strip()
-        manager_display = str(r.get("manager_display_name") or r.get("manager_key") or "").strip()
-        manager_account = f"{manager_display} | @{manager_username}" if manager_username else manager_display
-        status_raw = str(r.get("status") or "").strip()
-        status_disp = "ликвид" if status_raw == "liquid" else ("неликвид" if status_raw == "nonliquid" else "не определено")
-        ws.append([
-            idx,
-            dt.strftime("%d.%m.%Y"),
-            dt.strftime("%H:%M:%S"),
-            str(r.get("manager_key") or ""),
-            manager_account,
-            int(r.get("chat_id") or 0),
-            _display_username(str(r.get("username") or "")) if str(r.get("username") or "").strip() else "_",
-            str(r.get("full_name") or "").strip() or "_",
-            str(r.get("phone") or "").strip() or "_",
-            "да" if int(r.get("duplicate") or 0) == 1 else "нет",
-            _display_unknown(r.get("age")),
-            _display_unknown(r.get("city")),
-            _display_unknown(r.get("region")),
-            _display_unknown(r.get("country")),
-            status_disp,
-            str(r.get("nonliquid_reason") or "").strip() or "_",
-            str(r.get("geo_source") or "").strip() or "_",
-            str(r.get("geo_confidence") or "").strip() or "_",
-            str(r.get("geo_note") or "").strip() or "_",
-            str(r.get("manager_work_status") or "").strip() or "_",
-            "да" if int(r.get("profile_question_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("offline_notice_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("ua_text_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("manager_replied") or 0) == 1 else "нет",
-        ])
-
-    widths = [6, 14, 13, 18, 28, 18, 22, 28, 18, 12, 12, 22, 28, 18, 16, 22, 18, 14, 28, 18, 18, 18, 12, 18]
-    for i, width in enumerate(widths, 1):
-        ws.column_dimensions[get_column_letter(i)].width = width
-    ws.freeze_panes = "A2"
-    wb.save(out_path)
-    return out_path
 
 
 async def _send_geoage(text: str) -> bool:
@@ -2260,89 +2037,6 @@ async def _partner_source_key_for_manager(manager_key: str) -> str:
         return ""
 
 
-async def _create_partner_lead_event_from_daily(
-    item: Dict[str, Any],
-    mgr: Dict[str, Any],
-    duplicate: bool,
-) -> None:
-    """Create one Partner Stat Bot live event for each new daily_leads row."""
-    try:
-        await _ensure_partner_lead_events_table()
-        manager_key = registry_normalize_manager_key(item.get("manager_key") or (mgr or {}).get("manager_key") or "")
-        source_key = await _partner_source_key_for_manager(manager_key)
-        if not source_key:
-            return
-
-        lead_id = int(item.get("id") or 0)
-        chat_id = int(item.get("chat_id") or 0)
-        first_seen_utc = str(item.get("first_seen_utc") or "")
-        if lead_id <= 0 or chat_id <= 0 or not first_seen_utc:
-            return
-
-        event_key = f"{manager_key}:{lead_id}:{chat_id}:{first_seen_utc}"
-        now = _now_utc_iso()
-        manager_display_name = str((mgr or {}).get("display_name") or item.get("manager_display_name") or manager_key)
-        manager_username = str((mgr or {}).get("telegram_username") or item.get("manager_username") or "").lstrip("@")
-        username = str(item.get("username") or "").lstrip("@")
-        full_name = str(item.get("full_name") or "")
-        phone = str(item.get("phone") or "")
-
-        async with aiosqlite.connect(TPILOT_DB_PATH) as db:
-            await db.execute(
-                """
-                INSERT OR IGNORE INTO partner_lead_events(
-                    event_key, source_key, manager_key, manager_display_name, manager_username,
-                    lead_id, chat_id, username, full_name, phone, first_seen_utc,
-                    duplicate, created_at, updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    event_key,
-                    source_key,
-                    manager_key,
-                    manager_display_name,
-                    manager_username,
-                    lead_id,
-                    chat_id,
-                    username,
-                    full_name,
-                    phone,
-                    first_seen_utc,
-                    1 if duplicate else 0,
-                    now,
-                    now,
-                ),
-            )
-            await db.execute(
-                """
-                UPDATE partner_lead_events
-                SET source_key=?,
-                    manager_key=?,
-                    manager_display_name=?,
-                    manager_username=?,
-                    username=?,
-                    full_name=?,
-                    phone=?,
-                    duplicate=?,
-                    updated_at=?
-                WHERE event_key=?
-                """,
-                (
-                    source_key,
-                    manager_key,
-                    manager_display_name,
-                    manager_username,
-                    username,
-                    full_name,
-                    phone,
-                    1 if duplicate else 0,
-                    now,
-                    event_key,
-                ),
-            )
-            await db.commit()
-    except Exception as e:
-        print(f"partner live event create error: {e!r}")
 # --- PARTNER LIVE EVENTS FIX END ---
 
 async def _lead_dispatch_loop() -> None:
@@ -3612,106 +3306,6 @@ async def _finalize_daily_unknown(lead_row: Dict[str, Any]) -> None:
     )
 
 
-async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, Any], work: Dict[str, Any]) -> None:
-    chat_id = int(lead_row.get("chat_id") or 0)
-    if chat_id <= 0:
-        return
-    if int(state.get("manager_replied") or 0) == 1:
-        await _update_daily_lead_fields(DB_PATH, lead_date=str(lead_row.get("lead_date") or _kyiv_now().date().isoformat()), manager_key=str(lead_row.get("manager_key") or MANAGER_RUNTIME_KEY), chat_id=chat_id, manager_replied=1, manager_replied_at=str(state.get("manager_replied_at") or ""))
-        return
-
-    status = str((work or {}).get("status") or "online").strip().lower()
-    period_key = str((work or {}).get("offline_period_key") or "").strip()
-    await _update_daily_lead_fields(DB_PATH, lead_date=str(lead_row.get("lead_date") or _kyiv_now().date().isoformat()), manager_key=str(lead_row.get("manager_key") or MANAGER_RUNTIME_KEY), chat_id=chat_id, manager_work_status=status)
-
-    # Night time or manager non-working status means offline greeting only.
-    # worknow is an explicit override: daytime greeting + profile dialog even at night.
-    forced_worknow = status == "worknow"
-    night_mode = (not forced_worknow) and (not _is_profile_day_window())
-    inactive_statuses = {"offline", "dayoff", "no_show", "auto_offline"}
-    if night_mode or status in inactive_statuses:
-        if not period_key:
-            if night_mode:
-                period_key = f"{lead_row.get('manager_key') or MANAGER_RUNTIME_KEY}:night:{_kyiv_now().date().isoformat()}"
-            else:
-                period_key = f"{lead_row.get('manager_key') or MANAGER_RUNTIME_KEY}:{status}"
-        if str(state.get("offline_notice_period_key") or "") != period_key:
-            if await _send_manager_private(chat_id, OFFLINE_NOTICE_TEXT, human_delay=True):
-                await _set_daily_offline_sent(lead_row, period_key)
-        return
-
-    country = str(lead_row.get("country") or "").strip()
-    lead_status = str(lead_row.get("status") or "").strip().lower()
-    client_text = str(lead_row.get("_last_incoming_text") or "")
-
-    if country == "Украина" and int(state.get("ua_text_sent") or 0) != 1:
-        if await _send_manager_private(chat_id, UA_REDIRECT_TEXT, human_delay=True, after_first_delay=True):
-            await _set_daily_ua_sent(lead_row)
-        return
-
-    # Before finalizing Russia 18+ without city, politely ask for current city only twice.
-    dialog_state = await load_profile_dialog_state(DB_PATH, chat_id)
-    decision = choose_profile_reply(lead_row, client_text, dialog_state)
-    if decision.get("update_fields"):
-        try:
-            await _update_daily_lead_fields(
-                DB_PATH,
-                lead_date=str(lead_row.get("lead_date") or _kyiv_now().date().isoformat()),
-                manager_key=str(lead_row.get("manager_key") or MANAGER_RUNTIME_KEY),
-                chat_id=chat_id,
-                **dict(decision.get("update_fields") or {}),
-            )
-            lead_row = dict(lead_row or {})
-            lead_row.update(dict(decision.get("update_fields") or {}))
-        except Exception:
-            pass
-    if decision.get("send_text"):
-        if await _send_manager_private(chat_id, str(decision.get("send_text") or ""), human_delay=True, after_first_delay=True):
-            await _set_daily_question_sent(lead_row)
-            attempts = int(lead_row.get("clarify_attempts") or 0) + 1
-            await _set_daily_clarify_attempts(lead_row, attempts)
-            await mark_profile_dialog_sent(
-                DB_PATH,
-                chat_id,
-                template_key=str(decision.get("template_key") or ""),
-                intent=str(decision.get("intent") or ""),
-                bot_text=str(decision.get("send_text") or ""),
-                client_text=client_text,
-                increment_city_attempt=bool(decision.get("increment_city_attempt")),
-            )
-        return
-
-    if lead_status in ("liquid", "nonliquid") and int(lead_row.get("profile_done") or 0) == 1:
-        if int(lead_row.get("profile_final_sent") or 0) != 1:
-            txt = ""
-            if lead_status == "liquid":
-                txt = PROFILE_SUCCESS_TEXT
-            elif lead_status == "nonliquid":
-                txt = _nonliquid_country_client_text(lead_row)
-            if txt:
-                await _send_manager_private(chat_id, txt, human_delay=True, after_first_delay=True)
-            await _set_daily_profile_final_sent(lead_row)
-        return
-
-    missing_age, missing_geo = _profile_missing_fields(lead_row)
-    if missing_age or missing_geo:
-        question_sent = int(state.get("profile_question_sent") or 0) == 1 or int(lead_row.get("profile_question_sent") or 0) == 1
-        has_any = _profile_has_any_data(lead_row)
-
-        # The very first daytime greeting must stay exactly as approved.
-        if not question_sent and not has_any:
-            if await _send_manager_private(chat_id, PROFILE_QUESTION_TEXT, human_delay=True):
-                await _set_daily_question_sent(lead_row)
-                # Profile v2: first approved questionnaire must not be followed by sample hint.
-            return
-
-        # Safety fallback if dialog did not return a text for any reason.
-        txt = _clarify_text_for_lead(lead_row) or PROFILE_QUESTION_TEXT
-        if await _send_manager_private(chat_id, txt, human_delay=True, after_first_delay=True):
-            await _set_daily_question_sent(lead_row)
-            attempts = int(lead_row.get("clarify_attempts") or 0) + 1
-            await _set_daily_clarify_attempts(lead_row, attempts)
-        return
 
 
 
@@ -4534,100 +4128,8 @@ async def _collect_period_leads(scope: str, key: str, start_iso: str, end_iso: s
     return leads, rows, scope_label
 
 
-async def _build_stat_period_text(spec: Dict[str, Any]) -> str:
-    scope = str(spec.get("scope") or "all")
-    key = str(spec.get("key") or "all")
-    start_iso = str(spec.get("start") or "")
-    end_iso = str(spec.get("end") or "")
-    label = str(spec.get("label") or f"{start_iso} - {end_iso}")
-    leads, rows, scope_label = await _collect_period_leads(scope, key, start_iso, end_iso)
-    stats = _stats_from_leads(leads, rows, target_key="all")
-    lines = [f"📊 Статистика за период {label}", scope_label, ""]
-    if not rows:
-        lines.append("Менеджеры для выбранного периода не найдены.")
-        return chr(10).join(lines).rstrip()
-    for b in stats["buckets"]:
-        if int(b.get("total") or 0) == 0:
-            continue
-        lines.append(str(b.get("label") or b.get("key") or "_"))
-        lines.append(f"Всего написавших: {int(b['total'])}")
-        lines.append(f"Новые: {int(b['new'])}")
-        lines.append(f"Дубликаты: {int(b['duplicates'])}")
-        lines.append(f"Ответили возраст/гео: {int(b['profile_done'])}")
-        lines.append(f"Ликвид: {int(b['liquid'])}")
-        lines.append(f"Неликвид: {int(b['nonliquid'])}")
-        lines.append(f"Не определено: {int(b['unknown'])}")
-        _append_reason_lines(lines, b.get("reasons") or {})
-        lines.append("")
-    lines.append("Итого:")
-    lines.append(f"Всего написавших: {int(stats['total'])}")
-    lines.append(f"Новые: {int(stats['new'])}")
-    lines.append(f"Дубликаты: {int(stats['duplicates'])}")
-    lines.append(f"Ответили возраст/гео: {int(stats['profile_done'])}")
-    lines.append(f"Ликвид: {int(stats['liquid'])}")
-    lines.append(f"Неликвид: {int(stats['nonliquid'])}")
-    lines.append(f"Не определено: {int(stats['unknown'])}")
-    _append_reason_lines(lines, stats.get("reasons") or {})
-    return chr(10).join(lines).rstrip()
 
 
-async def _export_period_xlsx(spec: Dict[str, Any]) -> str:
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, Alignment
-        from openpyxl.utils import get_column_letter
-    except Exception as e:
-        raise RuntimeError("openpyxl не установлен. Установите: pip install openpyxl") from e
-
-    scope = str(spec.get("scope") or "all")
-    key = str(spec.get("key") or "all")
-    start_iso = str(spec.get("start") or "")
-    end_iso = str(spec.get("end") or "")
-    leads, _rows, scope_label = await _collect_period_leads(scope, key, start_iso, end_iso)
-    os.makedirs(EXPORT_DIR, exist_ok=True)
-    safe_target = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(spec.get("target_label") or "all")).strip("_") or "all"
-    out_path = os.path.join(EXPORT_DIR, f"leads_period_{start_iso}_{end_iso}_{safe_target}.xlsx")
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "leads"
-    headers = [
-        "№", "Дата", "Время", "Период", "Фильтр", "manager_key", "Аккаунт менеджера", "chat_id", "username", "Имя аккаунта", "Телефон", "Дубликат",
-        "Возраст", "Город", "Регион", "Страна", "Статус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
-    ]
-    ws.append(headers)
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-    label = str(spec.get("label") or f"{start_iso} - {end_iso}")
-    for idx, r in enumerate(leads, 1):
-        dt = _utc_iso_to_kyiv_dt(str(r.get("first_seen_utc") or ""))
-        manager_username = str(r.get("manager_username") or "").strip()
-        manager_display = str(r.get("manager_display_name") or r.get("manager_key") or "").strip()
-        manager_account = f"{manager_display} | @{manager_username}" if manager_username else manager_display
-        status_raw = str(r.get("status") or "").strip()
-        status_disp = "ликвид" if status_raw == "liquid" else ("неликвид" if status_raw == "nonliquid" else "не определено")
-        ws.append([
-            idx, dt.strftime("%d.%m.%Y"), dt.strftime("%H:%M:%S"), label, scope_label,
-            str(r.get("manager_key") or ""), manager_account, int(r.get("chat_id") or 0),
-            _display_username(str(r.get("username") or "")) if str(r.get("username") or "").strip() else "_",
-            str(r.get("full_name") or "").strip() or "_", str(r.get("phone") or "").strip() or "_",
-            "да" if int(r.get("duplicate") or 0) == 1 else "нет", _display_unknown(r.get("age")), _display_unknown(r.get("city")),
-            _display_unknown(r.get("region")), _display_unknown(r.get("country")), status_disp,
-            str(r.get("nonliquid_reason") or "").strip() or "_", str(r.get("geo_source") or "").strip() or "_",
-            str(r.get("geo_confidence") or "").strip() or "_", str(r.get("geo_note") or "").strip() or "_",
-            str(r.get("manager_work_status") or "").strip() or "_",
-            "да" if int(r.get("profile_question_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("offline_notice_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("ua_text_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("manager_replied") or 0) == 1 else "нет",
-        ])
-    widths = [6, 14, 13, 22, 24, 18, 28, 18, 22, 28, 18, 12, 12, 22, 28, 18, 16, 22, 18, 14, 28, 18, 18, 18, 12, 18]
-    for i, width in enumerate(widths, 1):
-        ws.column_dimensions[get_column_letter(i)].width = width
-    ws.freeze_panes = "A2"
-    wb.save(out_path)
-    return out_path
 # --- TPILOT PERIOD RANGE REPAIR V2 END ---
 
 def _parse_export_args(raw_args: str):
@@ -4704,105 +4206,6 @@ def _date_obj_from_iso(value: str):
     return datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
-async def _export_range_xlsx(target_key: str = "all", start_date: str = "", end_date: str = "") -> str:
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, Alignment
-        from openpyxl.utils import get_column_letter
-    except Exception as e:
-        raise RuntimeError("openpyxl не установлен. Установите: pip install openpyxl") from e
-
-    target_key = registry_normalize_manager_key(target_key or "all") or "all"
-    today = _kyiv_now().date()
-
-    if not end_date:
-        end_d = today
-    else:
-        end_d = _date_obj_from_iso(str(end_date))
-
-    if not start_date:
-        start_d = end_d
-    else:
-        start_d = _date_obj_from_iso(str(start_date))
-
-    if start_d > end_d:
-        start_d, end_d = end_d, start_d
-
-    max_days = max(1, int(EXPORT_PERIOD_LIMIT_DAYS or 31))
-    if (end_d - start_d).days + 1 > max_days:
-        start_d = end_d - timedelta(days=max_days - 1)
-
-    if end_d > today:
-        end_d = today
-    min_allowed = today - timedelta(days=max_days - 1)
-    if start_d < min_allowed:
-        start_d = min_allowed
-
-    leads: List[Dict[str, Any]] = []
-    d = start_d
-    while d <= end_d:
-        try:
-            leads.extend(await _collect_day_leads(d.isoformat(), target_key=target_key))
-        except Exception as e:
-            print(f"export range collect error {d.isoformat()}: {e!r}")
-        d += timedelta(days=1)
-
-    os.makedirs(EXPORT_DIR, exist_ok=True)
-    suffix = "all" if target_key == "all" else target_key
-    out_path = os.path.join(EXPORT_DIR, f"leads_{start_d.isoformat()}_{end_d.isoformat()}_{suffix}.xlsx")
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "leads"
-    headers = [
-        "№", "Дата", "Время", "manager_key", "Аккаунт менеджера", "chat_id", "username", "Имя аккаунта", "Телефон", "Дубликат",
-        "Возраст", "Город", "Регион", "Страна", "Статус", "Причина неликвида", "Источник гео", "Точность", "Пометка", "Режим менеджера", "Вопрос отправлен", "Offline-сообщение", "UA текст", "Менеджер ответил",
-    ]
-    ws.append(headers)
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-
-    for idx, r in enumerate(leads, 1):
-        dt = _utc_iso_to_kyiv_dt(str(r.get("first_seen_utc") or ""))
-        manager_username = str(r.get("manager_username") or "").strip()
-        manager_display = str(r.get("manager_display_name") or r.get("manager_key") or "").strip()
-        manager_account = f"{manager_display} | @{manager_username}" if manager_username else manager_display
-        status_raw = str(r.get("status") or "").strip()
-        status_disp = "ликвид" if status_raw == "liquid" else ("неликвид" if status_raw == "nonliquid" else "не определено")
-        ws.append([
-            idx,
-            dt.strftime("%d.%m.%Y"),
-            dt.strftime("%H:%M:%S"),
-            str(r.get("manager_key") or ""),
-            manager_account,
-            int(r.get("chat_id") or 0),
-            _display_username(str(r.get("username") or "")) if str(r.get("username") or "").strip() else "_",
-            str(r.get("full_name") or "").strip() or "_",
-            str(r.get("phone") or "").strip() or "_",
-            "да" if int(r.get("duplicate") or 0) == 1 else "нет",
-            _display_unknown(r.get("age")),
-            _display_unknown(r.get("city")),
-            _display_unknown(r.get("region")),
-            _display_unknown(r.get("country")),
-            status_disp,
-            str(r.get("nonliquid_reason") or "").strip() or "_",
-            str(r.get("geo_source") or "").strip() or "_",
-            str(r.get("geo_confidence") or "").strip() or "_",
-            str(r.get("geo_note") or "").strip() or "_",
-            str(r.get("manager_work_status") or "").strip() or "_",
-            "да" if int(r.get("profile_question_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("offline_notice_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("ua_text_sent") or 0) == 1 else "нет",
-            "да" if int(r.get("manager_replied") or 0) == 1 else "нет",
-        ])
-
-    widths = [6, 14, 13, 18, 28, 18, 22, 28, 18, 12, 12, 22, 28, 18, 16, 22, 18, 14, 28, 18, 18, 18, 12, 18]
-    for i, width in enumerate(widths, 1):
-        ws.column_dimensions[get_column_letter(i)].width = width
-    ws.freeze_panes = "A2"
-    wb.save(out_path)
-    return out_path
 
 
 async def _run_export_command(target: str, mode: str, date_val=None, days: int = 0):
@@ -5291,7 +4694,6 @@ UNANSWERED_REPEAT_MINUTES = int(os.getenv("UNANSWERED_REPEAT_MINUTES") or "30")
 PROFILE_CAPTURE_MAX_MESSAGES = int(os.getenv("PROFILE_CAPTURE_MAX_MESSAGES") or "3")
 HISTORY_DAYS_LIMIT = int(os.getenv("HISTORY_DAYS_LIMIT") or "31")
 
-_TPILOT_ORIG_MAYBE_AUTO_REPLY_TO_LEAD = globals().get("_maybe_auto_reply_to_lead")
 _TPILOT_ORIG_MARK_MANAGER_REPLIED = globals().get("_mark_manager_replied")
 _TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT = globals().get("_record_daily_lead_event")
 
@@ -5979,18 +5381,6 @@ async def _apply_profile_from_text(db_path: str, lead_row: Dict[str, Any], text:
     return out
 
 
-async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, Any], work: Dict[str, Any]) -> None:
-    auto_on = await _get_profile_auto_enabled(str(lead_row.get("manager_key") or MANAGER_RUNTIME_KEY))
-    chat_id = int(lead_row.get("chat_id") or 0)
-    status = str((work or {}).get("status") or "online").strip().lower()
-    try:
-        await _update_daily_lead_fields(DB_PATH, lead_date=str(lead_row.get("lead_date") or _kyiv_now().date().isoformat()), manager_key=str(lead_row.get("manager_key") or MANAGER_RUNTIME_KEY), chat_id=chat_id, manager_work_status=status)
-    except Exception:
-        pass
-    if not auto_on:
-        return
-    if callable(_TPILOT_ORIG_MAYBE_AUTO_REPLY_TO_LEAD):
-        await _TPILOT_ORIG_MAYBE_AUTO_REPLY_TO_LEAD(lead_row, state, work)
 
 
 async def _record_incoming_from_manager(event: events.NewMessage.Event) -> None:
@@ -6159,67 +5549,6 @@ async def _collect_window_leads_extended(start_local: datetime, end_local: datet
     return result
 
 
-async def _build_det_stat_text(target_key: str = "all", kind: str = "day", ref: Optional[Any] = None) -> str:
-    date_val = None
-    if isinstance(ref, str):
-        date_val = _tp_parse_date_token(ref)
-    elif hasattr(ref, "date"):
-        try:
-            date_val = ref.astimezone(TZ_KYIV).date() if getattr(ref, "tzinfo", None) else ref.date()
-        except Exception:
-            date_val = None
-    if date_val and not _tp_date_within_history(date_val):
-        return f"Дата вне доступного периода. Можно смотреть последние {HISTORY_DAYS_LIMIT} дней."
-    start_local, end_local, label, title = _window_for_kind_date(kind, date_val)
-    target_date = start_local.date()
-    target = registry_normalize_manager_key(target_key or "all")
-    # DELETED MANAGER STATS RETENTION 20260711 (period-filter correction): same
-    # single-date period as _collect_window_leads_extended below, so a target-key
-    # lookup ("Менеджер не найден") and the actual leads collection agree on
-    # whether a tombstoned manager is valid for this specific report date.
-    rows = await _manager_rows_for_reporting_period(target_date.isoformat(), target_date.isoformat())
-    valid_keys = {registry_normalize_manager_key(r.get("manager_key") or "") for r in rows}
-    if target != "all" and target not in valid_keys:
-        return f"Менеджер не найден: {target}"
-    leads = await _collect_window_leads_extended(start_local, end_local, target, kind, target_date)
-    mgr_labels = {registry_normalize_manager_key(r.get("manager_key") or ""): _manager_label_from_row(r) for r in rows}
-    buckets: Dict[str, Dict[str, Any]] = {}
-    for lead in leads:
-        key = registry_normalize_manager_key(lead.get("manager_key") or "")
-        if not key:
-            continue
-        if key not in buckets:
-            buckets[key] = _empty_det_bucket(mgr_labels.get(key) or key)
-        _det_bucket_add(buckets[key], lead)
-    window_line = "Окно: 17:00-08:00" if str(kind).lower() == "flight" else "Окно: 08:00-17:00"
-    lines: List[str] = [f"{title} за {label}", window_line, ""]
-    keys_order = [registry_normalize_manager_key(r.get("manager_key") or "") for r in rows]
-    if target != "all":
-        keys_order = [target]
-    total_bucket = _empty_det_bucket("ИТОГО")
-    any_block = False
-    for key in keys_order:
-        if not key:
-            continue
-        b = buckets.get(key) or _empty_det_bucket(mgr_labels.get(key) or key)
-        if target == "all" and int(b.get("otpisok") or 0) == 0:
-            continue
-        any_block = True
-        lines.append(str(b.get("label") or key))
-        lines.extend(_format_det_bucket(b))
-        lines.append("")
-        for k in ("otpisok", "geo", "under18", "na", "trash", "liquid", "nonliquid"):
-            total_bucket[k] += int(b.get(k) or 0)
-    if target == "all":
-        if any_block:
-            lines.append("ИТОГО")
-            lines.extend(_format_det_bucket(total_bucket))
-        else:
-            lines.append("Лидов за это окно пока нет.")
-    elif not any_block:
-        lines.append(str(mgr_labels.get(target) or target))
-        lines.extend(_format_det_bucket(_empty_det_bucket(mgr_labels.get(target) or target)))
-    return chr(10).join(lines).rstrip()
 
 
 
@@ -7127,37 +6456,6 @@ async def _manager_create_baseline_snapshot() -> Dict[str, Any]:
     return {"ok": True, "count": count, "skipped": skipped, "manager_key": MANAGER_RUNTIME_KEY}
 
 
-async def _manager_command_loop() -> None:
-    if CONTROLLER_MODE or not MANAGER_RUNTIME_KEY:
-        return
-    try:
-        from storage import manager_queue_finish, manager_queue_take_next
-    except Exception as e:
-        print(f"manager command queue import error: {e!r}")
-        return
-    while True:
-        try:
-            row = await manager_queue_take_next(MANAGER_RUNTIME_KEY, stale_after_sec=120, db_path=TPILOT_DB_PATH)
-            if not row:
-                await asyncio.sleep(1.0)
-                continue
-            nonce = str(row.get("nonce") or "")
-            command = str(row.get("command") or "").strip().lower()
-            try:
-                if command == "baseline_create":
-                    res = await _manager_create_baseline_snapshot()
-                    ok = bool(res.get("ok"))
-                    text = f"✅ {MANAGER_RUNTIME_KEY}: текущих чатов помечено старыми: {int(res.get('count') or 0)}" if ok else f"⚠️ {MANAGER_RUNTIME_KEY}: не удалось зафиксировать старые чаты: {res.get('error') or 'error'}"
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=ok, result_text=text, result_json=str(res), db_path=TPILOT_DB_PATH)
-                else:
-                    await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=False, error_text=f"unknown manager command: {command}", db_path=TPILOT_DB_PATH)
-            except Exception as e:
-                await manager_queue_finish(nonce, worker_key=MANAGER_RUNTIME_KEY, ok=False, error_text=repr(e), db_path=TPILOT_DB_PATH)
-        except asyncio.CancelledError:
-            return
-        except Exception as e:
-            print(f"manager_command_loop error: {e!r}")
-            await asyncio.sleep(2.0)
 
 
 async def _queue_baseline_create_for_manager(key: str, *, user_id: int = 0, timeout_sec: int = 180) -> Tuple[bool, str]:
@@ -10070,18 +9368,13 @@ AUTO_OFFLINE_INACTIVITY_MINUTES = 30
 
 _TPILOT_202605_ORIG_MAIN = globals().get("main")
 _TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT = globals().get("_record_daily_lead_event")
-_TPILOT_202605_ORIG_IS_DUPLICATE_SYSTEMWIDE = globals().get("_is_duplicate_systemwide")
 _TPILOT_202605_ORIG_COLLECT_DAY_LEADS = globals().get("_collect_day_leads")
 _TPILOT_202605_ORIG_COLLECT_PERIOD_LEADS = globals().get("_collect_period_leads")
-_TPILOT_202605_ORIG_MAYBE_AUTO_REPLY = globals().get("_maybe_auto_reply_to_lead")
 _TPILOT_202605_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
 _TPILOT_202605_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
 _TPILOT_202605_ORIG_HANDLE_AI = globals().get("_handle_ai_stat_command")
 _TPILOT_202605_ORIG_PANEL_PROXY = globals().get("_panel_manager_proxy_command")
 _TPILOT_202605_ORIG_HANDLE_FOLLOWUP = globals().get("_handle_post_followup_command")
-_TPILOT_202605_ORIG_BUILD_STAT_TEXT = globals().get("_build_stat_text")
-_TPILOT_202605_ORIG_BUILD_STAT_PERIOD_TEXT = globals().get("_build_stat_period_text")
-_TPILOT_202605_ORIG_BUILD_DET_STAT_TEXT = globals().get("_build_det_stat_text")
 
 TP_CLIENT_SILENCE_START_HOUR = 21
 TP_CLIENT_SILENCE_END_HOUR = 7
@@ -10150,22 +9443,10 @@ def _tp_strip_duplicate_lines(text: str) -> str:
     return chr(10).join(out).rstrip()
 
 
-async def _build_stat_text(target_key: str = "all", lead_date: Optional[str] = None) -> str:
-    if callable(_TPILOT_202605_ORIG_BUILD_STAT_TEXT):
-        return _tp_strip_duplicate_lines(await _TPILOT_202605_ORIG_BUILD_STAT_TEXT(target_key, lead_date))
-    return "Статистика недоступна."
 
 
-async def _build_stat_period_text(spec: Dict[str, Any]) -> str:
-    if callable(_TPILOT_202605_ORIG_BUILD_STAT_PERIOD_TEXT):
-        return _tp_strip_duplicate_lines(await _TPILOT_202605_ORIG_BUILD_STAT_PERIOD_TEXT(spec))
-    return "Статистика за период недоступна."
 
 
-async def _build_det_stat_text(target_key: str = "all", mode: str = "day", date_token: Optional[str] = None) -> str:
-    if callable(_TPILOT_202605_ORIG_BUILD_DET_STAT_TEXT):
-        return _tp_strip_duplicate_lines(await _TPILOT_202605_ORIG_BUILD_DET_STAT_TEXT(target_key, mode, date_token))
-    return "Детальная статистика недоступна."
 
 
 async def _tp_same_manager_chat_seen_before(db_path: str, chat_id: int) -> Dict[str, Any]:
@@ -10369,20 +9650,6 @@ async def _process_pending_lead_events() -> None:
             await asyncio.sleep(0.2)
 
 
-async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, Any], work: Dict[str, Any]) -> None:
-    if int((lead_row or {}).get("_existing_same_manager_chat") or 0) == 1:
-        return
-    now_local = _kyiv_now()
-    if _tp_client_auto_silent_now(now_local):
-        return
-    status = str((work or {}).get("status") or "online").strip().lower()
-    if status in ("offline", "dayoff", "auto_offline", "no_show"):
-        if not (TP_PROFILE_END_HOUR <= now_local.hour < TP_CLIENT_SILENCE_START_HOUR):
-            return
-    elif not _tp_profile_auto_allowed_now(now_local):
-        return
-    if callable(_TPILOT_202605_ORIG_MAYBE_AUTO_REPLY):
-        await _TPILOT_202605_ORIG_MAYBE_AUTO_REPLY(lead_row, state, work)
 
 
 def _is_post_followup_disable_word(text: str) -> bool:
@@ -11393,7 +10660,6 @@ def _content_resolve_outgoing_text(text: str) -> str:
     return raw
 
 
-_CONTENT_ORIG_HUMAN_SEND_DELAY = globals().get("_human_send_delay")
 async def _human_send_delay(chat_id: int, text: str, *, after_first: bool = False) -> None:  # type: ignore[override]
     if not bool(globals().get("HUMAN_SEND_ENABLED", True)):
         return
@@ -11416,13 +10682,6 @@ async def _human_send_delay(chat_id: int, text: str, *, after_first: bool = Fals
         await asyncio.sleep(delay)
 
 
-_CONTENT_ORIG_SEND_MANAGER_PRIVATE = globals().get("_send_manager_private")
-async def _send_manager_private(chat_id: int, text: str, *, human_delay: bool = False, after_first_delay: bool = False) -> bool:  # type: ignore[override]
-    raw = _content_resolve_outgoing_text(str(text or ""))
-    fn = _CONTENT_ORIG_SEND_MANAGER_PRIVATE
-    if callable(fn):
-        return await fn(int(chat_id), raw, human_delay=human_delay, after_first_delay=after_first_delay)
-    return False
 
 
 _CONTENT_ORIG_CHOOSE_PROFILE_REPLY = globals().get("choose_profile_reply")
@@ -12206,7 +11465,6 @@ _TPAG_V2_ORIG_PHONE = globals().get("_panel_manager_phone_command")
 _TPAG_V2_ORIG_CODE = globals().get("_panel_manager_code_command")
 _TPAG_V2_ORIG_PASS = globals().get("_panel_manager_pass_command")
 _TPAG_V2_ORIG_LIFECYCLE = globals().get("_panel_manager_lifecycle_command")
-_TPAG_V2_ORIG_PROXY_INFO_TEXT = globals().get("_manager_proxy_info_text")
 _TPAG_V2_LAST_MONITOR_AT = 0.0
 
 try:
@@ -12499,45 +11757,6 @@ def _tpag_geo_line(prefix: str, geo: Dict[str, str]) -> str:
     return f"{prefix}: " + (", ".join(bits) if bits else "не определено")
 
 
-def _manager_proxy_info_text(row: Dict[str, Any]) -> str:  # type: ignore[override]
-    row = dict(row or {})
-    key = registry_normalize_manager_key(row.get("manager_key") or "")
-    mode = _tpag_mode(row)
-    host = str(row.get("proxy_host") or "").strip()
-    port = str(row.get("proxy_port") or "").strip()
-    login = _proxy_login_display(row.get("proxy_username"))
-    password = _mask_secret(row.get("proxy_password"))
-    checked = str(row.get("auth_guard_checked_at") or row.get("proxy_test_at") or "").strip() or "_"
-    ok = int(row.get("auth_guard_ok") or 0) == 1
-    fresh = _tpag_fresh(row)
-    err = str(row.get("auth_guard_error") or row.get("proxy_last_error") or "").strip()
-    if mode == "direct":
-        lines = [
-            f"🔓 Proxy {key}",
-            "Режим: без proxy",
-            "Telegram будет видеть IP сервера.",
-            f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
-        ]
-        return "\n".join(lines).rstrip()
-    guard = "🟢 готов" if ok and fresh else ("🟡 устарел" if ok else "🔴 не готов")
-    lines = [
-        f"🌐 Proxy {key}",
-        "Режим: через proxy",
-        f"SOCKS5: {host + ':' + port if host and port else 'не задан'}",
-        f"Login: {login}",
-        f"Password: {password}",
-        "",
-        f"Proxy IP: {row.get('auth_proxy_ip') or 'не определено'}",
-        f"Proxy Geo: {', '.join([x for x in [row.get('auth_proxy_country'), row.get('auth_proxy_region'), row.get('auth_proxy_city')] if str(x or '').strip()]) or 'не определено'}",
-        f"Server IP: {row.get('auth_direct_ip') or 'не определено'}",
-        f"Server Geo: {', '.join([x for x in [row.get('auth_direct_country'), row.get('auth_direct_region'), row.get('auth_direct_city')] if str(x or '').strip()]) or 'не определено'}",
-        "",
-        f"Auth Guard: {guard}",
-        f"Проверено: {checked}",
-    ]
-    if err and not (ok and fresh):
-        lines.append(f"Причина: {err[:500]}")
-    return "\n".join(lines).rstrip()
 
 
 async def _tpag_proxy_command(action: str, args: str, *, requested_by: int = 0) -> str:
@@ -12747,7 +11966,6 @@ async def main() -> None:  # type: ignore[override]
 import time as _tpag_v4_time  # noqa: E402
 
 _TPAG_V4_ORIG_ENSURE_SCHEMA = globals().get("_tpag_ensure_schema")
-_TPAG_V4_ORIG_MANAGER_PROXY_INFO_TEXT = globals().get("_manager_proxy_info_text")
 
 
 def _tpag_v4_ms(start: float) -> int:
@@ -12968,12 +12186,9 @@ _TP_CI_ORIG_MAIN = globals().get("main")
 _TP_CI_ORIG_ENSURE_DAILY_LEADS_TABLE = globals().get("_ensure_daily_leads_table")
 _TP_CI_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
 _TP_CI_ORIG_RECORD_DAILY_LEAD_EVENT_DIRECT = globals().get("_TPILOT_202605_ORIG_RECORD_DAILY_LEAD_EVENT") or globals().get("_TPILOT_ORIG_RECORD_DAILY_LEAD_EVENT") or globals().get("_record_daily_lead_event")
-_TP_CI_ORIG_FETCH_UNSENT_DAILY_LEADS = globals().get("_fetch_unsent_daily_leads")
-_TP_CI_ORIG_CREATE_PARTNER_EVENT = globals().get("_create_partner_lead_event_from_daily")
 _TP_CI_ORIG_COLLECT_DAY_LEADS = globals().get("_collect_day_leads")
 _TP_CI_ORIG_COLLECT_PERIOD_LEADS = globals().get("_collect_period_leads")
 _TP_CI_ORIG_COLLECT_WINDOW_LEADS_EXTENDED = globals().get("_collect_window_leads_extended")
-_TP_CI_ORIG_EXPORT_DAY_XLSX = globals().get("_export_day_xlsx")
 
 
 def _tp_ci_now_iso() -> str:
@@ -14194,7 +13409,6 @@ import sqlite3 as _tp_qs_sqlite3
 _TP_QS_VERSION = "quality_status_v1_20260510"
 _TP_QS_ORIG_MAIN = globals().get("main")
 _TP_QS_ORIG_ENSURE_DAILY_LEADS_TABLE = globals().get("_ensure_daily_leads_table")
-_TP_QS_ORIG_UPDATE_DAILY_LEAD_FIELDS = globals().get("_update_daily_lead_fields")
 _TP_QS_ORIG_COMBINE_PROFILE = globals().get("_combine_profile")
 _TP_QS_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
 _TP_QS_ORIG_HANDLE_AI_STAT_COMMAND = globals().get("_handle_ai_stat_command")
@@ -15028,9 +14242,6 @@ async def main() -> None:  # type: ignore[override]
 # User-facing reports must not show English technical reason codes.
 
 _TP_REPORT_V3_VERSION = "report_consistency_v3_20260510"
-_TP_REPORT_V3_ORIG_BUILD_STAT_TEXT = globals().get("_build_stat_text")
-_TP_REPORT_V3_ORIG_BUILD_STAT_PERIOD_TEXT = globals().get("_build_stat_period_text")
-_TP_REPORT_V3_ORIG_BUILD_DET_STAT_TEXT = globals().get("_build_det_stat_text")
 _TP_REPORT_V3_ORIG_TP_QS_ROW_BUCKET = globals().get("_tp_qs_row_bucket")
 
 
@@ -15298,108 +14509,10 @@ def _tp_report_v3_stats_from_leads(leads: List[Dict[str, Any]], manager_rows: Li
     return {"buckets": list(buckets.values()), **total_bucket}
 
 
-async def _build_stat_text(target_key: str = "all", lead_date: Optional[str] = None) -> str:  # type: ignore[override]
-    lead_date = lead_date or _kyiv_now().date().isoformat()
-    target = registry_normalize_manager_key(target_key or "all")
-    rows = await _manager_rows_for_reporting()
-    leads = await _collect_day_leads(lead_date, target_key=target)
-    stats = _tp_report_v3_stats_from_leads(leads, rows, target_key=target)
-    date_disp = datetime.strptime(lead_date, "%Y-%m-%d").strftime("%d.%m.%y")
-    lines: List[str] = [f"📊 Статистика за {date_disp}", ""]
-    if not stats.get("buckets"):
-        lines.append("Менеджеры не найдены.")
-        return chr(10).join(lines).rstrip()
-    for b in stats["buckets"]:
-        if target == "all" and int(b.get("otpisok") or 0) == 0:
-            continue
-        lines.append(str(b.get("label") or b.get("key") or "_"))
-        lines.extend(_tp_report_v3_bucket_lines(b))
-        lines.append("")
-    if target == "all":
-        lines.append("ИТОГО")
-        lines.extend(_tp_report_v3_bucket_lines(stats))
-    return chr(10).join(lines).rstrip()
 
 
-async def _build_stat_period_text(spec: Dict[str, Any]) -> str:  # type: ignore[override]
-    scope = str((spec or {}).get("scope") or "all")
-    key = str((spec or {}).get("key") or "all")
-    start_iso = str((spec or {}).get("start") or "")
-    end_iso = str((spec or {}).get("end") or "")
-    label = str((spec or {}).get("label") or f"{start_iso} - {end_iso}")
-    leads, rows, scope_label = await _collect_period_leads(scope, key, start_iso, end_iso)
-    stats = _tp_report_v3_stats_from_leads(leads, rows, target_key="all")
-    lines: List[str] = [f"📊 Статистика за период {label}", scope_label, ""]
-    for b in stats["buckets"]:
-        if int(b.get("otpisok") or 0) == 0:
-            continue
-        lines.append(str(b.get("label") or b.get("key") or "_"))
-        lines.extend(_tp_report_v3_bucket_lines(b))
-        lines.append("")
-    lines.append("ИТОГО")
-    lines.extend(_tp_report_v3_bucket_lines(stats))
-    return chr(10).join(lines).rstrip()
 
 
-async def _build_det_stat_text(target_key: str = "all", kind: str = "day", ref: Optional[Any] = None) -> str:  # type: ignore[override]
-    date_val = None
-    if isinstance(ref, str):
-        date_val = _tp_parse_date_token(ref)
-    elif hasattr(ref, "date"):
-        try:
-            date_val = ref.astimezone(TZ_KYIV).date() if getattr(ref, "tzinfo", None) else ref.date()
-        except Exception:
-            date_val = None
-    if date_val and not _tp_date_within_history(date_val):
-        return f"Дата вне доступного периода. Можно смотреть последние {HISTORY_DAYS_LIMIT} дней."
-    start_local, end_local, label, title = _window_for_kind_date(kind, date_val)
-    target_date = start_local.date()
-    target = registry_normalize_manager_key(target_key or "all")
-    rows = await _manager_rows_for_reporting()
-    valid_keys = {registry_normalize_manager_key((r or {}).get("manager_key") or "") for r in rows}
-    if target != "all" and target not in valid_keys:
-        return f"Менеджер не найден: {target}"
-    leads = await _collect_window_leads_extended(start_local, end_local, target, kind, target_date)
-    mgr_labels = {registry_normalize_manager_key((r or {}).get("manager_key") or ""): _manager_label_from_row(r) for r in rows}
-    buckets: Dict[str, Dict[str, Any]] = {}
-    for lead in leads or []:
-        key = registry_normalize_manager_key((lead or {}).get("manager_key") or "")
-        if not key:
-            continue
-        if key not in buckets:
-            buckets[key] = _tp_report_v3_empty_bucket(mgr_labels.get(key) or key)
-        _tp_report_v3_bucket_add(buckets[key], lead)
-    window_line = "Окно: 17:00-08:00" if str(kind).lower() == "flight" else "Окно: 08:00-17:00"
-    lines: List[str] = [f"{title} за {label}", window_line, ""]
-    keys_order = [registry_normalize_manager_key((r or {}).get("manager_key") or "") for r in rows]
-    if target != "all":
-        keys_order = [target]
-    total_bucket = _tp_report_v3_empty_bucket("ИТОГО")
-    any_block = False
-    for key in keys_order:
-        if not key:
-            continue
-        b = buckets.get(key) or _tp_report_v3_empty_bucket(mgr_labels.get(key) or key)
-        if target == "all" and int(b.get("otpisok") or 0) == 0:
-            continue
-        any_block = True
-        lines.append(str(b.get("label") or key))
-        lines.extend(_tp_report_v3_bucket_lines(b))
-        lines.append("")
-        for k in ("otpisok", "total", "new", "duplicates", "profile_done", "geo", "under18", "na", "trash", "liquid"):
-            total_bucket[k] = int(total_bucket.get(k) or 0) + int(b.get(k) or 0)
-    total_bucket["nonliquid"] = int(total_bucket.get("geo") or 0) + int(total_bucket.get("under18") or 0) + int(total_bucket.get("na") or 0) + int(total_bucket.get("trash") or 0)
-    total_bucket["otpisok"] = int(total_bucket.get("liquid") or 0) + int(total_bucket.get("nonliquid") or 0)
-    if target == "all":
-        if any_block:
-            lines.append("ИТОГО")
-            lines.extend(_tp_report_v3_bucket_lines(total_bucket))
-        else:
-            lines.append("Лидов за это окно пока нет.")
-    elif not any_block:
-        lines.append(str(mgr_labels.get(target) or target))
-        lines.extend(_tp_report_v3_bucket_lines(_tp_report_v3_empty_bucket(mgr_labels.get(target) or target)))
-    return chr(10).join(lines).rstrip()
 # --- TPILOT REPORT CONSISTENCY HOTFIX V3 20260510 END ---
 
 # --- TPILOT REPORT CONSISTENCY HOTFIX V5 20260510 START ---
@@ -15410,9 +14523,6 @@ async def _build_det_stat_text(target_key: str = "all", kind: str = "day", ref: 
 # User-facing reports must not show English technical reason codes.
 
 _TP_REPORT_V5_VERSION = "report_consistency_v5_20260510"
-_TP_REPORT_V5_ORIG_BUILD_STAT_TEXT = globals().get("_build_stat_text")
-_TP_REPORT_V5_ORIG_BUILD_STAT_PERIOD_TEXT = globals().get("_build_stat_period_text")
-_TP_REPORT_V5_ORIG_BUILD_DET_STAT_TEXT = globals().get("_build_det_stat_text")
 _TP_REPORT_V5_ORIG_TP_QS_ROW_BUCKET = globals().get("_tp_qs_row_bucket")
 
 
@@ -15889,51 +14999,8 @@ def _append_reason_lines(lines: List[str], reasons_by_bucket: Dict[str, Dict[str
     _tp_report_v5_add_nonliquid_details(lines, reasons_by_bucket)
 
 
-async def _build_stat_text(target_key: str = "all", lead_date: Optional[str] = None) -> str:  # type: ignore[override]
-    lead_date = lead_date or _kyiv_now().date().isoformat()
-    target = registry_normalize_manager_key(target_key or "all")
-    rows = await _manager_rows_for_reporting()
-    leads = await _collect_day_leads(lead_date, target_key=target)
-    stats = _tp_report_v5_stats_from_leads(leads, rows, target_key=target)
-    date_disp = datetime.strptime(lead_date, "%Y-%m-%d").strftime("%d.%m.%y")
-    lines: List[str] = [f"📊 Статистика за {date_disp}", ""]
-    if not stats.get("buckets"):
-        lines.append("Менеджеры не найдены.")
-        return chr(10).join(lines).rstrip()
-    for b in stats["buckets"]:
-        if target == "all" and int(b.get("otpisok") or 0) == 0:
-            continue
-        lines.append(str(b.get("label") or b.get("key") or "_"))
-        lines.extend(_tp_report_v5_bucket_lines(b))
-        _tp_report_v5_add_nonliquid_details(lines, b.get("reasons") or {})
-        lines.append("")
-    if target == "all":
-        lines.append("ИТОГО")
-        lines.extend(_tp_report_v5_bucket_lines(stats))
-        _tp_report_v5_add_nonliquid_details(lines, stats.get("reasons") or {})
-    return chr(10).join(lines).rstrip()
 
 
-async def _build_stat_period_text(spec: Dict[str, Any]) -> str:  # type: ignore[override]
-    scope = str((spec or {}).get("scope") or "all")
-    key = str((spec or {}).get("key") or "all")
-    start_iso = str((spec or {}).get("start") or "")
-    end_iso = str((spec or {}).get("end") or "")
-    label = str((spec or {}).get("label") or f"{start_iso} - {end_iso}")
-    leads, rows, scope_label = await _collect_period_leads(scope, key, start_iso, end_iso)
-    stats = _tp_report_v5_stats_from_leads(leads, rows, target_key="all")
-    lines: List[str] = [f"📊 Статистика за период {label}", scope_label, ""]
-    for b in stats["buckets"]:
-        if int(b.get("otpisok") or 0) == 0:
-            continue
-        lines.append(str(b.get("label") or b.get("key") or "_"))
-        lines.extend(_tp_report_v5_bucket_lines(b))
-        _tp_report_v5_add_nonliquid_details(lines, b.get("reasons") or {})
-        lines.append("")
-    lines.append("ИТОГО")
-    lines.extend(_tp_report_v5_bucket_lines(stats))
-    _tp_report_v5_add_nonliquid_details(lines, stats.get("reasons") or {})
-    return chr(10).join(lines).rstrip()
 
 
 # --- TPILOT M2.10A FINAL-BUCKET OVERRIDE OVERLAY (read-only) START ---
@@ -16727,9 +15794,6 @@ _TPE_ORIG_MARK_PROFILE_DIALOG_SENT = globals().get("mark_profile_dialog_sent")
 _TPE_ORIG_TP_QS_DECIDE = globals().get("_tp_qs_decide")
 _TPE_ORIG_HANDLE_AI_STAT_COMMAND = globals().get("_handle_ai_stat_command")
 _TPE_ORIG_PANEL_EXECUTE_COMMAND = globals().get("_panel_execute_command_text")
-_TPE_ORIG_EXPORT_DAY_XLSX = globals().get("_export_day_xlsx")
-_TPE_ORIG_EXPORT_RANGE_XLSX = globals().get("_export_range_xlsx")
-_TPE_ORIG_EXPORT_PERIOD_XLSX = globals().get("_export_period_xlsx")
 _TPE_ORIG_TP_QS_HANDLE_LEAD_COMMAND = globals().get("_tp_qs_handle_lead_command")
 
 
@@ -17158,61 +16222,6 @@ def _tpe_date_token(token: str) -> Tuple[str, str, str]:
     raise ValueError("bad_date")
 
 
-async def _tpe_repair_command(parts: List[str], *, user_id: int = 0) -> str:
-    # /lead repair today dry|apply
-    # /lead repair range 2026-05-01 2026-05-11 dry|apply
-    if not parts:
-        return "Формат: /lead repair today|yesterday|range YYYY-MM-DD YYYY-MM-DD dry|apply"
-    mode = ""
-    if parts and parts[-1].lower() in ("dry", "apply"):
-        mode = parts[-1].lower()
-        parts = parts[:-1]
-    if not mode:
-        return "Сначала dry-run, потом apply. Формат: /lead repair today dry или /lead repair today apply"
-    target = parts[0].lower() if parts else "today"
-    if target == "range":
-        if len(parts) < 3:
-            return "Формат: /lead repair range 2026-05-01 2026-05-11 dry|apply"
-        start_d, _, _ = _tpe_date_token(parts[1])
-        end_d, _, _ = _tpe_date_token(parts[2])
-        if start_d > end_d:
-            start_d, end_d = end_d, start_d
-        label = f"{start_d} - {end_d}"
-    elif target in ("all", "все"):
-        start_d = end_d = ""
-        label = "all"
-    else:
-        start_d, end_d, label = _tpe_date_token(target)
-    pe = _tpe_import_extractor()
-    rows = await _tpe_fetch_rows_for_repair(start_d, end_d)
-    changes = []
-    for row in rows:
-        if int(row.get("manual_status_override") or 0) == 1:
-            continue
-        parsed = pe.extract_profile_v2(str(row.get("profile_raw_text") or "").splitlines(), row)
-        old_bucket = _tpe_text(row.get("quality_bucket") or row.get("status"))
-        new_bucket = _tpe_text(parsed.get("quality_bucket") or parsed.get("status"))
-        old_reason = _tpe_text(row.get("quality_reason") or row.get("nonliquid_reason"))
-        new_reason = _tpe_text(parsed.get("quality_reason") or parsed.get("nonliquid_reason"))
-        if old_bucket != new_bucket or old_reason != new_reason or _tpe_text(row.get("age")) != _tpe_text(parsed.get("age")) or _tpe_text(row.get("country")) != _tpe_text(parsed.get("country")) or _tpe_text(row.get("city")) != _tpe_text(parsed.get("city")):
-            changes.append((row, parsed, old_bucket, new_bucket, old_reason, new_reason))
-    if mode == "dry":
-        lines = ["🧪 Lead repair dry-run", f"Период: {label}", f"Проверено строк: {len(rows)}", f"Будет изменено: {len(changes)}"]
-        if changes:
-            lines.append("")
-            lines.append("Первые изменения:")
-            for row, parsed, old_b, new_b, old_r, new_r in changes[:20]:
-                lines.append(f"{row.get('manager_key') or row.get('_manager_key')} | {row.get('lead_date')} | {row.get('chat_id')}: {old_b or '_'} -> {new_b or '_'} | {old_r or '_'} -> {new_r or '_'}")
-        lines.append("")
-        lines.append("Для применения: та же команда с apply")
-        return "\n".join(lines).rstrip()
-    applied = 0
-    for row, parsed, *_ in changes:
-        dbp = str(row.get("_db_path") or "")
-        await _tpe_insert_profile_audit(dbp, row, parsed)
-        await _tpe_direct_update_daily(dbp, lead_date=str(row.get("lead_date") or ""), manager_key=str(row.get("manager_key") or row.get("_manager_key") or ""), chat_id=int(row.get("chat_id") or 0), **parsed)
-        applied += 1
-    return f"✅ Lead repair apply готов\nПериод: {label}\nПроверено строк: {len(rows)}\nИзменено: {applied}"
 
 
 async def _tp_qs_handle_lead_command(args: str, *, user_id: int = 0) -> str:  # type: ignore[override]
@@ -17355,19 +16364,10 @@ async def _tpe_append_excel_fields(path: str) -> str:
     return path
 
 
-async def _export_day_xlsx(target_key: str = "all", lead_date: Optional[str] = None) -> str:  # type: ignore[override]
-    path = await _TPE_ORIG_EXPORT_DAY_XLSX(target_key, lead_date) if callable(_TPE_ORIG_EXPORT_DAY_XLSX) else ""
-    return await _tpe_append_excel_fields(path)
 
 
-async def _export_range_xlsx(target_key: str = "all", start_date: str = "", end_date: str = "") -> str:  # type: ignore[override]
-    path = await _TPE_ORIG_EXPORT_RANGE_XLSX(target_key, start_date, end_date) if callable(_TPE_ORIG_EXPORT_RANGE_XLSX) else ""
-    return await _tpe_append_excel_fields(path)
 
 
-async def _export_period_xlsx(spec: Dict[str, Any]) -> str:  # type: ignore[override]
-    path = await _TPE_ORIG_EXPORT_PERIOD_XLSX(spec) if callable(_TPE_ORIG_EXPORT_PERIOD_XLSX) else ""
-    return await _tpe_append_excel_fields(path)
 
 # --- TPILOT PROFILE EXTRACTION ENGINE V2 BASE 20260512 END ---
 
@@ -17380,7 +16380,6 @@ from pathlib import Path as _tpac_Path
 from typing import Any as _tpac_Any, Dict as _tpac_Dict, List as _tpac_List, Tuple as _tpac_Tuple
 
 _TPAC_VERSION = "profile_admin_control_v1_1_20260512"
-_TPAC_ORIG_TPE_REPAIR_COMMAND = globals().get("_tpe_repair_command")
 _TPAC_ORIG_TPE_HANDLE_PROFILE_COMMAND = globals().get("_tpe_handle_profile_command")
 _TPAC_ORIG_TP_QS_HANDLE_LEAD_COMMAND = globals().get("_tp_qs_handle_lead_command")
 
@@ -18020,11 +17019,6 @@ async def _tpe_handle_profile_command(args: str, *, user_id: int = 0) -> str:  #
 #   Partner LIGHT stays calendar-day based.
 _TP_SDF_VERSION = "stats_day_flight_separation_v1_20260512"
 _TP_SDF_ORIG_WINDOW_FOR_KIND_DATE = globals().get("_window_for_kind_date")
-_TP_SDF_ORIG_BUILD_STAT_TEXT = globals().get("_build_stat_text")
-_TP_SDF_ORIG_BUILD_STAT_PERIOD_TEXT = globals().get("_build_stat_period_text")
-_TP_SDF_ORIG_EXPORT_DAY_XLSX = globals().get("_export_day_xlsx")
-_TP_SDF_ORIG_EXPORT_RANGE_XLSX = globals().get("_export_range_xlsx")
-_TP_SDF_ORIG_EXPORT_PERIOD_XLSX = globals().get("_export_period_xlsx")
 _TP_SDF_ORIG_PARSE_EXPORT_ARGS = globals().get("_parse_export_args")
 _TP_SDF_ORIG_RUN_EXPORT_COMMAND = globals().get("_run_export_command")
 
@@ -18918,7 +17912,6 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 # 3) passive parsing профиля, который работает даже когда клиентские авто-сообщения выключены.
 
 _TP_GQ_VERSION = "tpilot_greeting_questionnaire_schedule_v1_20260513"
-_TP_GQ_ORIG_MAYBE_AUTO_REPLY = globals().get("_maybe_auto_reply_to_lead")
 _TP_GQ_ORIG_APPLY_PROFILE_FROM_TEXT = globals().get("_apply_profile_from_text")
 _TP_GQ_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
 _TP_GQ_ORIG_HANDLE_AI_STAT = globals().get("_handle_ai_stat_command")
@@ -19291,8 +18284,6 @@ async def _tp_gq_update_profile_passive(db_path: str, lead_row: Dict[str, Any], 
         return dict(lead_row or {})
 
 
-async def _apply_profile_from_text(db_path: str, lead_row: Dict[str, Any], text: str) -> Dict[str, Any]:  # type: ignore[override]
-    return await _tp_gq_update_profile_passive(db_path, lead_row, text)
 
 
 async def _tp_gq_send_questionnaire_followup(lead_row: Dict[str, Any], state: Dict[str, Any], chat_id: int) -> None:
@@ -19543,11 +18534,9 @@ async def _panel_execute_command_text(command_text: str, *, requested_by: int = 
 import sqlite3 as _tp_hg_sqlite3  # noqa: E402
 
 _TP_HG_VERSION = "telegram_health_guard_v1_20260514"
-_TP_HG_ORIG_SEND_MANAGER_PRIVATE = globals().get("_send_manager_private")
 _TP_HG_ORIG_MAIN = globals().get("main")
 _TP_HG_ORIG_HANDLE_AI_STAT = globals().get("_handle_ai_stat_command")
 _TP_HG_ORIG_PANEL_EXEC = globals().get("_panel_execute_command_text")
-_TP_HG_ORIG_MANAGER_COMMAND_LOOP = globals().get("_manager_command_loop")
 
 TP_HG_CHECK_INTERVAL_SEC = 20 * 60
 TP_HG_NOTIFY_REPEAT_SEC = 6 * 60 * 60
@@ -22059,91 +21048,6 @@ async def _tp_ae_apply_profile_defaults_to_active_managers(*, user_id: int = 0) 
         await _tp_gq_set_questionnaire_enabled(key, False, user_id=user_id)
 
 
-async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, Any], work: Dict[str, Any]) -> None:  # type: ignore[override]
-    chat_id = int((lead_row or {}).get("chat_id") or 0)
-    manager_key = _tp_gq_norm_key((lead_row or {}).get("manager_key") or MANAGER_RUNTIME_KEY)
-    if chat_id <= 0 or not manager_key:
-        return
-
-    settings = await _tp_gq_get_settings(manager_key)
-    schedule = await _tp_gq_get_schedule(manager_key)
-    now_local = _kyiv_now()
-    window, window_label, night_key = _tp_gq_window_now(schedule, now_local)
-    status = str((work or {}).get("status") or "online").strip().lower()
-
-    try:
-        await _update_daily_lead_fields(
-            DB_PATH,
-            lead_date=str((lead_row or {}).get("lead_date") or now_local.date().isoformat()),
-            manager_key=manager_key,
-            chat_id=chat_id,
-            manager_work_status=f"{status}|{window}",
-        )
-    except Exception:
-        pass
-
-    if await _tp_ae_silent_blocked(manager_key):
-        await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="emergency_silence", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-        return
-
-    if int(settings.get("greeting_enabled") or 0) != 1:
-        await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="greeting_off", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-        return
-
-    manager_replied = _tp_ae_int((state or {}).get("manager_replied"), 0) == 1 or _tp_ae_int((lead_row or {}).get("manager_replied"), 0) == 1
-    if manager_replied:
-        await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="manager_replied", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-        return
-
-    existing_same = int((lead_row or {}).get("_existing_same_manager_chat") or 0) == 1
-    question_sent = _tp_gq_question_sent(lead_row, state)
-    questionnaire_on = int(settings.get("questionnaire_enabled") or 0) == 1
-
-    if window in {"gap", "overlap"}:
-        await _tp_ae_audit(manager_key, chat_id, action="skipped", reason=f"schedule_{window}", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-        return
-
-    if existing_same:
-        if window != "night" or not night_key:
-            await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="old_client_day_silent", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-            return
-        if await _tp_gq_old_autoresponder_sent(DB_PATH, manager_key, chat_id, night_key):
-            await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="old_client_night_already_sent", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-            return
-        text = _tp_gq_content_text("offline_notice", str(globals().get("OFFLINE_NOTICE_TEXT") or ""))
-        ok = await _send_manager_private(chat_id, text, human_delay=True, after_first_delay=True)
-        if ok:
-            await _tp_gq_mark_old_autoresponder_sent(DB_PATH, manager_key, chat_id, night_key)
-        await _tp_ae_audit(manager_key, chat_id, action="sent_old_client_night_notice" if ok else "send_error", reason="old_client_night", window_kind=window, settings=settings, lead_row=lead_row, state=state, send_ok=ok)
-        return
-
-    if window == "night":
-        if not night_key:
-            night_key = _tp_gq_night_key(manager_key, schedule, now_local)
-        if str((state or {}).get("offline_notice_period_key") or (lead_row or {}).get("offline_notice_period_key") or "") == str(night_key):
-            await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="night_notice_already_sent", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-            return
-        text = _tp_gq_content_text("offline_notice", str(globals().get("OFFLINE_NOTICE_TEXT") or ""))
-        ok = await _send_manager_private(chat_id, text, human_delay=True)
-        if ok:
-            await _set_daily_offline_sent(lead_row, night_key)
-        await _tp_ae_audit(manager_key, chat_id, action="sent_night_notice" if ok else "send_error", reason="night_new_client", window_kind=window, settings=settings, lead_row=lead_row, state=state, send_ok=ok)
-        return
-
-    # Day window: first approved greeting. Questionnaire switch controls only follow-up questions after it.
-    if not question_sent:
-        text = _tp_gq_content_text("profile_question", str(globals().get("PROFILE_QUESTION_TEXT") or ""))
-        ok = await _send_manager_private(chat_id, text, human_delay=True)
-        if ok:
-            await _set_daily_question_sent(lead_row)
-        await _tp_ae_audit(manager_key, chat_id, action="sent_day_greeting" if ok else "send_error", reason="day_new_client", window_kind=window, settings=settings, lead_row=lead_row, state=state, send_ok=ok)
-        return
-
-    if questionnaire_on:
-        await _tp_ae_audit(manager_key, chat_id, action="questionnaire_followup_attempt", reason="questionnaire_on", window_kind=window, settings=settings, lead_row=lead_row, state=state)
-        await _tp_gq_send_questionnaire_followup(lead_row, state, chat_id)
-    else:
-        await _tp_ae_audit(manager_key, chat_id, action="skipped", reason="questionnaire_off_after_greeting", window_kind=window, settings=settings, lead_row=lead_row, state=state)
 
 
 async def _tp_ae_fallback_record_and_reply(event: events.NewMessage.Event, original_error: Exception) -> None:
@@ -22385,10 +21289,8 @@ import json as _tp_fm_json
 #    Work presence = manual outbound messages to at least 2 distinct client chats within 45 minutes.
 
 _TP_FM_VERSION = "profile_strict_presence_v2_20260515"
-_TP_FM_ORIG_APPLY_PROFILE_FROM_TEXT = globals().get("_apply_profile_from_text")
 _TP_FM_ORIG_CHOOSE_PROFILE_REPLY = globals().get("choose_profile_reply")
 _TP_FM_ORIG_TP_QS_DECIDE = globals().get("_tp_qs_decide")
-_TP_FM_ORIG_MAYBE_AUTO_REPLY = globals().get("_maybe_auto_reply_to_lead")
 _TP_FM_ORIG_RECORD_INCOMING = globals().get("_record_incoming_from_manager")
 
 TP_FM_WORK_PRESENCE_START = "07:50"
@@ -22623,105 +21525,6 @@ async def _tp_fm_load_answer_texts(db_path: str, lead_row: Dict[str, Any], chat_
     return str((lead_row or {}).get("profile_answer_texts") or "")
 
 
-async def _apply_profile_from_text(db_path: str, lead_row: Dict[str, Any], text: str) -> Dict[str, Any]:  # type: ignore[override]
-    chat_id = int((lead_row or {}).get("chat_id") or 0)
-    if chat_id <= 0:
-        return dict(lead_row or {})
-
-    # Hard gate: no parsing before bot/manual profile question.
-    gate_auto = int((lead_row or {}).get("profile_question_sent") or 0) == 1
-    try:
-        gate_manual = await _capture_is_open(db_path, chat_id)
-    except Exception:
-        gate_manual = False
-    if not (gate_auto or gate_manual):
-        # Mark that the first/client-start message was intentionally ignored, but do not store it as evidence.
-        try:
-            await _tp_fm_ensure_profile_schema(db_path)
-            await _update_daily_lead_fields(
-                db_path,
-                lead_date=str((lead_row or {}).get("lead_date") or _kyiv_now().date().isoformat()),
-                manager_key=str((lead_row or {}).get("manager_key") or MANAGER_RUNTIME_KEY),
-                chat_id=chat_id,
-                first_message_ignored=1,
-                first_message_ignored_at=_tp_fm_now_iso(),
-                profile_raw_text="",
-                profile_evidence_text="",
-                age_evidence_text="",
-                geo_evidence_text="",
-                age_confirmed_18_plus=0,
-            )
-        except Exception:
-            pass
-        return dict(lead_row or {})
-
-    raw_text = str(text or "").strip()
-    if not raw_text:
-        return dict(lead_row or {})
-
-    try:
-        pe = _tpe_import_extractor() if callable(globals().get("_tpe_import_extractor")) else __import__("profile_extractor")
-        await _tp_fm_ensure_profile_schema(db_path)
-        answer_texts_old = await _tp_fm_load_answer_texts(db_path, lead_row, chat_id)
-        answer_msgs = _tp_fm_messages_with_new(answer_texts_old, raw_text)
-        answer_joined = "\n".join([x for x in answer_msgs if str(x or "").strip()])[-4000:]
-
-        # Parse only post-question answers. Previous profile fields are not trusted because they may come from the first message.
-        parsed = pe.extract_profile_v2(answer_msgs, _tp_fm_profile_context_for_parser(lead_row))
-        parsed = _tp_fm_enforce_complete_profile(parsed)
-        parsed["profile_answer_texts"] = answer_joined
-        parsed["profile_raw_text"] = answer_joined
-        parsed["profile_evidence_text"] = answer_joined
-        parsed["profile_answered_at"] = _tp_fm_now_iso()
-        parsed["first_message_ignored"] = 1
-        parsed["profile_extraction_version"] = _TP_FM_VERSION
-        if not str(parsed.get("age_evidence_text") or "").strip():
-            parsed["age_confirmed_18_plus"] = 0
-
-        if int((lead_row or {}).get("manual_status_override") or 0) == 1:
-            for k in ("status", "nonliquid_reason", "profile_done", "quality_status", "quality_bucket", "quality_reason", "quality_confidence", "quality_source", "quality_version"):
-                parsed.pop(k, None)
-
-        try:
-            if callable(globals().get("_tpe_insert_profile_audit")):
-                await globals()["_tpe_insert_profile_audit"](db_path, dict(lead_row or {}), parsed)
-        except Exception:
-            pass
-
-        if callable(globals().get("_tpe_direct_update_daily")):
-            await globals()["_tpe_direct_update_daily"](
-                db_path,
-                lead_date=str((lead_row or {}).get("lead_date") or _kyiv_now().date().isoformat()),
-                manager_key=str((lead_row or {}).get("manager_key") or MANAGER_RUNTIME_KEY),
-                chat_id=chat_id,
-                **parsed,
-            )
-        else:
-            await _update_daily_lead_fields(
-                db_path,
-                lead_date=str((lead_row or {}).get("lead_date") or _kyiv_now().date().isoformat()),
-                manager_key=str((lead_row or {}).get("manager_key") or MANAGER_RUNTIME_KEY),
-                chat_id=chat_id,
-                **parsed,
-            )
-
-        if gate_manual:
-            try:
-                await _decrement_capture(db_path, chat_id)
-            except Exception:
-                pass
-        if int(parsed.get("profile_done") or 0) == 1:
-            try:
-                await _close_capture_if_done(db_path, chat_id)
-            except Exception:
-                pass
-        out = dict(lead_row or {})
-        out.update(parsed)
-        return out
-    except Exception as e:
-        print(f"strict profile gate v2 error: {e!r}")
-        # Fail closed: never fall back to old parser when it could use the first message.
-        return dict(lead_row or {})
 
 
 def _tp_fm_sent_keys(state: Dict[str, Any]) -> List[str]:
@@ -23326,7 +22129,6 @@ async def _maybe_auto_reply_to_lead(lead_row: Dict[str, Any], state: Dict[str, A
 from typing import Any as _tp_pa_Any, Dict as _tp_pa_Dict, List as _tp_pa_List
 
 _TP_PA_VERSION = "profile_parse_always_v3_20260516"
-_TP_PA_ORIG_APPLY_PROFILE_FROM_TEXT = globals().get("_apply_profile_from_text")
 _TP_PA_ORIG_TP_QS_DECIDE = globals().get("_tp_qs_decide")
 
 

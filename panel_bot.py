@@ -343,8 +343,6 @@ def _event_message_id(event) -> int:
     return 0
 
 
-def _back_to_panel_buttons():
-    return [[Button.inline("⬅️ Назад к панели", b"panel:back")]]
 
 
 
@@ -1282,49 +1280,6 @@ def _status_icon(ok: bool) -> str:
     return "🟢" if ok else "🔴"
 
 
-def _panel_header() -> str:
-    h = _panel_health()
-    tpilot_ok = bool(h.get("tpilot_ok"))
-    watchdog_ok = bool(h.get("watchdog_ok"))
-    active = list(h.get("active_managers") or [])
-    total = len(active)
-    running = int(h.get("manager_running") or 0)
-    managers_ok = (running == total) if total else True
-
-    if tpilot_ok and managers_ok and watchdog_ok:
-        title = "🤖 TPilot Panel 🟢 ON"
-    elif not tpilot_ok:
-        title = "🤖 TPilot Panel 🔴 OFF"
-    else:
-        title = "🤖 TPilot Panel 🟡 PARTIAL"
-
-    if total <= 0:
-        mgr_icon = "🟡"
-    elif managers_ok:
-        mgr_icon = "🟢"
-    elif running <= 0:
-        mgr_icon = "🔴"
-    else:
-        mgr_icon = "🟡"
-
-    # W3.2 correction (TZ-3 branch #1, F-1): silent OS-local fallback removed --
-    # storage.w3_now() raises W3TimezoneError instead of quietly returning a non-Kyiv
-    # instant, matching _pf_kyiv_now (19586) and preflight_check.py's helpers. This
-    # specific def of _panel_header is shadowed (see 24256's def, the active
-    # last-definition-wins winner) -- fixed anyway per the frozen contract and to
-    # prevent this dead branch from becoming a silent trap if ever reactivated.
-    from storage import w3_now as _ph_w3_now
-    updated_at = _ph_w3_now().strftime("%d.%m.%y %H:%M")
-
-    lines = [
-        title,
-        f"Обновлено: {updated_at}",
-        "",
-        f"TPilot: {_status_icon(tpilot_ok)}",
-        f"Watchdog: {_status_icon(watchdog_ok)}",
-        f"Менеджеры: {mgr_icon} {running}/{total}",
-    ]
-    return "\n".join(lines).rstrip()
 
 
 def _manager_short_label(row: dict) -> str:
@@ -1728,28 +1683,6 @@ def _callback_data(kind: str, target: str, iso_date: str) -> bytes:
     return txt.encode("utf-8")
 
 
-def _main_menu():
-    # Главный экран разбит по смыслу. Заголовки являются не действиями, а визуальными разделителями.
-    return [
-        _section_button("📊 ОТЧЁТЫ И КОНТРОЛЬ"),
-        [Button.inline("📊 Статистика", b"menu:stats"), Button.inline("🌙 Долёты", b"menu:flights")],
-        [Button.inline("🔔 Неотвеченные", b"menu:unanswered"), Button.inline("📦 Экспорт", b"menu:export")],
-        [Button.inline("📈 Качество и дисциплина", b"menu:quality"), Button.inline("📊 Воронка и источники", b"menu:funnel")],
-
-        _section_button("👥 МЕНЕДЖЕРЫ И РЕЖИМЫ"),
-        [Button.inline("➕ Добавить менеджера", b"wiz:add_manager:start"), Button.inline("🛠 Админ менеджеров", b"menu:manager_admin")],
-        [Button.inline("💬 Автоответы клиентам", b"menu:managers"), Button.inline("🌐 Прокси", b"menu:proxy")],
-
-        _section_button("📦 ТРАФИК И БАЙЕРЫ"),
-        [Button.inline("📦 Источники трафика", b"menu:sources"), Button.inline("👥 Группы менеджеров", b"menu:groups")],
-        [Button.inline("🤝 Байеры и доступы", b"menu:partners")],
-
-        _section_button("⚙️ АВТОМАТИЗАЦИЯ И СЕРВИС"),
-        [Button.inline("⚙️ Анкета", b"menu:profile"), Button.inline("🔁 Автодожимы", b"menu:followups")],
-        [Button.inline("🧪 Тесты и база", b"menu:service")],
-        [Button.inline("ℹ️ Помощь", b"cmd:/help"), Button.inline("📘 Инструкция", b"cmd:/instructions")],
-        [Button.inline("🔄 Обновить панель", b"menu:main")],
-    ]
 
 
 def _pb_unanswered_notify_enabled() -> bool:
@@ -1838,54 +1771,8 @@ def _silent_panel_sources() -> list[dict]:
 def _silent_panel_groups() -> list[dict]:
     return _silent_panel_rows("manager_groups", "ORDER BY status ASC, name COLLATE NOCASE ASC, group_key ASC")
 
-def _managers_menu():
-    rows = [
-        [Button.inline("📋 Проверить все режимы", b"cmd:/autoreply status all")],
-    ]
-    manager_buttons = []
-    for r in _manager_rows()[:50]:
-        key = str(r.get("manager_key") or "").strip()
-        if not key:
-            continue
-        label = _manager_short_label(r)
-        manager_buttons.append(Button.inline(f"💬 {label}", f"menu:manager:{key}".encode()))
-    rows.extend(_button_pairs(manager_buttons))
-    rows.append([Button.inline("⬅️ Назад к панели", b"menu:main")])
-    return rows
 
-def _manager_detail_text(row: dict) -> str:
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if row else key
-    status = str(row.get("status") or "_")
-    enabled = "да" if int(row.get("is_enabled") or 0) == 1 else "нет"
-    stopped = "да" if int(row.get("manual_stopped") or 0) == 1 else "нет"
-    return "\n".join([
-        f"👤 Менеджер {label}",
-        "",
-        f"Ключ: {key or '_'}",
-        f"Статус аккаунта: {status}",
-        f"Включён: {enabled}",
-        f"Остановлен вручную: {stopped}",
-        "",
-        "💬 Автоответы клиентам",
-        "🤖 Авто по графику: днём анкета, вне графика ночное сообщение.",
-        "⚡ Анкета сейчас: принудительно включает дневную анкету прямо сейчас.",
-        "🔇 Не писать клиентам: программа молчит, пока вручную не включить обратно.",
-    ]).rstrip()
 
-def _manager_detail_buttons(key: str):
-    key = normalize_manager_key(key or "")
-    return [
-        [
-            Button.inline("🤖 Авто по графику", f"cmd:/autoreply auto {key}".encode()),
-            Button.inline("⚡ Анкета сейчас", f"cmd:/autoreply now {key}".encode()),
-        ],
-        [Button.inline("🔇 Не писать клиентам", f"cmd:/autoreply silent {key}".encode())],
-        [Button.inline("📋 Проверить режим", f"cmd:/autoreply status {key}".encode())],
-        [Button.inline("🌐 Прокси менеджера", f"menu:proxy:{key}".encode())],
-        [Button.inline("⬅️ Назад к менеджерам", b"menu:managers")],
-        [Button.inline("🏠 Главная панель", b"menu:main")],
-    ]
 
 def _manager_admin_menu():
     all_rows = _manager_rows_all()[:80]
@@ -1923,26 +1810,6 @@ def _manager_admin_menu():
     return rows
 
 
-def _manager_admin_detail_text(row: dict) -> str:
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if row else key
-    status = str(row.get("status") or "_")
-    enabled = "да" if int(row.get("is_enabled") or 0) == 1 else "нет"
-    stopped = "да" if int(row.get("manual_stopped") or 0) == 1 else "нет"
-    proxy = _manager_proxy_badge(row)
-    return "\n".join([
-        f"🛠 Админ-карточка: {label}",
-        "",
-        f"Ключ: {key or '_'}",
-        f"Состояние: {_manager_state_icon(row)} {_manager_state_label(row)}",
-        f"Статус аккаунта: {status}",
-        f"Включён в системе: {enabled}",
-        f"Остановлен вручную: {stopped}",
-        f"Прокси: {proxy}",
-        "",
-        "Кнопки разделены по смыслу. Включение всегда слева, выключение или остановка справа.",
-        "Опасные действия выполняются только через пароль и обязательный backup.",
-    ]).rstrip()
 
 
 def _manager_admin_detail_buttons(key: str):
@@ -1981,63 +1848,8 @@ def _manager_admin_delete_confirm_buttons(key: str):
     ]
 
 
-def _proxy_detail_text(row: dict) -> str:
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if row else key
-    enabled = int(row.get("proxy_enabled") or 0) == 1
-    host = str(row.get("proxy_host") or "").strip()
-    port = str(row.get("proxy_port") or "").strip()
-    login = str(row.get("proxy_username") or "").strip()
-    ptype = str(row.get("proxy_type") or "SOCKS5").strip().upper() or "SOCKS5"
-    test_ok = int(row.get("proxy_test_ok") or 0) == 1
-    test_at = str(row.get("proxy_test_at") or "").strip() or "_"
-    bypass = int(row.get("proxy_bypass_allowed") or 0) == 1
-    bypass_at = str(row.get("proxy_bypass_at") or "").strip() or "_"
-    last_error = str(row.get("proxy_last_error") or "").strip()
-    if host and port:
-        status = "включён" if enabled else "сохранён, но выключен"
-    else:
-        status = "не задан"
-    if test_ok and enabled:
-        guard = f"✅ проверен: {test_at}"
-    elif bypass:
-        guard = f"🔓 подключение без proxy разрешено: {bypass_at}"
-    else:
-        guard = "⚠️ не готов к авторизации"
-    lines = [
-        f"🌐 Прокси {label}",
-        "",
-        f"Статус: {status}",
-        f"Тип: {ptype if host else '_'}",
-        f"Host: {host or '_'}",
-        f"Port: {port or '_'}",
-        f"Login: {login or '_'}",
-        "Password: ****" if host and port else "Password: _",
-        f"Проверка: {guard}",
-    ]
-    if last_error:
-        lines.append(f"Ошибка: {last_error[:500]}")
-    lines.extend([
-        "",
-        "PHONE/CODE/PASS доступны только после проверки proxy или разрешения без proxy.",
-    ])
-    return "\n".join(lines).rstrip()
 
 
-def _proxy_detail_buttons(key: str):
-    key = normalize_manager_key(key or "")
-    return [
-        [Button.inline("✏️ Добавить или заменить proxy", f"wiz:proxy:set:{key}".encode())],
-        [
-            Button.inline("🟢 Proxy ON", f"cmd:/manager_proxy_on {key}".encode()),
-            Button.inline("🔴 Proxy OFF", f"cmd:/manager_proxy_off {key}".encode()),
-        ],
-        [Button.inline("🔍 Проверить proxy", f"cmd:/manager_proxy_check {key}".encode())],
-        [Button.inline("🔓 Подключить без proxy", f"wiz:proxy:bypass:{key}".encode())],
-        [Button.inline("ℹ️ Proxy INFO", f"cmd:/manager_proxy_info {key}".encode())],
-        [Button.inline("⬅️ Назад к прокси", b"menu:proxy")],
-        [Button.inline("🏠 Главная панель", b"menu:main")],
-    ]
 
 
 def _proxy_menu():
@@ -2986,7 +2798,6 @@ def _title_for_menu(menu: str) -> Tuple[str, list]:
 
 
 # --- TPILOT PANEL DUPLICATES / FOLLOWUPS / PROXY UX UPDATE 20260507 START ---
-_TPILOT_PANEL_ORIG_MAIN_MENU = globals().get("_main_menu")
 _TPILOT_PANEL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
 
 
@@ -2999,13 +2810,6 @@ def _duplicates_menu():
     ]
 
 
-def _main_menu():
-    rows = _TPILOT_PANEL_ORIG_MAIN_MENU() if callable(_TPILOT_PANEL_ORIG_MAIN_MENU) else []
-    try:
-        rows.insert(3, [Button.inline("🔁 Дубликаты", b"menu:duplicates")])
-    except Exception:
-        pass
-    return rows
 
 
 def _pb_followup_enabled(key: str) -> bool:
@@ -4923,16 +4727,6 @@ def _content_cat_menu(cat: str):
     ]
 
 
-_CONTENT_ORIG_MAIN_MENU = globals().get("_main_menu")
-def _main_menu():  # type: ignore[override]
-    rows = _CONTENT_ORIG_MAIN_MENU() if callable(_CONTENT_ORIG_MAIN_MENU) else []
-    try:
-        btn = [Button.inline("📝 Тексты и задержки", b"menu:content")]
-        if btn not in rows:
-            rows.insert(max(0, len(rows) - 3), btn)
-    except Exception:
-        pass
-    return rows
 
 
 _CONTENT_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
@@ -5069,13 +4863,7 @@ async def _content_editor_wizard_input(event):
 # Visual-only admin UI layer for TPilot PanelBot.
 # It overrides screen text, breadcrumbs and navigation layout without changing business commands.
 
-_TP_VISUAL_ORIG_PANEL_HEADER = globals().get("_panel_header")
-_TP_VISUAL_ORIG_MAIN_MENU = globals().get("_main_menu")
 _TP_VISUAL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
-_TP_VISUAL_ORIG_MANAGER_DETAIL_TEXT = globals().get("_manager_detail_text")
-_TP_VISUAL_ORIG_MANAGER_ADMIN_DETAIL_TEXT = globals().get("_manager_admin_detail_text")
-_TP_VISUAL_ORIG_PROXY_DETAIL_TEXT = globals().get("_proxy_detail_text")
-_TP_VISUAL_ORIG_BACK_TO_PANEL_BUTTONS = globals().get("_back_to_panel_buttons")
 
 
 def _tp_visual_now_local() -> str:
@@ -5217,14 +5005,6 @@ def _tp_visual_traffic_buyers_menu():
     return rows
 
 
-def _tp_visual_automation_menu():
-    rows = [
-        [Button.inline("💬 Автоответы", b"menu:managers"), Button.inline("🔁 Автодожимы", b"menu:followups")],
-        [Button.inline("📝 Тексты и задержки", b"menu:content"), Button.inline("🔇 Тихий режим", b"menu:profile")],
-        [Button.inline("📋 Проверить автоответы", b"cmd:/autoreply status all")],
-    ]
-    rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:automation", home=False))
-    return rows
 
 
 def _tp_visual_source_name(key: str) -> str:
@@ -5283,26 +5063,6 @@ def _tp_visual_autoreply_label(key: str) -> str:
     return "по графику"
 
 
-def _manager_detail_text(row: dict) -> str:  # type: ignore[override]
-    row = dict(row or {})
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if row else key
-    username = str(row.get("telegram_username") or "").strip()
-    status = _manager_state_icon(row)
-    proxy = _manager_proxy_badge(row)
-    return "\n".join([
-        f"{label}",
-        f"@{username}" if username else "",
-        "",
-        f"Статус: {status}",
-        f"Proxy: {proxy}",
-        f"Автоответы: ✓ {_tp_visual_autoreply_label(key)}",
-        f"Автодожимы: {_tp_visual_followups_badge(key)}",
-        f"Источник: {_tp_visual_source_for_manager(key)}",
-        f"Группа: {_tp_visual_manager_groups_for_key(key)}",
-        "",
-        "Выберите действие ниже.",
-    ]).replace("\n\n\n", "\n\n").strip()
 
 
 def _manager_admin_detail_text(row: dict) -> str:  # type: ignore[override]
@@ -5324,38 +5084,6 @@ def _manager_admin_detail_text(row: dict) -> str:  # type: ignore[override]
     ]).replace("\n\n\n", "\n\n").strip()
 
 
-def _proxy_detail_text(row: dict) -> str:  # type: ignore[override]
-    row = dict(row or {})
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if row else key
-    enabled = int(row.get("proxy_enabled") or 0) == 1
-    host = str(row.get("proxy_host") or "").strip()
-    port = str(row.get("proxy_port") or "").strip()
-    login = str(row.get("proxy_username") or "").strip()
-    test_ok = int(row.get("proxy_test_ok") or 0) == 1
-    test_at = str(row.get("proxy_test_at") or "").strip() or "_"
-    last_error = str(row.get("proxy_last_error") or "").strip()
-    if enabled and test_ok:
-        proxy_state = "🟢"
-    elif enabled and host and port:
-        proxy_state = "🟡"
-    elif host and port:
-        proxy_state = "⚪"
-    else:
-        proxy_state = "🔴"
-    lines = [
-        f"Proxy: {proxy_state}",
-        f"Менеджер: {label}",
-        "",
-        f"SOCKS5: {host + ':' + port if host and port else '_'}",
-        f"Login: {login or '_'}",
-        "Password: ****" if host and port else "Password: _",
-        f"Проверено: {test_at}",
-    ]
-    if last_error:
-        lines.extend(["", f"Ошибка: {last_error[:500]}"])
-    lines.extend(["", "Формат замены proxy: host:port:login:password"])
-    return "\n".join(lines).rstrip()
 
 
 def _tp_visual_existing_buttons(menu_name: str):
@@ -5893,8 +5621,6 @@ async def main() -> None:
 # --- TPILOT PROXY AUTH GUARD PANEL V2 20260509 START ---
 # Late UI overrides. Does not touch existing visual layout, only enriches header and proxy cards.
 _TPAG_PANEL_V2_ORIG_HEADER = globals().get("_panel_header")
-_TPAG_PANEL_V2_ORIG_PROXY_TEXT = globals().get("_proxy_detail_text")
-_TPAG_PANEL_V2_ORIG_PROXY_BUTTONS = globals().get("_proxy_detail_buttons")
 
 
 def _tpag_panel_v2_mode(row: dict) -> str:
@@ -6097,9 +5823,7 @@ def _proxy_detail_buttons(key: str):  # type: ignore[override]
 # Bulk buttons for auto replies and followups.
 
 _TP_PANEL_V5_ORIG_IS_ALLOWED = globals().get("_is_allowed")
-_TP_PANEL_V5_ORIG_MANAGERS_MENU = globals().get("_managers_menu")
 _TP_PANEL_V5_ORIG_FOLLOWUPS_MENU = globals().get("_followups_menu")
-_TP_PANEL_V5_ORIG_AUTOMATION_MENU = globals().get("_tp_visual_automation_menu")
 
 
 def _tp_panel_v5_now_iso() -> str:
@@ -6454,14 +6178,6 @@ def _tp_panel_v5_insert_after_first(rows: list, extra: list) -> list:
     return [rows[0]] + list(extra or []) + rows[1:]
 
 
-def _managers_menu():  # type: ignore[override]
-    rows = _TP_PANEL_V5_ORIG_MANAGERS_MENU() if callable(_TP_PANEL_V5_ORIG_MANAGERS_MENU) else []
-    bulk = [
-        [Button.inline("⚙️ Всем менеджерам", b"noop")],
-        [Button.inline("🤖 Включить авто всем", b"bulk:ask:autoreply:auto")],
-        [Button.inline("🔇 Отключить авто всем", b"bulk:ask:autoreply:silent")],
-    ]
-    return _tp_panel_v5_insert_after_first(rows, bulk)
 
 
 def _followups_menu():  # type: ignore[override]
@@ -6510,17 +6226,6 @@ async def _tp_panel_v5_bulk_callback(event):
     await _pb_safe_answer(event, "Неверная команда", alert=True)
 
 
-def _tp_visual_automation_menu():  # type: ignore[override]
-    rows = [
-        [Button.inline("💬 Автоответы", b"menu:managers"), Button.inline("🔁 Автодожимы", b"menu:followups")],
-        [Button.inline("📝 Тексты и задержки", b"menu:content"), Button.inline("🔇 Тихий режим", b"menu:profile")],
-        [Button.inline("📋 Проверить автоответы", b"cmd:/autoreply status all")],
-    ]
-    try:
-        rows.extend(_tp_visual_nav_rows(b"menu:main", b"menu:automation", home=False))
-    except Exception:
-        rows.extend([[Button.inline("⬅️ Назад", b"menu:main")]])
-    return rows
 # --- TPILOT PANEL MENU CLEANUP V6 20260509 END ---
 
 # >>> TPILOT_PANEL_SERVICE_BASELINE_NAMES_V8_START
@@ -7058,51 +6763,11 @@ try:
 except Exception:
     pass
 
-_TP_GQ_PANEL_ORIG_MANAGER_DETAIL_TEXT = globals().get("_manager_detail_text")
-_TP_GQ_PANEL_ORIG_MANAGER_DETAIL_BUTTONS = globals().get("_manager_detail_buttons")
-_TP_GQ_PANEL_ORIG_MANAGERS_MENU = globals().get("_managers_menu")
-_TP_GQ_PANEL_ORIG_AUTOMATION_MENU = globals().get("_tp_visual_automation_menu")
 _TP_GQ_PANEL_ORIG_TITLE_FOR_MENU = globals().get("_title_for_menu")
 
 
-def _manager_detail_text(row: dict) -> str:  # type: ignore[override]
-    row = dict(row or {})
-    key = normalize_manager_key(row.get("manager_key") or "")
-    label = _manager_short_label(row) if row else key
-    username = str(row.get("telegram_username") or "").strip()
-    base = []
-    base.append(label)
-    if username:
-        base.append(f"@{username}")
-    base += [
-        "",
-        f"Статус: {_manager_state_icon(row) if '_manager_state_icon' in globals() else str(row.get('status') or '_')}",
-        f"Proxy: {_manager_proxy_badge(row) if '_manager_proxy_badge' in globals() else '_'}",
-        "",
-        "👋 Приветствие / нет на месте",
-        "Новые клиенты получают дневное или ночное сообщение по графику.",
-        "Старые клиенты ночью получают автоответчик один раз за ночь.",
-        "",
-        "📋 Автоанкета",
-        "Уточняющие вопросы по городу и возрасту. Passive parsing работает всегда.",
-        "",
-        "🕘 График по умолчанию: день 08:00-17:00, ночь 17:00-08:00.",
-        "Выберите действие ниже.",
-    ]
-    return "\n".join(base).replace("\n\n\n", "\n\n").strip()
 
 
-def _manager_detail_buttons(key: str):  # type: ignore[override]
-    key = normalize_manager_key(key or "")
-    return [
-        [Button.inline("📋 Проверить режим", f"cmd:/greeting status {key}".encode())],
-        [Button.inline("👋 Приветствие вкл", f"cmd:/greeting on {key}".encode()), Button.inline("🚫 Приветствие выкл", f"cmd:/greeting off {key}".encode())],
-        [Button.inline("📋 Автоанкета вкл", f"cmd:/questionnaire on {key}".encode()), Button.inline("📋 Автоанкета выкл", f"cmd:/questionnaire off {key}".encode())],
-        [Button.inline("🕘 График", f"wiz:autoschedule:{key}".encode()), Button.inline("♻️ Стандарт 08-17", f"cmd:/autoschedule reset {key}".encode())],
-        [Button.inline("🌐 Прокси менеджера", f"menu:proxy:{key}".encode())],
-        [Button.inline("⬅️ Назад к менеджерам", b"menu:managers")],
-        [Button.inline("🏠 Главная панель", b"menu:main")],
-    ]
 
 
 def _managers_menu():  # type: ignore[override]
@@ -7310,8 +6975,6 @@ def _title_for_menu(menu: str):  # type: ignore[override]
 
 _TP_AE_PANEL_VERSION = "autoreply_enterprise_panel_v1_20260514"
 _TP_AE_PANEL_PREV_TITLE_FOR_MENU = globals().get("_title_for_menu")
-_TP_AE_PANEL_PREV_MANAGER_DETAIL_BUTTONS = globals().get("_manager_detail_buttons")
-_TP_AE_PANEL_PREV_MANAGER_DETAIL_TEXT = globals().get("_manager_detail_text")
 
 
 def _tp_ae_panel_manager_keys() -> list[str]:

@@ -37,11 +37,17 @@ from typing import Dict, List, Tuple
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Characterization baseline, measured 2026-08-22. Update deliberately, in the same
-# commit as the change that moves it, so the delta is visible in review.
+# Characterization baseline. Update deliberately, in the same commit as the
+# change that moves it, so the delta is visible in review.
+# 2026-08-22: main 52/139, panel 20/65 (initial measurement).
+# 2026-08-23 (R1 batch 1): deleted 52 provably-dead shadowed defs (never
+# referenced between their end and the next redefinition, no decorators, not
+# captured) plus 53 orphaned _ORIG_* capture aliases, via
+# tools/collapse_dead_defs.py. Remaining shadowed defs are all LIVE links in
+# delegation chains.
 EXPECTED: Dict[str, Dict[str, int]] = {
-    "main.py": {"duplicated_names": 52, "shadowed_defs": 139},
-    "panel_bot.py": {"duplicated_names": 20, "shadowed_defs": 65},
+    "main.py": {"duplicated_names": 37, "shadowed_defs": 105},
+    "panel_bot.py": {"duplicated_names": 13, "shadowed_defs": 47},
 }
 # The single worst chain: its size is load-bearing knowledge for anyone editing panel
 # command handling, so assert it explicitly rather than burying it in a total.
