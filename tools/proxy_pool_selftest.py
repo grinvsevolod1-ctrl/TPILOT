@@ -318,20 +318,17 @@ async def run_all_checks(tmp_db: str) -> None:
 
 
 def _extract_and_exec(path: str, names: set, extra_ns: dict) -> dict:
-    src = open(path, encoding="utf-8-sig").read()
-    tree = ast.parse(src)
-    nodes = [n for n in tree.body if getattr(n, "name", None) in names]
-    if len(nodes) != len(names):
-        found = {getattr(n, "name", None) for n in nodes}
-        raise AssertionError(f"expected {names}, found {found} in {path}")
-    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
+    # R2 migration (2026-08-23): delegate to the shared harness (tools/ast_extract.py),
+    # which resolves names that physically moved into extracted modules
+    # (`from proxy_ops import ...` -- shape 4). The private copy only handled
+    # top-level defs and broke the moment R2 extraction landed.
+    from ast_extract import extract_and_exec as _shared_extract_and_exec
     ns = dict(extra_ns)
     # utcnow refactor (2026-08-16): extracted main.py code reads the
     # clock through the module-level _tp_utc_now() seam (naive UTC).
     ns.setdefault("_tp_utc_now", lambda: __import__("datetime").datetime.now(
         __import__("datetime").timezone.utc).replace(tzinfo=None))
-    exec(compile(module_src, f"<{path}>", "exec"), ns)
-    return ns
+    return _shared_extract_and_exec(path, set(names), ns)
 
 
 async def run_p2_checks(tmp_db: str) -> None:
