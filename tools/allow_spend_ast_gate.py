@@ -32,7 +32,9 @@ from rc_release_control import dumps, is_archival, rel, walk_active  # noqa: E40
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 EXPECTED_TRUE_CALL_SITES = 2
-EXPECTED_FILE = "main.py"
+# R2 extraction (AGENTS.md section 4): both spend sites moved verbatim from
+# main.py into the extracted proxy subsystem module -- the COUNT stays 2.
+EXPECTED_FILE = "proxy_ops.py"
 
 #: The EFFECTIVE spend target, not the syntactic callee.
 #: Reality (verified in P2): both sites go through an executor-offload wrapper:
