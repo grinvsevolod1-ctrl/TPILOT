@@ -58,29 +58,31 @@ def _guard_temp_db(db_path: str) -> None:
         f"refusing to run selftest storage against a path under {prod_db_dir}: {db_path}"
 
 
-# --- established AST-extraction technique (tools/proxy_pool_selftest.py) ---
+# --- shared AST-extraction harness (tools/ast_extract.py) ---
+# Migrated off the private def-only extractor (2026-08-23, R2): the _ppool_* helpers
+# physically moved to proxy_ops.py and main.py re-imports them, which the shared
+# harness resolves (shape 4) while a def-only scan reports "found set()".
+from ast_extract import extract_and_exec as _shared_extract_and_exec  # noqa: E402
+from ast_extract import extract_nodes as _shared_extract_nodes  # noqa: E402
+
+
 def _extract_and_exec(path, names: set, extra_ns: dict) -> dict:
-    src = open(path, encoding="utf-8-sig").read()
-    tree = ast.parse(src)
-    nodes = [n for n in tree.body if getattr(n, "name", None) in names]
-    if len(nodes) != len(names):
-        found = {getattr(n, "name", None) for n in nodes}
-        raise AssertionError(f"expected {names}, found {found} in {path}")
-    module_src = "\n\n".join(ast.unparse(n) for n in nodes)
-    ns = dict(extra_ns)
-    exec(compile(module_src, f"<{path}>", "exec"), ns)
-    return ns
+    try:
+        return _shared_extract_and_exec(path, set(names), extra_ns)
+    except AssertionError as exc:
+        # Preserve this test's historical failure wording for grep-ability.
+        raise AssertionError(f"expected {names}, found set() in {path}: {exc}") from exc
 
 
 def _func_source(path, name: str) -> str:
     """Raw unparsed source of ONE top-level function/class -- used for
     source-scan proofs that don't need to actually execute the function
-    (e.g. proving an unmodified predicate is still present)."""
-    tree = ast.parse(open(path, encoding="utf-8-sig").read())
-    node = next((n for n in tree.body if getattr(n, "name", None) == name), None)
-    if node is None:
+    (e.g. proving an unmodified predicate is still present). Resolves
+    R2 re-exports (from proxy_ops import ...) via the shared harness."""
+    picked = _shared_extract_nodes(path, {name})
+    if name not in picked:
         raise AssertionError(f"{name} not found in {path}")
-    return ast.unparse(node)
+    return ast.unparse(picked[name])
 
 
 _TYPING_SHIM = {"Any": object, "Dict": dict, "Optional": object, "Tuple": tuple, "List": list}

@@ -16,13 +16,18 @@ every copy understood only ONE shape: a top-level `def`. When product code was r
 a STALE HARNESS, not a product defect, but it reads exactly like a real failure, and ten
 of them accumulated until the suite stopped being trusted.
 
-This module is the single implementation. It understands three shapes:
+This module is the single implementation. It understands four shapes:
 
   1. `def name(...)` / `async def name(...)` / `class name` -- LAST definition wins,
      which is load-bearing: main.py/panel_bot.py stack override definitions of the same
      function and only the last one is active (AGENTS.md section 4).
   2. `name = module.attr` -- a module-level alias to an extracted helper.
-  3. `name = <anything else>` -- a module-level constant the extracted code closes over.
+  3. `name = <anything else>` -- a module-level assignment (constant), including
+     annotated assignments (`name: T = ...`).
+  4. `from proxy_ops import name` -- an R2 extraction re-export: the definition moved
+     verbatim into a project-root module and main.py re-imports it. Extraction follows
+     the import into the source module's AST (never importlib), so main.py remains a
+     valid extraction address for every name it re-exports.
 
 It also auto-injects the project modules the extracted code references, so moving a
 helper into a new module does not silently break every consumer of this harness again.
@@ -108,6 +113,15 @@ def _alias_target_names(node: ast.Assign) -> list[str]:
     return [t.id for t in node.targets if isinstance(t, ast.Name)]
 
 
+# Modules physically split out of main.py during refactoring stage R2. When a selftest
+# asks main.py for a name that now lives in one of these, main.py's top-level
+# `from proxy_ops import (...)` is the active binding -- so extraction follows the
+# import and picks the node out of the SOURCE module's AST. Deliberately AST-recursion
+# and NOT importlib: importing the module for real would bind its real storage/provider
+# dependencies and silently defeat the fakes each test injects via extra_ns.
+_EXTRACTED_MODULES: frozenset[str] = frozenset({"proxy_ops"})
+
+
 def _root_module_of(node: ast.AST) -> str | None:
     """For `a.b.c` return 'a'; for a bare Name return None."""
     cur = node
@@ -143,16 +157,41 @@ def extract_nodes(path: Path | str, names: set[str]) -> dict[str, ast.AST]:
     path = Path(path)
     tree = ast.parse(path.read_text(encoding="utf-8-sig"))
     picked: dict[str, ast.AST] = {}
+    # Shape 4: `from proxy_ops import (...)` -- a name that physically moved into an
+    # extracted module (R2). Records name -> source module; resolved AFTER the scan so
+    # a later top-level def in THIS file still wins (Python's own last-wins semantics).
+    imported_from: dict[str, str] = {}
     for node in tree.body:
         # Shape 1: def / async def / class
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if node.name in names:
                 picked[node.name] = node
+                imported_from.pop(node.name, None)
         # Shapes 2 and 3: module-level assignment (alias or constant)
         elif isinstance(node, ast.Assign):
             for tgt in _alias_target_names(node):
                 if tgt in names:
                     picked[tgt] = node
+                    imported_from.pop(tgt, None)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.target.id in names:
+                picked[node.target.id] = node
+                imported_from.pop(node.target.id, None)
+        elif isinstance(node, ast.ImportFrom) and node.module in _EXTRACTED_MODULES:
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                if bound in names and bound not in picked:
+                    imported_from[bound] = node.module
+    # Follow the import into the source module's AST (never importlib -- see
+    # _EXTRACTED_MODULES). One level is enough: extracted modules are leaves.
+    by_module: dict[str, set[str]] = {}
+    for name, mod in imported_from.items():
+        by_module.setdefault(mod, set()).add(name)
+    for mod, wanted in by_module.items():
+        mod_path = BASE_DIR / f"{mod}.py"
+        if mod_path.is_file():
+            for name, node in extract_nodes(mod_path, wanted).items():
+                picked.setdefault(name, node)
     return picked
 
 
@@ -187,6 +226,25 @@ def extract_and_exec(
             f"If the helper moved into a module, check that the alias assignment is at "
             f"module level (not nested inside a function)."
         )
+
+    # R1 de-vein (2026-08-23): collapsed override chains renamed formerly-shadowed
+    # generations to unique `<name>__prev<N>` top-level defs, and the active body may
+    # call them directly (that IS the preserved delegation semantics). They are pure
+    # same-file renames, so pulling them in transitively can never bypass a fake.
+    _prev_re = __import__("re").compile(r"__prev\d+$")
+    while True:
+        prev_wanted = {
+            n for n in _referenced_names(list(picked.values()))
+            if _prev_re.search(n) and n not in picked and n not in extra_ns
+        }
+        if not prev_wanted:
+            break
+        found_prev = extract_nodes(path, prev_wanted)
+        if not found_prev:
+            break
+        picked.update(found_prev)
+        if prev_wanted - set(found_prev):
+            break  # some prev names unresolvable here; exec will raise the real error
 
     # STAGE 3: pull in pure project-internal helpers the extracted bodies call.
     #
