@@ -1242,9 +1242,12 @@ def test_static_caller_matrix_and_corrective_fixes():
     one actually shipped (not just present in a comment)."""
     print("\n-- Static: send-gate caller matrix + H2 sent-flag fix (structural) --")
 
-    # _maybe_auto_reply_to_lead has 6 stacked defs; only the LAST is active.
+    # _maybe_auto_reply_to_lead had 6 stacked defs; only the LAST was active.
+    # R1 BATCH 1 20260823: the shadowed dead defs were removed by
+    # tools/collapse_dead_defs.py, so exactly ONE (the active) remains.
+    # find_defs()[-1] below therefore still selects the same active body.
     reply_defs = find_defs("_maybe_auto_reply_to_lead")
-    check("caller-matrix. _maybe_auto_reply_to_lead has more than one stacked definition", len(reply_defs) > 1, len(reply_defs))
+    check("caller-matrix. _maybe_auto_reply_to_lead has exactly one (active) definition", len(reply_defs) == 1, len(reply_defs))
     active_reply_src = ast.unparse(reply_defs[-1]) if reply_defs else ""
     check(
         "caller-matrix. active _maybe_auto_reply_to_lead: old-client night notice is gated as an EXISTING dialog (new_dialog=False)",

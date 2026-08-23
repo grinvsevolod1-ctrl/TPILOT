@@ -1183,7 +1183,7 @@ def test_n21_7_manager_info_button_restored() -> None:
     try:
         ns = build_card_ns(db_path)
         rows = ns["_manager_settings_card_buttons"]("mgr01")
-        check("N2.1-7. [N5.4.3] unified card has '�� Полная карточка' -> menu:manager_full:{key} (native screen)",
+        check("N2.1-7. [N5.4.3] unified card has '📄 Полная карточка' -> menu:manager_full:{key} (native screen)",
               _find(rows, label="📄 Полная карточка", data=b"menu:manager_full:mgr01") is not None, rows)
         check("N2.1-7. [N5.4.3] the button no longer emits the background cmd:/manager_info command",
               _find(rows, label="📄 Полная карточка", data=b"cmd:/manager_info mgr01") is None, rows)
