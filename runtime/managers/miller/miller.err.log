@@ -1,2 +1,0 @@
-C:\ALM_TPilot.v2\main.py:179: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-  return datetime.utcnow().replace(microsecond=0).isoformat()

@@ -1,6 +1,0 @@
-C:\ALM_TPilot\panel_bot.py:3949: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-  return datetime.utcnow().replace(microsecond=0).isoformat()
-C:\ALM_TPilot\panel_bot.py:135: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-  return datetime.utcnow().replace(microsecond=0).isoformat()
-C:\ALM_TPilot\panel_bot.py:3759: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-  return 0 <= (datetime.utcnow().replace(microsecond=0) - checked).total_seconds() <= 10 * 60

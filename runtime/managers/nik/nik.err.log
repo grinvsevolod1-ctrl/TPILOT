@@ -1,5 +1,0 @@
-C:\ALM_TPilot\main.py:151: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-  return datetime.utcnow().replace(microsecond=0).isoformat()
-Server closed the connection: 0 bytes read on a total of 8 expected bytes
-Server closed the connection: [WinError 121] \u041f\u0440\u0435\u0432\u044b\u0448\u0435\u043d \u0442\u0430\u0439\u043c\u0430\u0443\u0442 \u0441\u0435\u043c\u0430\u0444\u043e\u0440\u0430
-Server closed the connection: [WinError 121] \u041f\u0440\u0435\u0432\u044b\u0448\u0435\u043d \u0442\u0430\u0439\u043c\u0430\u0443\u0442 \u0441\u0435\u043c\u0430\u0444\u043e\u0440\u0430

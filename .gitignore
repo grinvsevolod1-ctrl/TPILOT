@@ -28,6 +28,15 @@ db/*.db-journal
 # --- timestamped safety backups (local only, never commit) ---
 *.bak_*
 *_cursor_copy.py
+*.retired_*
+
+# --- generated exports / reports (business data, never commit) ---
+exports/
+*.xlsx
+
+# --- one-off diagnostic / repair scripts (write under tools/, run, delete) ---
+/check_*.py
+/repair_*.py
 
 # --- archives / editor noise ---
 *.rar
