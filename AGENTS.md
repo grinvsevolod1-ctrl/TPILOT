@@ -1,346 +1,292 @@
-# TPilot project rules for Codex (transfer handoff, 2026-07-10)
+# TPilot project rules (rewritten 2026-08-23)
 
-This file is a full transfer of project rules + current state for continuing TPilot work
-on a new computer. Save as `AGENTS.md` in the project root on the new PC.
+Single source of truth for working on TPilot. Supersedes and replaces the old
+AGENTS.md (2026-07-10 handoff), CLAUDE.md, HANDOFF.md, ADDENDUM_FOR_NEW_PC.md,
+and NEXT_STEPS.md — all deleted; their history lives in git.
+
+Key policy change (owner decision, 2026-08-23): **full refactoring is now
+allowed and desired** (see section 5). The old "minimal targeted patches only"
+rule is revoked. Product safety invariants (section 4) remain absolute.
 
 ## 1. Project identity and architecture
 
-TPilot is a production Windows Python 3.12 / Telethon Telegram CRM/autofunnel project.
+TPilot is a production Python 3.12 / Telethon Telegram CRM/autofunnel project.
+Target platform: Ubuntu (`/opt/tpilot`), managed by systemd, developed via git
+(repo: grinvsevolod1-ctrl/TPILOT). The Windows era is over: no `.bat`/`.ps1`
+scripts, no file-copy backups as the primary safety net — git is the source of
+truth.
 
-Components (all in one folder, one shared codebase):
+Components (one shared codebase):
 
-* Controller (main.py in CONTROLLER_MODE) — orchestrates manager Telethon runtimes,
-  executes panel commands from the `panel_commands` DB queue, runs background loops
-  (lead dispatch, daily report, bizlink autocreate, proxy renewal warnings, proxy auto-renew, etc.).
-* Manager runtimes (main.py per manager) — live Telethon client sessions that talk to leads.
+* Controller (main.py in CONTROLLER_MODE) — orchestrates manager Telethon
+  runtimes, executes panel commands from the `panel_commands` DB queue, runs
+  background loops (lead dispatch, daily report, bizlink autocreate, proxy
+  renewal warnings, proxy auto-renew, notify-log purge, etc.).
+* Manager runtimes (main.py per manager) — live Telethon client sessions that
+  talk to leads.
 * PanelBot (panel_bot.py) — admin Telegram bot UI. UI only: submits commands to
-  `panel_commands` via `_submit_and_wait`; controller writes result back as JSON in `result_text`.
-* panel_bridge.py — bridge between PanelBot and controller (incl. QR-login result scrubbing).
-* ManagerBot (manager_bot.py) — manager-facing bot (stats, schedule, screenshots).
+  `panel_commands` via `_submit_and_wait`; controller writes result back as
+  JSON in `result_text`. One deliberate exception: PIN-protected proxy password
+  reveal reads local sqlite directly (never through panel_commands).
+* panel_bridge.py — bridge between PanelBot and controller (incl. QR-login
+  result scrubbing).
+* ManagerBot (manager_bot.py) — manager-facing bot (stats, schedule toggles,
+  M1 screenshots).
 * PartnerBot (partner_stat_bot.py) — partner stats bot.
-* storage.py — all SQLite access (central DB), aiosqlite, additive idempotent migrations.
-* Single central SQLite DB; Kyiv timezone (`TZ_KYIV` / `_kyiv_now()`) for business logic.
+* storage.py — all SQLite access (central DB), aiosqlite, additive idempotent
+  migrations.
+* Single central SQLite DB; Kyiv timezone (`TZ_KYIV` / `_kyiv_now()`) for
+  business logic.
 
-## 2. Paths
+## 2. Paths and environments
 
-**Never hardcode an absolute path in Python.** Use `tpilot_paths` (`ROOT`, `tpilot_db()`,
-`require_db()`, `manager_db_paths()`, `manager_runtime_dir()`), which derives everything
-from the tree the file lives in and honours the `TPILOT_ROOT` / `TPILOT_DB_PATH`
-overrides. A hardcoded path that "prefers the server and falls back to local" is a bug,
-not a convenience: running such a script from a checkout silently reads or writes the
-PRODUCTION database.
+**Never hardcode an absolute path in Python.** Use `tpilot_paths` (`ROOT`,
+`tpilot_db()`, `require_db()`, `manager_db_paths()`, `manager_runtime_dir()`),
+which derives everything from the tree the file lives in and honours the
+`TPILOT_ROOT` / `TPILOT_DB_PATH` overrides. A hardcoded path that "prefers the
+server and falls back to local" is a bug: run from a checkout, it silently
+touches the PRODUCTION database.
 
 * Ubuntu deployment root: `/opt/tpilot` (installer default, `--dir` overrides)
 * Deployment DB: `<root>/db/data_tpilot.db`
-* Legacy Windows paths (`C:\ALM_TPilot`, `C:\Users\...\ALM_TPilot`) are historical only.
+* Legacy Windows paths (`C:\ALM_TPilot`, ...) are historical only.
 
-A dev checkout is a **sanitized copy**, not the live system:
+A dev checkout is a sanitized copy, not the live system:
 
 * `.env.TPilot` may hold redacted/empty token values — verify before assuming
   misconfiguration.
-* A `venv/` copied from another host does NOT run; build it locally
-  (`python3.12 -m venv venv && ./venv/bin/pip install -r requirements.txt`).
-* The DB and `.session` files in a checkout are stale copies. A sanitized copy has a
-  REDUCED schema (~17 tables, no `managers`), so scripts may legitimately report missing
-  tables — that is the copy, not a defect.
-
-The server tree is **not** a git repository. Safety there = timestamped file backups
-(`<file>.py.bak_<patch>_<YYYYMMDD_HHMMSS>` created BEFORE editing), py_compile,
-selftests, explicit validation reports.
+* The DB and `.session` files in a checkout are stale copies; a sanitized copy
+  has a REDUCED schema, so scripts may legitimately report missing tables.
+* Build the venv locally:
+  `python3.12 -m venv venv && ./venv/bin/pip install -r requirements.txt`
 
 ## 3. Main files
 
 Active code:
 
-* main.py — controller + manager runtime + all `/command` handlers (`_panel_execute_command_text`).
-* storage.py — DB layer (managers, leads, schedules, bizlinks, proxy_leases, panel queue...).
-* panel_bot.py — AdminBot UI (menus, wizards, callback handlers, notification loop).
-* panel_bridge.py — panel/controller bridge.
-* manager_bot.py — ManagerBot (stats, work-day schedule toggles, M1 screenshots).
-* partner_stat_bot.py — PartnerBot stats.
+* main.py — controller + manager runtime + all `/command` handlers
+  (`_panel_execute_command_text`). ~31K lines; refactoring target (R2).
+* storage.py — DB layer (managers, leads, schedules, bizlinks, proxy_leases,
+  panel queue...).
+* panel_bot.py — AdminBot UI (menus, wizards, callback handlers, notification
+  loop). ~23K lines; refactoring target (R3).
+* panel_bridge.py, manager_bot.py, partner_stat_bot.py.
 * router.py, profile_extractor.py, profile_dialog.py, profile_texts.py,
   post_followup_texts.py, texts.py — lead parsing/dialog/texts.
-* manager_registry.py — manager registry helpers (`normalize_manager_key`, paths).
-* stats_engine.py, stats_parity_harness.py — shared stats logic (PartnerBot + ManagerBot).
+* manager_registry.py — manager registry helpers.
+* stats_engine.py, stats_parity_harness.py — shared stats logic.
 * health_server.py, soft_watchdog_pinger.py — health/watchdog.
-* proxy_provider.py — Proxy-Seller API client with spend-guard (`allow_spend=False` default,
-  raises `SpendGuardError`).
+* proxy_provider.py — Proxy-Seller API client with spend-guard
+  (`allow_spend=False` default, raises `SpendGuardError`).
 * proxy_parser.py — proxy string parsing/masking.
-* tools/*_selftest.py — offline selftests (temp SQLite + fake providers, no network).
+* tools/*_selftest.py — offline selftests (temp SQLite + fake providers,
+  no network). 169 files, all passing as of 2026-08-23.
+* tools/override_map.py — reports every definition of a name, marks the ACTIVE
+  one, lists delegation captures.
+* tools/ast_extract.py — the shared AST extraction harness for selftests.
 
-Platform/ops layer (Ubuntu migration, Stages 1–2):
+Platform/ops layer (Ubuntu):
 
-* process_control.py — THE single source of truth for "is this process alive": process
-  listing (psutil → /proc → `ps -eo ... -ww`), manager-key extraction from argv, verified
-  stop (systemd → SIGTERM → SIGKILL, always re-checked), start. Four separate consumers
-  used to answer this question differently; never reintroduce a local copy of this logic.
-* manager_launcher.py — manager startup with the session-isolation contract (see §6) and
-  the `start_status.json` result protocol.
-* tpilot_ctl.py — the operator CLI (`tpilot-ctl`), replaces all 30 deleted `.bat`/`.ps1`
-  scripts. Delegates to systemd when present, falls back to direct process control.
-* tpilot_paths.py — path resolution; see §2.
-* deploy/ — `install_ubuntu.sh` (idempotent installer) and `systemd/` (8 units +
-  `tpilot.target`, with `tpilot-manager@.service` templated per manager key).
+* process_control.py — THE single source of truth for "is this process alive":
+  process listing (psutil → /proc → `ps`), manager-key extraction from argv,
+  verified stop (systemd → SIGTERM → SIGKILL, always re-checked), start.
+  Never reintroduce a local copy of this logic.
+* manager_launcher.py — manager startup with the session-isolation contract
+  and the `start_status.json` result protocol.
+* tpilot_ctl.py — the operator CLI (`tpilot-ctl`). Delegates to systemd when
+  present, falls back to direct process control.
+* tpilot_paths.py — path resolution; see section 2.
+* deploy/ — `install_ubuntu.sh` (idempotent installer) and `systemd/`
+  (8 units + `tpilot.target`, `tpilot-manager@.service` templated per manager).
 
-Backups/old copies are NOT active code (main_beka03.06.py, *_cursor_copy.py, *.bak_*).
-Never edit or run them unless explicitly asked.
+Backup/old-copy files (`*.bak_*`, `*_cursor_copy.py`, `main_beka*.py`) are NOT
+active code and are scheduled for deletion in refactoring Stage R0.
 
-## 4. Critical architecture warnings
+## 4. Hard safety invariants (absolute — verify after ANY edit to these areas)
 
-* main.py and panel_bot.py contain MANY stacked override definitions of the same function.
-  Only the LAST definition is active. Before editing, locate the active def with
-  `python tools/override_map.py <name>` (Stage 3) — it reports every definition, marks the
-  ACTIVE one, and lists the delegation captures. Prefer it over `grep -n "def name" | tail -1`,
-  which misses helpers that are now module-level aliases rather than `def`s. Never assume
-  the first def is active. See §9 "Override chains" before deleting any duplicate.
-* New overrides follow the chain pattern: `_X_PREV = globals().get("name")` before redefining,
-  delegate to `_X_PREV` as fallback.
-* panel_bot.py callback handler order matters; for callback data where one string is a prefix
-  of another (e.g. `ppool:sync` vs `ppool:sync_confirm`) exact `==` matching is used —
-  preserve it.
-* main.py/panel_bot.py cannot be imported standalone (Telethon/env side effects at import).
-  Selftests use AST extraction (`ast.parse` + `ast.unparse` + `exec`) — follow the same
-  technique in tools/ when adding tests.
-* Avoid broad refactors. Minimal targeted patches only.
+These protect real money and live credentials. They constrain BEHAVIOR, never
+structure: code may move freely between files as long as these hold.
 
-## 5. Current working state (as of 2026-07-10)
-
-Deployed and working on server:
-
-* QR login for managers (segno==1.6.6 on server; QR token never logged; panel_bridge scrubs QR_URL).
-* Business links tg_limit classifier/retry (CHATLINKS_TOO_MUCH checked before no_business).
-* Reserve accounts (activation issues 15 links; activity in stats on activation date).
-* Stats engine wiring for PartnerBot + ManagerBot (AdminBot runtime-stats stage was still
-  pending; schedule_aware disabled globally).
-* ManagerBot M1 screenshots workflow.
-* C1 source work-days inheritance, C2 source greeting/away time inheritance,
-  C3 manager future schedule requests (all deployed).
-* Manager auth fix 2026-06-22: stable Telethon device fingerprint (`_TELETHON_DEVICE_KWARGS`),
-  optional `ONBOARD_API_ID`/`ONBOARD_API_HASH` env pair.
-* Proxy pool Stage 6 (P1–P4): proxy_leases table, pool screens in PanelBot
-  (list/card/check/sync/assign/unassign), buy flow with spend-guard, recover flow.
-* Proxy renew Stage 5: renew calc/confirm/defer commands + warning notifications.
-
-**Implemented locally, reviewed (PASS), NOT YET DEPLOYED: Proxy Pool Stage 6.1 (A–F).**
-Deploy package = `main.py`, `panel_bot.py`, `storage.py` (selftest file optional, not needed at runtime).
-Backups on old PC: `*.bak_pool_61_20260710_010112`.
-
-Stage 6.1 contents:
-
-* A — onboarding "🌐 Выбрать proxy из пула" picker (free/orphaned only, no spend,
-  success continues to phone step).
-* B — buy/assign result wording conditional on `check_ok` + recovery buttons on failed guard.
-* C — clean proxy card + "🔧 Детали" toggle + PIN-protected password reveal
-  (`ppool:reveal:` → PIN text input → direct local DB read in panel_bot.py,
-  NEVER through panel_commands; PIN env = PANEL_ADMIN_PASSWORD, fallback MANAGER_ADMIN_PASSWORD;
-  missing PIN env → deny "PIN не настроен").
-* D — pool screens edit-in-place (`_ppool_edit_or_send`); buy/renew results stay
-  as their own persisted messages (never deleted).
-* E — renewal warning dedupe: table `proxy_renew_notify_log(lease_id, notify_date, slot,
-  sent_at, PK(lease_id,notify_date,slot))` + `proxy_renew_notify_mark_once`; Kyiv slots
-  tomorrow_noon / today_morning / today_day / today_evening; grouped message for 2+ leases;
-  warnings never write last_renew_attempt_at.
-* F — per-proxy auto-renew toggle (`ppool:autorenew:` → `/proxy_pool_autorenew <id> <0|1>`);
-  shared executor `_prenew_execute_renewal` in main.py; auto-renew loop with slots
-  autorenew_pre / autorenew_today_* and full gate set (status active, auto_renew_enabled==1,
-  provider_type proxy_seller, provider_proxy_id present, period_id resolved, provider
-  configured, per-slot dedupe).
-
-## 6. Hard safety invariants (verify after ANY edit to these areas)
-
-* `allow_spend=True` appears as a real call argument in EXACTLY 2 places project-wide,
-  both in main.py: buy-confirm `make_ipv4` (in `_handle_manager_proxy_buy_confirm_command`)
-  and `prolong_make` inside `_prenew_execute_renewal` (~lines 29284/29693, will shift).
-  Audit with AST or regex after every change; selftest check 30 enforces this.
+* `allow_spend=True` appears as a real call argument in EXACTLY 2 places
+  project-wide: buy-confirm `make_ipv4` (manager proxy buy confirm) and
+  `prolong_make` inside the renewal executor (`_prenew_execute_renewal`).
+  Both currently live in main.py; after extraction (R2) they may live in the
+  proxy module — the COUNT stays 2. Audit with AST or regex after every change;
+  selftest check 30 enforces this.
 * `_pbuy_provider()` always constructs `ProxySellerProvider(..., allow_spend=False)`.
-* Raw proxy password never enters panel_commands/result_text/JSON/list/card — only
-  `has_password` boolean; reveal is panel-side direct sqlite read after correct PIN.
-* Passwords/API keys never logged or included in error texts (`_pbuy_safe_error` scrubs).
+* Raw proxy password never enters panel_commands/result_text/JSON/list/card —
+  only a `has_password` boolean. Reveal is panel-side direct sqlite read after
+  a correct PIN, compared with `hmac.compare_digest` (constant-time; keep it).
+* Passwords/API keys never logged or included in error texts
+  (`_pbuy_safe_error` scrubs).
 * check/sync/assign/unassign/choose-from-pool flows never call spend methods.
-* First client message is never profile evidence (first-message rule). Passive parsing
-  must always work; greeting/questionnaire settings must not block it.
-* Night leads/dolyoty window 17:00–08:00 only for stat modes needing it; normal stat
-  modes use calendar day 00:00–00:00. C2 affects greeting/away timing, not stats/dolyoty.
+* QR login token never logged; panel_bridge scrubs QR_URL from results.
+* First client message is never profile evidence (first-message rule). Passive
+  parsing must always work; greeting/questionnaire settings must not block it.
+* Night leads/dolyoty window 17:00–08:00 only for stat modes needing it; normal
+  stat modes use calendar day 00:00–00:00. C2 affects greeting/away timing,
+  not stats/dolyoty.
+* Session installation never guesses: `SESSION_SCHEMA_VERSIONS` in
+  `tdata_import/session_inspector.py` is an EXACT allow-set (`{7, 8}`), never a
+  `>=` range and never derived from the installed Telethon. Add a version only
+  after confirming the `sessions` row layout is unchanged. Telethon migrates
+  older `.session` files IN PLACE on first open — back up `runtime/managers/*/`
+  before any Telethon upgrade.
 
-## 7. Unresolved issues / risks / fragile areas
+## 5. Refactoring policy — ALLOWED (owner decision, 2026-08-23)
 
-* Stage 6.1 not deployed yet — deploy is the next step.
-* Non-blocking review notes for a future patch: `proxy_renew_notify_purge_old` exists but
-  is not wired anywhere (notify-log grows unbounded, harmless); PIN comparison is not
-  constant-time; `auto_renew_enabled` exists only in CREATE TABLE (fine because the deployed
-  Stage 6 buy flow already writes it — relevant only for very old DBs).
-* Verify `PANEL_ADMIN_PASSWORD` (or MANAGER_ADMIN_PASSWORD) is set on the server, otherwise
-  password reveal always denies (safe but unexpected).
-* AdminBot runtime-stats stage: pending (uncertain — verify current state on server).
-* Planned but unconfirmed (uncertain whether implemented/deployed): bulk "Ссылки на дату"
-  wizard (bld: namespace) + buyer-request push-card buttons; pending undeployed transfers-UX
-  changes in panel_bot.py/manager_bot.py/storage.py were mentioned in that plan — verify
-  against server before building on top.
-* Permanent risks: override traps, mojibake from PowerShell text edits, no git, Windows
-  PowerShell syntax differences, production DB/session protection, Telethon live-session
-  risks, deployment/restart risk, stale old-copy files.
+Full refactoring is permitted and desired: splitting main.py and panel_bot.py
+into modules, collapsing override chains, deleting dead code, adding CI gates.
+What replaces the old prohibition is a discipline, not a ban:
 
-## 8. Codex workflow (required)
+### Non-negotiable gates for EVERY refactoring step
 
-* Diagnostics/review: Mode **Ask permissions**, read-only. Owner sends output back.
-* Implementation: Mode **Accept edits**.
-* Risky/cross-file planning: **Plan mode**.
-* Final review before packaging: Mode **Ask**, read-only.
-* No partial deployment — deploy only when the whole block (all sub-stages) is implemented,
-  validated and reviewed.
-* Avoid Auto mode / Bypass permissions unless owner explicitly approves.
-* Plan screens: read-only audit → owner Rejects after report; approved implementation →
-  Accept; corrections → Revise with revision text only.
-* Model choice per task is set by the owner in the prompt header (historically:
-  Opus for diagnosis/review, Sonnet for implementation).
+1. **Full selftest suite passes** (all tools/*_selftest.py) before merging.
+   A step that cannot be validated by selftests gets a selftest first.
+2. **Invariant audit passes** (section 4): `allow_spend` count audit +
+   password-leak grep after every change in proxy/panel areas.
+3. **Behavior-preserving by default.** Refactoring commits change structure,
+   not behavior. Behavior changes ship as separate commits with their own tests.
+4. **One concern per commit**; work on feature branches; merge to the default
+   branch only when green.
+5. **Run `python tools/override_map.py <name>` before touching any function**
+   in main.py / panel_bot.py — only the LAST definition is active, and shadowed
+   defs are still reachable through `globals().get()` delegation captures
+   (325 in main.py). When collapsing a chain, preserve the full delegation
+   semantics of the ACTIVE body, then delete the shadowed defs it no longer
+   references — never delete first.
+6. **`tools/override_chain_selftest.py` pins the override counts.** Every
+   collapse batch must update its baseline deliberately, in the same commit,
+   with an explanation.
+7. **Mojibake scan after every edit of files with Russian text**: check for
+   `Ð`, `Ñ`, `â€` AND for U+FFFD
+   (`python -c "import sys; sys.exit('\ufffd' in open(sys.argv[1],encoding='utf-8').read())" <file>`).
+   Some files start with a UTF-8 BOM — read with `encoding="utf-8-sig"` in
+   analysis scripts.
 
-Per-task sequence: 1) read-only diagnosis → 2) owner sends output → 3) implementation
-prompt → 4) implementation → 5) owner sends output → 6) review → 7) package changed
-files only → 8) deploy with server backup → 9) restart + logs → 10) manual bot check.
+### Roadmap (execute in order; each stage independently shippable)
 
-## 9. Validation before any deploy
+* **R0 — Dead weight removal.** Delete backup/old-copy files (`*.bak_*`,
+  `*_cursor_copy.py`, `main_beka*.py`, stale zips/logs), extend .gitignore.
+  Zero code changes. Do NOT re-add the 20 MB `*.bak_datamove_*` artifacts —
+  the parity-test ground truth is recovered from git history (commit 5e13c32).
+* **R1 — Collapse override chains.** main.py: 63 duplicated top-level names
+  (139 shadowed defs, worst `_panel_execute_command_text` ×35); panel_bot.py:
+  35 (65 shadowed). Small batches (5–15 names), full selftest run + baseline
+  update per batch, per the gates above.
+* **R2 — Extract subsystems from main.py** into importable modules, one at a
+  time (suggested order: proxy pool/renew executor → bizlinks → lead dispatch →
+  daily report → panel command executor). main.py imports them. After each
+  extraction: selftests + invariant audit (the `allow_spend` count follows the
+  code to its new module).
+* **R3 — Split panel_bot.py by screen/namespace** (ppool, bld, onboarding,
+  stats screens, notification loop) into a `panel/` package. Preserve exact
+  callback-data matching semantics: where one callback string is a prefix of
+  another (e.g. `ppool:sync` vs `ppool:sync_confirm`), exact `==` matching is
+  used — keep it.
+* **R4 — Import hygiene.** Make modules importable without Telethon/env side
+  effects at import time (client construction under factories / `__main__`),
+  so selftests for extracted code use direct imports instead of AST extraction.
+* **R5 — Static gates / CI.** A single `tools/ci_check.py` running py_compile,
+  pyflakes/ruff, the invariant audit, the mojibake scan, and the selftest
+  suite; wire it into GitHub Actions and the deploy procedure.
+
+### Selftest technique during the transition
+
+Until R4 lands for a given module, main.py/panel_bot.py cannot be imported
+standalone. Existing selftests use AST extraction — **use the shared
+`tools/ast_extract.py`, never a new private copy.** It handles the four shapes
+private copies get wrong: module-level aliases (not `def`s), un-injected module
+namespaces (`safe_module_ns()`, splat FIRST so explicit fakes win), helper
+seams via the `_AUTO_HELPERS` allow-list (pure functions only; when a test
+controls time, bind `_tp_utc_now` to its clock with a NON-raising stub), and
+last-wins duplicate resolution. ~100 older selftests still carry a private
+copy — migrate opportunistically when touching one. Extracted modules (R2/R3)
+must be plainly importable and tested by direct import.
+
+## 6. Current state (as of 2026-08-23)
+
+* All product stages are in this repository and deployed or ready: QR login,
+  bizlink tg_limit classifier/retry, reserve accounts, stats engine wiring,
+  M1 screenshots, C1–C3 inheritance/schedule features, proxy pool Stage 6 and
+  6.1 (A–F), proxy renew Stage 5.
+* Post-6.1 fixes applied and pushed: `proxy_renew_notify_purge_old` wired into
+  the controller loop (notify-log no longer grows unbounded); PIN comparison
+  uses `hmac.compare_digest`.
+* Full diagnostic run 2026-08-23: 169/169 selftests PASS; pyflakes clean on
+  all active modules; invariant audit clean. Two tests
+  (`bizlink_readiness_integration`, `tg_health_recovery`) are slow and may
+  flake on timeouts under parallel runs — rerun individually before treating
+  as failures.
+* Operational check: verify `PANEL_ADMIN_PASSWORD` (fallback
+  `MANAGER_ADMIN_PASSWORD`) is set on the server, otherwise password reveal
+  always denies (safe but unexpected).
+
+## 7. Workflow
+
+Git is the source of truth. The old no-git, file-backup, mode-per-prompt
+workflow is retired.
+
+* Work on feature branches; merge to the default branch only when the gates in
+  section 5 are green. Direct pushes to the default branch require explicit
+  owner approval.
+* Owner pre-approval is required only for: production deploys, schema
+  migrations that drop/rewrite data, anything touching the spend paths
+  (section 4), and Telethon version upgrades (in-place session migration risk).
+* Never make real Proxy-Seller API calls, buy or renew real proxies in tests —
+  temp SQLite + fake providers only. Never run live Telegram sessions or sends
+  during diagnostics.
+* Do not run main.py / panel_bot.py / manager_bot.py / partner_stat_bot.py
+  directly unless explicitly asked.
+* Protected files — never edit or print secrets from: `.env`, `.env.TPilot`,
+  `*.session`, `sessions/`, `db/`, `runtime/`, `logs/`, `config/`, `exports/`,
+  `venv/`, `__pycache__/`. Production DB and `.session` files are never
+  committed and never edited by hand.
+* Communication with owner: respond in Russian; concise, professional,
+  practical. Structure: **Что сделали** / **Что будем делать**. For every
+  command, say exactly WHERE to run it (local checkout vs server).
+
+## 8. Validation before any merge or deploy
 
 ```
-cd /path/to/checkout
 ./venv/bin/python -m py_compile main.py panel_bot.py panel_bridge.py storage.py \
   manager_registry.py stats_engine.py partner_stat_bot.py manager_bot.py \
   process_control.py preflight_check.py soft_watchdog_pinger.py health_server.py \
   manager_launcher.py tpilot_ctl.py tpilot_paths.py
 ```
 
-For proxy work also run the offline selftests (temp SQLite + fake providers, no network,
-no spend):
+Selftests: run the full suite for refactoring stages; for targeted feature
+work, at minimum the suites covering the touched area, e.g.:
 
 ```
 for t in tools/proxy_*_selftest.py; do ./venv/bin/python "$t"; done
-```
-
-For any change to process control, startup, or the deploy layer:
-
-```
 ./venv/bin/python tools/process_control_selftest.py
 ./venv/bin/python tools/manager_launcher_selftest.py
 bash -n deploy/install_ubuntu.sh && bash deploy/install_ubuntu.sh --dry-run
 ```
 
-Always also: mojibake scan (search `Ð`, `Ñ`, `â€`) in changed files; allow_spend audit;
-show diff/summary before owner approval.
+Always also: mojibake scan (both classes, section 5 gate 7) in changed files;
+`allow_spend` audit; diff/summary before owner approval of protected changes.
 
-### Selftest harness (Stage 3 — all 26 formerly failing selftests resolved)
+## 9. Deployment (Ubuntu)
 
-A full-suite run surfaced 26 failures, every one pre-existing (verified against a clean
-`git archive HEAD` tree). None were product bugs. 17 were STALE TEST HARNESSES — the
-product code had been refactored correctly and the AST-extraction harnesses were never
-updated; all are fixed. 9 were one-shot audit guards whose Windows-only baselines
-(`C:\ALM_TPilot_AUDIT\<date>\...`) are unrecoverable — deleted with owner approval
-(2026-08-22): `rc_scope_guard`, `w3_{1,2,3,4}_scope_guard`, `w3_3_b_scope_guard`,
-`w3_2_d6d7_correction_scope_guard`, `w1_proxy_guard_sweep_observability`,
-`w3_3_c1_reader_parity`, plus their three `*_mutation_proof.py` companions that imported
-them. Do not resurrect them without their baselines.
-
-**`tools/ast_extract.py` is now the shared AST harness. Use it — do not write a new
-private copy.** ~100 of the remaining selftests still carry their own copy; migrate
-opportunistically when touching one (delegating a local `extract_and_exec` to the shared
-one is usually a 5-line change). It handles the four shapes a private copy always gets
-wrong:
-
-1. **Module-level alias, not a `def`.** When a helper moves into a module and is re-bound
-   (`_proxy_port_int = proxy_parser.proxy_port_int`), a def-only extractor reports
-   "missing def". Affected `deleted_manager_stats_retention`, `proxy_buy_flow`,
-   `tdata_import_adminbot_wiring`, `tdimport_onboarding_convergence`.
-2. **Un-injected module in the exec namespace.** Extracted `main.py` code reaches modules
-   through module-level `import` aliases, which name-based extraction never captures →
-   `NameError: text_format_helpers / proxy_parser`. `safe_module_ns()` seeds them all;
-   splat it FIRST so explicit fakes still win. Affected `manager_relogin`,
-   `manager_replacement_{adminbot,backend,commit}`, `replacement_tdimport`,
-   `qr_auth_context` (×4 namespaces in one file). (`identity_sync_ira` was the same
-   shape but a real `storage._db_conn` dependency, bound explicitly.)
-3. **Refactor-introduced helper seams.** The utcnow refactor (2026-08-16) routed naive-UTC
-   reads through `_tp_utc_now()`, and every harness that exec'd extracted code broke at
-   once (`tg_health_recovery`, `tg_health_peerflood_failclosed`,
-   `w3_2_business_date_fallback`). The shared harness now auto-pulls such helpers via the
-   `_AUTO_HELPERS` allow-list — explicitly enumerated, pure functions only, never general
-   transitive extraction (that would drag DB/Telethon code past the tests' fakes). When a
-   test controls time itself, bind `_tp_utc_now` to ITS clock — but keep it a
-   non-raising one: the real `_tp_utc_now` is pure and cannot fail, so a stub that raises
-   (e.g. derived from a deliberately failing Kyiv clock) makes tests fail on an exception
-   the product cannot produce.
-4. **Last-wins.** `extract_nodes` takes the LAST top-level definition, matching Python and
-   the override convention in §4. Private copies that collect every occurrence break on
-   any duplicated name. Accepts `str` or `Path`.
-
-**Mojibake is not only cosmetic — it lives in PRODUCT strings.** A repo-wide U+FFFD scan
-(2026-08-22) found 109 replacement characters baked into `main.py` (83), `panel_bot.py`
-(24), and `process_control.py` (2) — all inside user-facing Russian Telegram texts
-("менед��еру", "На��мите", buttons, alert titles), plus one inside a selftest's expected
-literal that made its check unpassable (`tdimport_onboarding_convergence`). All repaired.
-The `Ð/Ñ/â€` grep in the deploy gate does NOT catch this class — those patterns match
-double-encoded UTF-8, while these were U+FFFD bytes written by a lossy editor. Scan for
-both: `python -c "import sys; sys.exit('\ufffd' in open(sys.argv[1],encoding='utf-8').read())" <file>`.
-
-Ground truth for `liquid_ru_locations_parity` / `non_liquid_locations_parity` (267k
-records) is recovered from **git history** — commit 5e13c32 untracked the
-`*.bak_datamove_*` artifacts on purpose, but the blobs remain reachable. Do NOT re-add
-those 20 MB files to the working tree.
-
-**`prepared_accounts_offline_import`: 17 failures, one root cause — and a live hazard.**
-`tdata_import/session_inspector.py` hardcoded schema `7` (telethon==1.42.0). Telethon
-1.44 writes schema **8**, so on any host resolving a newer Telethon EVERY prepared-account
-import fails with "unsupported schema version 8 (need 7)" — a message that blames the
-operator's session file, not the dependency.
-
-It is now `SESSION_SCHEMA_VERSIONS = frozenset({7, 8})`, an allow-SET, and that shape is
-load-bearing in both directions. Pinning a single version — including deriving it from the
-installed Telethon — rejects the other half of the real world: live sessions on disk are
-v7 while a newer Telethon writes v8, and both are legitimate inputs. (Tracking the library
-alone was tried first and broke 7 checks in `tdata_session_inspector`, because it rejected
-every existing v7 session — a worse outage than the one being fixed.) Membership stays
-EXACT, never `>= 7`: an unknown future schema must still be refused, since session
-installation is the one place this project must not guess — a wrong `.session` install is
-unrecoverable without re-login. Add a version only after confirming the `sessions` row
-layout (dc_id / server_address / port / auth_key) is unchanged in it.
-
-The real danger is on disk: **Telethon migrates an older `.session` IN PLACE on first
-open** (`SQLiteSession.__init__` → `_upgrade_database` + `save`). All live sessions are
-schema 7, so a Telethon upgrade is a one-way migration of live credentials, recoverable
-only from a backup. `tpilot-ctl doctor` now names every stale session and warns before
-managers start; `install_ubuntu.sh` reports the same agreement at install time. **Back up
-`runtime/managers/*/` before any Telethon upgrade.**
-
-### Override chains: navigate, do not "clean up"
-
-`main.py` has 63 duplicated top-level names (139 shadowed defs, worst:
-`_panel_execute_command_text` ×35); `panel_bot.py` has 35 (65 shadowed). These are NOT
-dead code — every duplicated name participates in delegation (325 `globals().get()`
-captures in `main.py`), so a shadowed def is still reachable as a fallback and deleting
-one silently drops behaviour.
-
-- `python tools/override_map.py <name>` — every definition, which one is ACTIVE, and the
-  delegation captures. Use this instead of `grep -n "def name" | tail -1`.
-- `python tools/override_map.py --stats` — whole-file picture.
-- `tools/override_chain_selftest.py` pins the counts, so a "duplicate cleanup" that drops
-  a shadowed def fails loudly (mutation-verified). Update the baseline only with a
-  deliberate, explained change.
-
-## 10. Deployment process
-
-First-time install on a new Ubuntu host:
+First-time install on a new host:
 
 ```
 sudo bash deploy/install_ubuntu.sh --dry-run    # review the plan first
 sudo bash deploy/install_ubuntu.sh
 ```
 
-The installer is idempotent and never overwrites `.env.TPilot`, the DB, or `.session`
-files. It creates the `tpilot` service user, the venv, 8 systemd units, and the
-`tpilot-ctl` command.
+The installer is idempotent and never overwrites `.env.TPilot`, the DB, or
+`.session` files. It creates the `tpilot` service user, the venv, 8 systemd
+units, and the `tpilot-ctl` command.
 
 Updating an existing deployment:
 
 ```
 cd /opt/tpilot
-sudo -u tpilot git pull                     # or rsync the changed files
-sudo -u tpilot ./venv/bin/python -m py_compile <changed files>   # see §9
+sudo -u tpilot git pull            # deploy from a known-good commit/tag
+sudo -u tpilot ./venv/bin/python -m py_compile <changed files>
 sudo tpilot-ctl restart-all
 ```
 
@@ -348,77 +294,15 @@ Checks after restart:
 
 ```
 tpilot-ctl status
-tpilot-ctl doctor
+tpilot-ctl doctor                  # also names stale sessions before a Telethon upgrade
 journalctl -u tpilot-panel -n 40
 journalctl -u tpilot-manager@<key> -n 40 -f
 ```
 
-If only PanelBot changed: `sudo systemctl restart tpilot-panel`. (The unit is
-`tpilot-panel.service`; `tpilot-manager-bot.service` is the separate ManagerBot.)
+If only PanelBot changed: `sudo systemctl restart tpilot-panel`
+(`tpilot-manager-bot.service` is the separate ManagerBot).
 
-Rollback: systemd keeps the previous unit files, but code rollback is still manual —
-take a timestamped copy of changed files before overwriting them (§2 backup rule still
-applies; there is no git history on the server).
-
-NOTE: the old Windows rule "duplicate Python process pairs are normal (venv launcher +
-AppData child), do not kill the child separately" is Windows-only and is enforced in code
-by `process_control.collapse_launcher_children`. On Linux a manager process is NOT a
-launcher pair, and every listed manager PID is real.
-
-## 11. Protected files and folders
-
-Never edit or print secrets from: `.env`, `.env.TPilot`, `*.session`, `sessions/`, `db/`,
-`runtime/`, `logs/`, `config/`, `exports/`, `venv/`, `__pycache__/`.
-
-* Do not query production DB unless explicitly asked.
-* Do not run live Telegram sessions or sends during diagnostics.
-* Do not run main.py / panel_bot.py / manager_bot.py / partner_stat_bot.py directly
-  unless explicitly asked.
-* Never edit production server files without backup + explicit deployment step.
-* Never make real Proxy-Seller API calls, buy or renew real proxies in tests —
-  temp SQLite + fake providers only.
-
-## 12. Windows command style + encoding
-
-* Short familiar PowerShell/BAT commands. No Bash heredoc on Windows. No long scripts
-  unless absolutely needed.
-* Server scripts: `stop_everything.bat`, `start_everything.bat`, `restart_everything.bat`,
-  `start_manager_bot.bat`, `start_panel_bot.bat`.
-* NEVER edit Python files with Russian text via `Get-Content | Set-Content` — it creates
-  mojibake. Use Python with explicit UTF-8:
-
-```
-@'
-from pathlib import Path
-p = Path("panel_bot.py")
-text = p.read_text(encoding="utf-8")
-text = text.replace("old", "new")
-p.write_text(text, encoding="utf-8")
-'@ | python3.12 -
-```
-
-* After any text edit, scan for mojibake patterns: `Ð`, `Ñ`, `â€`.
-* Note: some project files start with a UTF-8 BOM — read with `encoding="utf-8-sig"`
-  in analysis scripts.
-
-## 13. Communication with owner
-
-* Respond in Russian. Concise, professional, practical, cautious.
-* Always structure: **Что сделали** / **Что будем делать**.
-* For every command: say exactly WHERE to run it (local PC vs server).
-* For every Codex prompt: specify Mode, Model, Working directory.
-
-## 14. How future prompts must be structured
-
-Every task prompt to Codex contains:
-
-1. Working directory.
-2. Mode (Ask / Accept edits / Plan) + Model.
-3. Permissions: exact list of files allowed to edit.
-4. Hard constraints (no deploy, no real API calls, no .env/DB/session/log edits, backups first).
-5. Task description with exact expected behavior per sub-stage.
-6. Required tests/validation commands.
-7. Expected output format (numbered report: backups, files changed, what was implemented,
-   DB changes, test results, confirmations, risks).
-
-Backup naming: `filename.py.bak_<patch>_<YYYYMMDD_HHMMSS>`, created BEFORE editing.
+Rollback: `git checkout <previous-good-commit>` on the server tree + restart.
+Take a DB backup before schema-affecting releases; back up
+`runtime/managers/*/` before any Telethon upgrade (one-way in-place `.session`
+migration).
