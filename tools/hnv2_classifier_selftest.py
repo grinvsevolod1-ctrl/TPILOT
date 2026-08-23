@@ -183,7 +183,10 @@ def test_scenario_1_peerflood_protected_invariants():
     for name, expected in (
         # OVERRIDE CLEANUP 20260815: _send_manager_private 4 -> 3 (one dead
         # shadowed def removed; active chain unchanged).
-        ("_tp_hg_send_allowed", 1), ("_send_manager_private", 3),
+        # R1 BATCH 1 20260823: _send_manager_private 3 -> 1 (two remaining
+        # provably-dead shadowed defs removed by tools/collapse_dead_defs.py;
+        # the active thin wrapper over _send_manager_private_ex is unchanged).
+        ("_tp_hg_send_allowed", 1), ("_send_manager_private", 1),
         ("_process_profile_reminders_once", 2), ("_process_post_manual_followups_once", 2),
         ("_health_incident_handle", 1), ("_health_incident_notify", 1),
         ("_m212a_write_start_status", 1),

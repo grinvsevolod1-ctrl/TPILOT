@@ -1732,9 +1732,13 @@ def test_t10_zero_historical_repair():
     print("\n-- T10: R1A1 introduces no historical repair path --")
     src = MAIN_PY.read_text(encoding="utf-8-sig")
     update_sites = [i for i in range(len(src)) if src.startswith("UPDATE partner_lead_events", i)]
-    check("T10a. exactly one bare 'UPDATE partner_lead_events' site project-wide "
-          "(the dead/shadowed def only -- B-1 correction removed the ACTIVE writer's)",
-          len(update_sites) == 1, len(update_sites))
+    # R1 BATCH 1 20260823: 1 -> 0. The single remaining site lived in the
+    # dead/shadowed def at main.py ~2475, which tools/collapse_dead_defs.py
+    # removed. Zero sites is the strongest form of this invariant: no code
+    # path (active OR dead) can issue a bare UPDATE against the table.
+    check("T10a. zero bare 'UPDATE partner_lead_events' sites project-wide "
+          "(B-1 removed the ACTIVE writer's; R1 batch 1 removed the dead def's)",
+          len(update_sites) == 0, len(update_sites))
 
     tree = ast.parse(src)
     reclassify_src = ""

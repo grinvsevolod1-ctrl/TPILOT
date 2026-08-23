@@ -910,7 +910,12 @@ def test_16_historical_manager_admin_callback_handled() -> None:
 def test_17_old_chain_and_prev_captures_intact() -> None:
     text_defs = len(re.findall(r'^def _manager_admin_detail_text\(', PANEL_SRC, re.M))
     button_defs = len(re.findall(r'^def _manager_admin_detail_buttons\(', PANEL_SRC, re.M))
-    check("17. old admin-card TEXT chain still has all 3 defs (base + tp_visual + M2.12A)", text_defs == 3, text_defs)
+    # R1 BATCH 1 20260823: TEXT chain 3 -> 2. The base def was provably dead
+    # (the _M212A_ORIG capture sits AFTER the tp_visual redefinition, so it
+    # captured tp_visual, never base) and was removed by
+    # tools/collapse_dead_defs.py. The captured links (tp_visual + M2.12A)
+    # and all PREV-capture markers below remain intact.
+    check("17. old admin-card TEXT chain has both LIVE defs (tp_visual + M2.12A)", text_defs == 2, text_defs)
     check("17. old admin-card BUTTONS chain still has all 4 defs (base + M2.12A + relogin + replace)", button_defs == 4, button_defs)
 
     for marker in (
@@ -1178,7 +1183,7 @@ def test_n21_7_manager_info_button_restored() -> None:
     try:
         ns = build_card_ns(db_path)
         rows = ns["_manager_settings_card_buttons"]("mgr01")
-        check("N2.1-7. [N5.4.3] unified card has '📄 Полная карточка' -> menu:manager_full:{key} (native screen)",
+        check("N2.1-7. [N5.4.3] unified card has '�� Полная карточка' -> menu:manager_full:{key} (native screen)",
               _find(rows, label="📄 Полная карточка", data=b"menu:manager_full:mgr01") is not None, rows)
         check("N2.1-7. [N5.4.3] the button no longer emits the background cmd:/manager_info command",
               _find(rows, label="📄 Полная карточка", data=b"cmd:/manager_info mgr01") is None, rows)

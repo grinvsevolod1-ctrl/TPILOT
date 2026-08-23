@@ -169,8 +169,11 @@ def main() -> None:
 
     assert len(gate_nodes) == 1
     # was 4 (3 dead + 1 active); commit ef4fb8d ("streamline lead status...")
-    # removed one DEAD override -- active thin wrapper is still last-def
-    assert len(send_nodes) == 3
+    # removed one DEAD override -- active thin wrapper is still last-def.
+    # R1 BATCH 1 20260823: 3 -> 1 (the two remaining provably-dead shadowed
+    # defs removed by tools/collapse_dead_defs.py; active wrapper unchanged,
+    # still asserted below via "_send_manager_private_ex" in its body).
+    assert len(send_nodes) == 1
     assert len(send_ex_nodes) == 1
     assert len(profile_nodes) == 2
     assert len(followup_nodes) == 2
