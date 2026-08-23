@@ -2893,7 +2893,7 @@ async def _handle_manager_plaintext(event: events.NewMessage.Event) -> bool:
             return True
         lines = [
             f"Ключ: {row.get('manager_key')}",
-            f"О��ображение: {_manager_label_from_row(row)}",
+            f"Отображение: {_manager_label_from_row(row)}",
             f"Статус: {_manager_status_label(row)}",
             f"Телефон: {mask_phone(str(row.get('phone') or ''))}",
             f"owner_user_id: {row.get('owner_user_id') or '_'}",
@@ -5709,7 +5709,7 @@ async def _panel_manager_db_clear_command(args: str, *, requested_by: int = 0) -
             restart_text = "Менеджер перезапущен." if ok else f"Перезапуск не удался: {msg}"
         else:
             await manager_set_fields(key, manual_stopped=1)
-            restart_text = "Менеджер был остановлен до очистки, поэтому оставл��н stopped."
+            restart_text = "Менеджер был остановлен до очистки, поэтому оставлен stopped."
         await _log_manager_danger_action("clear_db", key, requested_by, backup_path=backup_path, result="ok")
         return "\n".join([
             "✅ База менеджера очищена",
@@ -6936,7 +6936,7 @@ async def _handle_source_command(args: str, *, user_id: int = 0) -> str:
         except Exception:
             sched = None
         if sched and int(sched.get("enabled") or 0) == 1:
-            schedule_line = "📅 График источника при��енён: менеджер наследует график источника."
+            schedule_line = "📅 График источника применён: менеджер наследует график источника."
         else:
             schedule_line = "⚠️ У источника не настроен график дней. Настройте график источника или дни менеджера."
         return f"✅ Менеджер закреплён за источником\nМенеджер: {manager_key}\nИсточник: {source_key}\n{schedule_line}"
@@ -8771,7 +8771,7 @@ async def _manager_relogin_qr_start(owner_user_id: int, manager_key: str) -> str
     expires_iso = _qr_expires_iso(qr)
     _manager_auth_audit_log("relogin_qr_start", key, ok=1, admin_user_id=owner, api_profile=api_profile_name)
     return (
-        "🔳 Вход по QR (перез��йти)\n"
+        "🔳 Вход по QR (перезайти)\n"
         f"QR_URL={qr.url}\n"
         f"EXPIRES={expires_iso or '_'}\n"
         f"Код действителен до: {_iso_to_local_hhmm(expires_iso) if expires_iso else '_'}\n"
@@ -9703,7 +9703,7 @@ async def _format_manager_followup_status(target: str = "all") -> str:
     if not any_row:
         lines.append("Менеджеры не найдены.")
     lines.append("")
-    lines.append("Точное сообщение менеджера ссууппеерр НАВСЕГДА останавливает всю автоматику (приветствия, анкету, дожимы, напоминания) по конкретному лиду. Действие необратимо и не сбрасывается перезапу��ком.")
+    lines.append("Точное сообщение менеджера ссууппеерр НАВСЕГДА останавливает всю автоматику (приветствия, анкету, дожимы, напоминания) по конкретному лиду. Действие необратимо и не сбрасывается перезапуском.")
     return chr(10).join(lines).rstrip()
 
 
@@ -15412,7 +15412,7 @@ def _tpag_stability_soft_allow_text(key: str, row: Dict[str, Any], err: str, fai
         f"Последняя успешная проверка: {last_ok}",
         f"Сбоев подряд: {int(fail_count or 0)}",
         "",
-        "Действие: вход без proxy не раз��ешён, менеджер продолжает работу через ранее подтверждённый proxy.",
+        "Действие: вход без proxy не разрешён, менеджер продолжает работу через ранее подтверждённый proxy.",
     ]).rstrip()
 
 
@@ -25291,7 +25291,7 @@ async def _schedule_summary_if_due() -> None:
         # Intersect: working AND active
         working_active = [k for k in working_keys if k in active_map]
         lines = [
-            "\U0001f4c5 Кто р��ботает завтра",
+            "\U0001f4c5 Кто работает завтра",
             "Дата: {}".format(tomorr_disp),
             "",
             "Всего работает: {}".format(len(working_active)),
@@ -25366,7 +25366,7 @@ async def _queue_bizlink_create_n_for_manager(
             manager_queue_put as _mqput_cn,
         )
     except Exception as e:
-        return False, f"Ошибка очереди менеджер��: {e!r}"
+        return False, f"Ошибка очереди менеджера: {e!r}"
 
     mk = registry_normalize_manager_key(manager_key)
     if not mk:
@@ -33184,7 +33184,7 @@ async def replacement_send_phone_code(
             if not _repl_storage.replacement_advance(op, "auth_phone", "auth_code", stage="code_accepted_reconciled", db_path=db_path):
                 return _replacement_result(False, "stale_state", "Операция изменилась, начните заново.", operation_id=op)
             return _replacement_result(
-                True, "code_accepted_reconciled", "Код уже был отправлен ране��. Введите код Telegram.",
+                True, "code_accepted_reconciled", "Код уже был отправлен ранее. Введите код Telegram.",
                 operation_id=op, next_step="submit_code", new_manager_key=key,
             )
 
@@ -35352,7 +35352,7 @@ async def _repl4_cutover_old_manager(op_row: Dict[str, Any], old_key: str, new_k
             pass
         await _manager_delete_full_core(old_key, requested_by=int(op_row.get("created_by_user_id") or 0))
         if await manager_get(old_key):
-            return _repl4_result(False, "cutover_delete_failed", "Не удалось ��далить старого менеджера.", op, op_row, manual_recovery_required=True)
+            return _repl4_result(False, "cutover_delete_failed", "Не удалось удалить старого менеджера.", op, op_row, manual_recovery_required=True)
 
     # TPILOT FIX-4 20260718b: forward-only progress marker -- old manager is
     # now confirmed gone (either just now, or on a prior attempt). Written
@@ -38957,7 +38957,7 @@ async def _hnv2_family_recovery_evidence(family: str, evidence_key: str, ev: dic
     SAME tick's fresh _hnv2_classify_root_cause(ev) result for this
     manager -- needed specifically by worker_stuck_starting (plan I.2.2:
     "...и только при условии, что ни одна более приоритетная непочиняемая
-    причина сейчас не а��тивна"). Without this, a worker that reaches
+    причина сейчас не активна"). Without this, a worker that reaches
     phase='running' at the exact moment a NEW higher-priority cause begins
     (e.g. proxy just went blocked) could spuriously resolve the OLDER
     worker_stuck_starting incident while the account is actively failing
