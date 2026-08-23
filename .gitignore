@@ -38,6 +38,12 @@ exports/
 /check_*.py
 /repair_*.py
 
+# --- GitHub Actions workflow: the v0/App git token lacks the 'workflows'
+# permission, so pushes containing this file are rejected. Add the file once
+# via the GitHub web UI (content lives in the repo docs / tools/ci_check.py
+# header), then remove this ignore. ---
+.github/workflows/
+
 # --- archives / editor noise ---
 *.rar
 *.zip
